@@ -327,11 +327,11 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
           <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", flex: 1 }}>
             <Compass size={18} color="var(--accent)" style={{ flexShrink: 0, marginTop: "2px" }} />
             <div style={{ fontSize: "var(--text-xs)", lineHeight: 1.5 }}>
-              <strong style={{ color: "var(--text-primary)" }}>Chưa quen với buồng mô phỏng này?</strong>{" "}
+              <strong style={{ color: "var(--text-primary)" }}>New to this simulation workbench?</strong>{" "}
               <span style={{ color: "var(--text-secondary)" }}>
-                <strong>1.</strong> Chọn <em>Scenario</em> để xem kịch bản mẫu &bull;{" "}
-                <strong>2.</strong> Bấm <em>Step (Space)</em> hoặc <em>Play (P)</em> để bước từng nhịp &bull;{" "}
-                <strong>3.</strong> Thử các nút <em>Hành động / Bơm lỗi</em> bên dưới để tự tay kiểm chứng.
+                <strong>1.</strong> Select a <em>Scenario</em> for predefined incident tapes &bull;{" "}
+                <strong>2.</strong> Press <em>Step (Space)</em> or <em>Play (P)</em> to advance discrete ticks &bull;{" "}
+                <strong>3.</strong> Use <em>Actions &amp; Fault Injection</em> controls below to test system invariants.
               </span>
             </div>
           </div>
@@ -345,14 +345,14 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
               className="btn"
               style={{ fontSize: "var(--text-xs)", padding: "2px 8px" }}
             >
-              Xem hướng dẫn
+              View Guide
             </button>
             <button
               type="button"
               onClick={handleDismissWelcome}
               className="icon-button"
               style={{ width: "24px", height: "24px" }}
-              title="Đóng gợi ý này"
+              title="Dismiss this hint"
               aria-label="Dismiss guide hint"
             >
               <X size={13} />
@@ -697,14 +697,14 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
                     color: "var(--text-primary)",
                   }}
                 >
-                  Cẩm Nang Tương Tác Lab Mô Phỏng (Lab Field Guide)
+                  Interactive Simulation Field Guide
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowGuideModal(false)}
                 className="icon-button"
-                title="Đóng hướng dẫn"
+                title="Close guide"
                 aria-label="Close guide modal"
               >
                 <X size={16} />
@@ -716,16 +716,16 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
               <div className="lab-guide-card">
                 <div className="lab-guide-card-title">
                   <Sliders size={16} color="var(--accent)" />
-                  <span>1. Điều Khiển &amp; Phím Tắt</span>
+                  <span>1. Controls &amp; Shortcuts</span>
                 </div>
                 <div className="lab-guide-card-body">
-                  <span>Điều khiển cỗ máy thời gian mô phỏng theo từng nhịp:</span>
+                  <span>Control the simulation timeline with discrete precision:</span>
                   <ul>
-                    <li><code>Space</code> / <strong>Next</strong>: Bước tới 1 nhịp trạng thái.</li>
-                    <li><code>P</code> / <strong>Play</strong>: Tự động chạy liên tục các nhịp.</li>
-                    <li><code>R</code> / <strong>Reset</strong>: Tua về trạng thái ban đầu.</li>
-                    <li><code>F</code>: Bật/tắt toàn màn hình (Fullscreen).</li>
-                    <li>Phím số <code>1</code>, <code>2</code>, <code>3</code>: Chọn nhanh kịch bản dựng sẵn.</li>
+                    <li><code>Space</code> / <strong>Next</strong>: Advance by 1 state frame.</li>
+                    <li><code>P</code> / <strong>Play</strong>: Toggle automated playback loop.</li>
+                    <li><code>R</code> / <strong>Reset</strong>: Revert to initial steady state.</li>
+                    <li><code>F</code>: Toggle Fullscreen workbench.</li>
+                    <li>Number keys <code>1</code>, <code>2</code>, <code>3</code>: Quick-select incident presets.</li>
                   </ul>
                 </div>
               </div>
@@ -734,15 +734,15 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
               <div className="lab-guide-card">
                 <div className="lab-guide-card-title">
                   <Activity size={16} color="var(--ok)" />
-                  <span>2. Ý Nghĩa Màu Sắc (Visual Tones)</span>
+                  <span>2. Visual Tones &amp; System Health</span>
                 </div>
                 <div className="lab-guide-card-body">
-                  <span>Màu sắc trên các Lane phản ánh đúng sức khỏe kiến trúc:</span>
+                  <span>Visual tones across lanes faithfully reflect real system conditions:</span>
                   <ul>
-                    <li><strong style={{ color: "var(--ok)" }}>Xanh lá (Normal)</strong>: Luồng xử lý ổn định, committed, cache hit.</li>
-                    <li><strong style={{ color: "var(--warn)" }}>Vàng (Warning)</strong>: Đang dirty, rebalance, cache miss, pending.</li>
-                    <li><strong style={{ color: "var(--danger)" }}>Đỏ (Danger)</strong>: Xung đột lock, starvation, exception, dropped.</li>
-                    <li><strong style={{ color: "var(--accent)" }}>Xanh dương (Active)</strong>: Node/con trỏ đang được inspect trực tiếp.</li>
+                    <li><strong style={{ color: "var(--ok)" }}>Green (Normal)</strong>: Stable processing, committed state, cache hit.</li>
+                    <li><strong style={{ color: "var(--warn)" }}>Amber (Warning)</strong>: Dirty buffer, rebalancing, cache miss, pending.</li>
+                    <li><strong style={{ color: "var(--danger)" }}>Red (Danger)</strong>: Lock contention, starvation, unhandled exception, leak.</li>
+                    <li><strong style={{ color: "var(--accent)" }}>Blue (Active)</strong>: Currently inspected node or pointer.</li>
                   </ul>
                 </div>
               </div>
@@ -751,14 +751,14 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
               <div className="lab-guide-card">
                 <div className="lab-guide-card-title">
                   <Lightbulb size={16} color="var(--accent)" />
-                  <span>3. Tác Động &amp; Bơm Lỗi (Fault Injection)</span>
+                  <span>3. Actions &amp; Fault Injection</span>
                 </div>
                 <div className="lab-guide-card-body">
-                  <span>Chủ động tương tác với hệ thống qua cụm nút bên dưới:</span>
+                  <span>Proactively interact with the system via domain controls below:</span>
                   <ul>
-                    <li>Gửi message, crash consumer, flush buffer, commit transaction.</li>
-                    <li>Mỗi hành động đẩy một lệnh (Command) vào State Machine.</li>
-                    <li>Xem kết quả phản ánh tức thì tại tab <strong>Protocol Events</strong> và <strong>Invariants</strong>.</li>
+                    <li>Produce messages, crash consumers, flush buffers, commit transactions.</li>
+                    <li>Every action dispatches an explicit Command into the State Machine.</li>
+                    <li>Inspect immediate consequences in the <strong>Protocol Events</strong> and <strong>Invariants</strong> tabs.</li>
                   </ul>
                 </div>
               </div>
@@ -767,14 +767,14 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
               <div className="lab-guide-card">
                 <div className="lab-guide-card-title">
                   <Target size={16} color="var(--ok)" />
-                  <span>4. Hoàn Thành Thử Thách (Lab Missions)</span>
+                  <span>4. Hands-on Lab Missions</span>
                 </div>
                 <div className="lab-guide-card-body">
-                  <span>Rèn luyện trực giác kỹ thuật qua các nhiệm vụ thực chiến:</span>
+                  <span>Build real architectural intuition through targeted challenges:</span>
                   <ul>
-                    <li>Đọc yêu cầu nhiệm vụ trên dải băng <strong>LAB MISSIONS</strong>.</li>
-                    <li>Thao tác sao cho hệ thống rơi vào trạng thái mục tiêu (vd: trigger rebalance, deadlock).</li>
-                    <li>Khi điều kiện thỏa mãn, huy hiệu sẽ chuyển sang <code>[SOLVED]</code>!</li>
+                    <li>Review the challenge goal on the <strong>LAB MISSIONS</strong> bar.</li>
+                    <li>Manipulate the system into the target state (e.g. trigger rebalance storm, deadlock).</li>
+                    <li>When invariants are satisfied, the mission badge unlocks as <code>[SOLVED]</code>!</li>
                   </ul>
                 </div>
               </div>
@@ -796,7 +796,7 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
                 className="btn btn-primary"
                 style={{ fontSize: "var(--text-xs)" }}
               >
-                Đã hiểu, bắt đầu khám phá!
+                Got it, let's explore!
               </button>
             </div>
           </div>

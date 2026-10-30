@@ -227,10 +227,6 @@ export const javaOptionalEngine: SimulationEngineSpec<
           "An Optional box is allocated on the Heap. Remember: Optional is intended as a library method return type to represent absent values, NOT for method arguments or serializable domain entities.",
         summaryEn:
           "An Optional box is allocated on the Heap. Remember: Optional is intended as a library method return type to represent absent values, NOT for method arguments or serializable domain entities.",
-        summaryVi:
-          "Đối tượng Optional được cấp phát trên Heap (tốn 16-24 bytes). Lưu ý: Optional được thiết kế làm kiểu trả về của method để báo hiệu giá trị có thể vắng mặt, KHÔNG dùng làm field của Entity hoặc tham số đầu vào.",
-        productionWarningVi:
-          "Tuyệt đối không dùng Optional làm field của JPA Entity hoặc DTO vì Optional KHÔNG implement Serializable, sẽ làm sập Jackson hoặc cache Redis phân tán!",
       },
       metrics: {
         "Is Present": state.isPresent ? "YES" : "EMPTY",
@@ -246,8 +242,6 @@ export const javaOptionalEngine: SimulationEngineSpec<
     const state = JSON.parse(JSON.stringify(frame.state)) as JavaOptionalState;
     const events = [...frame.events];
     let narrationEn = "";
-    let narrationVi = "";
-    let prodWarningVi: string | undefined = undefined;
 
     switch (command.type) {
       case "RUN_OR_ELSE_EAGER": {
@@ -276,10 +270,6 @@ export const javaOptionalEngine: SimulationEngineSpec<
 
         narrationEn =
           "THE EAGER orElse() PITFALL: In Java, method arguments evaluate eagerly before the method body runs. Therefore, orElse(expensiveDbQuery()) executed the database query even though the cached value was present! Resulting in wasted I/O and GC churn.";
-        narrationVi =
-          "CẠM BẪY EAGER orElse(): Trong Java, tham số của phương thức luôn được tính toán trước khi hàm được gọi. Do đó, orElse(expensiveDbQuery()) đã bắn truy vấn DB xuống cơ sở dữ liệu dù trong cache ĐÃ CÓ SẴN dữ liệu! Kết quả trả về của DB bị vứt bỏ vào thùng rác GC.";
-        prodWarningVi =
-          "Quy tắc vàng: Luôn dùng .orElseGet(() -> expensiveCall()) thay vì .orElse(expensiveCall()) khi giá trị fallback đòi hỏi tính toán hoặc I/O!";
         break;
       }
 
@@ -301,8 +291,6 @@ export const javaOptionalEngine: SimulationEngineSpec<
 
           narrationEn =
             "OPTIMAL LAZY EVALUATION: orElseGet(() -> queryDb()) accepts a Supplier lambda. Because the Optional contained a cached value, the Supplier was never evaluated. 100% CPU and network I/O saved!";
-          narrationVi =
-            "TỐI ƯU HÓA LAZY: orElseGet(() -> queryDb()) nhận vào một Supplier. Do Optional đã có sẵn giá trị, lambda không bao giờ bị thực thi. Tiết kiệm 100% tài nguyên CPU và network I/O!";
         } else {
           state.dbQueryExecuted = true;
           state.cpuCyclesBurned += 5000;
@@ -317,7 +305,6 @@ export const javaOptionalEngine: SimulationEngineSpec<
           });
 
           narrationEn = "Optional was empty. orElseGet executed the fallback Supplier lambda on demand.";
-          narrationVi = "Optional rỗng. orElseGet chỉ kích hoạt Supplier đúng lúc cần thiết.";
         }
         break;
       }
@@ -327,7 +314,6 @@ export const javaOptionalEngine: SimulationEngineSpec<
         if (nextIdx >= state.stages.length) {
           state.pipelineCompleted = true;
           narrationEn = "Monadic functional pipeline finished all transformations.";
-          narrationVi = "Pipeline Monad hoàn thành toàn bộ các bước biến đổi dữ liệu.";
           break;
         }
 
@@ -393,7 +379,6 @@ export const javaOptionalEngine: SimulationEngineSpec<
 
         state.activeStageIndex = nextIdx;
         narrationEn = `Executed stage: ${stage.name}. Functional chaining eliminates nested null-checks.`;
-        narrationVi = `Thực thi bước: ${stage.name}. Chaining hàm giúp loại bỏ hoàn toàn các cấu trúc if (x != null) lồng nhau.`;
         break;
       }
 
@@ -410,10 +395,6 @@ export const javaOptionalEngine: SimulationEngineSpec<
 
         narrationEn =
           "ANTI-PATTERN: Using 'if (opt.isPresent()) opt.get()' is equivalent to old-school 'if (obj != null)'. It adds 24 bytes of heap overhead without leveraging functional composition!";
-        narrationVi =
-          "CẢNH BÁO CODE SMELL: Dùng 'if (opt.isPresent()) opt.get()' chẳng khác gì 'if (obj != null)' kiểu cũ. Nó vừa tốn 24 bytes cấp phát trên Heap mà lại làm mất đi sự thanh thoát của Functional Programming!";
-        prodWarningVi =
-          "Thay vì opt.isPresent() + opt.get(), hãy chuyển sang dùng .map(), .orElseGet(), hoặc .ifPresentOrElse()!";
         break;
       }
 
@@ -428,7 +409,6 @@ export const javaOptionalEngine: SimulationEngineSpec<
           tone: "info",
         });
         narrationEn = "Optional set to empty state.";
-        narrationVi = "Optional đã được chuyển sang trạng thái rỗng (Optional.empty).";
         break;
       }
     }
@@ -447,8 +427,6 @@ export const javaOptionalEngine: SimulationEngineSpec<
       narration: {
         summary: narrationEn || frame.narration.summary,
         summaryEn: narrationEn || frame.narration.summaryEn,
-        summaryVi: narrationVi || frame.narration.summaryVi,
-        productionWarningVi: prodWarningVi || frame.narration.productionWarningVi,
       },
       metrics: {
         "Is Present": state.isPresent ? "YES" : "EMPTY",

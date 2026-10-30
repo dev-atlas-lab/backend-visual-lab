@@ -327,10 +327,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
           "The Stream pipeline has been chained via fluent API. Because no Terminal Operation (e.g. .toList(), .findFirst()) has been called yet, zero elements have been processed.",
         summaryEn:
           "The Stream pipeline has been chained via fluent API. Because no Terminal Operation (e.g. .toList(), .findFirst()) has been called yet, zero elements have been processed.",
-        summaryVi:
-          "Pipeline Stream vừa được khai báo chuỗi (fluent chaining). Do chưa có Terminal Operation nào được kích hoạt (như .toList(), .findFirst()), chưa có bất kỳ phần tử nào được duyệt qua.",
-        productionWarningVi:
-          "Tuyệt đối không nhầm lẫn việc gọi intermediate operations (.filter(), .map()) với việc xử lý dữ liệu. Nếu không có terminal op, JVM không hề tốn CPU cycle duyệt collection.",
       },
       metrics: {
         Mode: state.mode === "STREAM_LOOP_FUSION" ? "Loop Fusion" : "Naive Intermediate",
@@ -346,14 +342,11 @@ export const javaStreamsEngine: SimulationEngineSpec<
     const state = JSON.parse(JSON.stringify(frame.state)) as JavaStreamsState;
     const events = [...frame.events];
     let narrationEn = "";
-    let narrationVi = "";
-    let prodWarningVi: string | undefined = undefined;
 
     switch (command.type) {
       case "TRIGGER_TERMINAL_OP": {
         if (state.terminalTriggered) {
           narrationEn = "Terminal operation was already invoked. Stepping through elements.";
-          narrationVi = "Terminal operation đã được gọi trước đó. Tiếp tục bước qua các phần tử.";
           break;
         }
         state.terminalTriggered = true;
@@ -366,8 +359,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
         });
         narrationEn =
           "Terminal operation invoked! The Spliterator awakens and the Sink chain is initialized with downstream traversal.";
-        narrationVi =
-          "Terminal Operation đã được kích hoạt! Spliterator bắt đầu duyệt nguồn và chuỗi Sink.begin() chuẩn bị đón nhận từng phần tử.";
         break;
       }
 
@@ -385,7 +376,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
 
         if (state.isComplete) {
           narrationEn = "Pipeline processing is already completed. Terminal sink has accumulated all results.";
-          narrationVi = "Pipeline đã hoàn thành toàn bộ quá trình xử lý. Terminal sink đã đóng gói kết quả.";
           break;
         }
 
@@ -393,7 +383,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
           if (state.currentItemIndex >= state.items.length || state.shortCircuitTriggered) {
             state.isComplete = true;
             narrationEn = "Stream execution completed! All eligible items collected via single-pass loop fusion.";
-            narrationVi = "Quá trình Stream kết thúc! Toàn bộ kết quả được thu thập qua một lượt duyệt duy nhất (Loop Fusion).";
             break;
           }
 
@@ -421,8 +410,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
               tone: "warn",
             });
             narrationEn = `Stateful barrier: sorted() forced upstream accumulation into internal buffer before downstream emission.`;
-            narrationVi = `Rào cản trạng thái (Stateful barrier): sorted() buộc phải gom toàn bộ dữ liệu upstream vào mảng đệm nội bộ để sắp xếp trước khi đẩy xuống downstream.`;
-            prodWarningVi = "Tránh dùng sorted(), distinct() trên các Stream kích thước lớn hoặc vô hạn vì chúng phá vỡ loop fusion và có thể gây OutOfMemoryError!";
             state.isComplete = true;
             break;
           }
@@ -443,7 +430,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
               tone: "warn",
             });
             narrationEn = `Element ${currentVal} failed filter condition. Loop fusion immediately discards it without touching map or downstream sinks.`;
-            narrationVi = `Phần tử ${currentVal} không thỏa điều kiện filter (số lẻ). Loop fusion lập tức loại bỏ, không tốn thêm bất kỳ phép gọi map hay cấp phát nào.`;
           } else {
             item.history.push(`filter(n % 2 == 0) -> TRUE. Passing downstream to map().`);
             state.sinkAcceptCalls++;
@@ -483,7 +469,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
             });
 
             narrationEn = `Element ${item.originalValue} was processed through filter -> map -> toList in a single continuous pass without intermediate lists.`;
-            narrationVi = `Phần tử ${item.originalValue} đi xuyên suốt qua filter -> map -> toList trong một nhịp duy nhất, không tạo bất kỳ danh sách tạm thời nào.`;
           }
 
           state.currentItemIndex++;
@@ -495,7 +480,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
             }
             state.isComplete = true;
             narrationEn += " Short-circuit completed! Remaining elements in collection were never traversed.";
-            narrationVi += " Ngắt mạch (Short-circuit) hoàn tất! Các phần tử còn lại trong bộ dữ liệu hoàn toàn không bị duyệt qua.";
           }
         } else {
           state.intermediateListsAllocated += 1;
@@ -513,10 +497,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
           });
           narrationEn =
             "Naive multi-pass execution: Allocated 3 distinct intermediate ArrayList objects on heap, iterating the collection multiple times.";
-          narrationVi =
-            "Thực thi lặp thủ công: Khởi tạo 3 đối tượng ArrayList tạm thời trên Heap, duyệt toàn bộ danh sách nhiều lượt gây lãng phí bộ nhớ và CPU.";
-          prodWarningVi =
-            "Việc tạo List tạm thời giữa các bước biến đổi dữ liệu làm tăng GC pressure đột biến, đặc biệt trong các backend xử lý dữ liệu lớn (Big Data / High Throughput).";
         }
         break;
       }
@@ -536,7 +516,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
           tone: "info",
         });
         narrationEn = `Execution mode switched to ${state.mode}.`;
-        narrationVi = `Chế độ thực thi chuyển sang ${state.mode}.`;
         break;
       }
 
@@ -560,8 +539,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
         });
         narrationEn =
           "Injected stateful sorted() stage. Stream engine can no longer process elements in a single fused pass.";
-        narrationVi =
-          "Đã chèn tầng stateful sorted(). Bộ máy Stream không thể xử lý từng phần tử trong một pass duy nhất được nữa.";
         break;
       }
 
@@ -576,7 +553,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
           tone: "ok",
         });
         narrationEn = "Forced short-circuit flag triggered. Traversal halted immediately.";
-        narrationVi = "Kích hoạt cờ ngắt mạch tức thì. Quá trình duyệt dừng ngay lập tức.";
         break;
       }
     }
@@ -591,8 +567,6 @@ export const javaStreamsEngine: SimulationEngineSpec<
       narration: {
         summary: narrationEn || frame.narration.summary,
         summaryEn: narrationEn || frame.narration.summaryEn,
-        summaryVi: narrationVi || frame.narration.summaryVi,
-        productionWarningVi: prodWarningVi || frame.narration.productionWarningVi,
       },
       metrics: {
         Mode: state.mode === "STREAM_LOOP_FUSION" ? "Loop Fusion" : "Naive Intermediate",
