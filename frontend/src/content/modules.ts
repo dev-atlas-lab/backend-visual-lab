@@ -1,7 +1,571 @@
 import type { LearningModule } from "../domain";
 
 export const learningModules: LearningModule[] = [
-  // 1. Flagship Deep-Dive: Kafka Consumer Groups & Rebalancing
+  // 1. Java Core & JVM Internals: Memory Management & Generational GC
+  {
+    id: "java-memory-heap-stack-gc",
+    slug: "java-memory-heap-stack-gc",
+    domainId: "java",
+    title: "Java Memory Management — Stack Frames, Heap Layout & Generational Garbage Collection",
+    subtitle:
+      "Phân biệt Call Stack vs Heap, Vòng đời Young Gen (Eden, S0/S1), Thăng hạng Tenured và Cơ chế Dọn rác HotSpot",
+    governanceStatus: "VERIFIED",
+    estimatedMinutes: 25,
+    difficulty: "Intermediate",
+    simulationId: "java-memory-gc",
+    keyTerms: [
+      {
+        term: "JVM Stack Frame",
+        definitionVi:
+          "Vùng nhớ được cấp phát trên Thread Stack mỗi khi một phương thức được gọi. Chứa Local Variable Table (biến nguyên thủy và con trỏ tham chiếu), Operand Stack, và Frame Data. Tự động giải phóng ngay khi hàm return với chi phí 0 ns GC.",
+      },
+      {
+        term: "GC Roots",
+        definitionVi:
+          "Các đối tượng đặc biệt làm điểm bắt đầu truy vết khả năng tiếp cận (Reachability Analysis) của Garbage Collector. Bao gồm: biến cục bộ trong Stack Frame, static fields của loaded classes, JNI global/local references.",
+      },
+      {
+        term: "Weak Generational Hypothesis",
+        definitionVi:
+          "Giả thuyết thế hệ thực nghiệm chứng minh rằng 95% đến 98% đối tượng trong ứng dụng Java chết ngay sau khi được khởi tạo. Đây là nền tảng cho việc chia tách Heap thành Young Generation và Old Generation.",
+      },
+      {
+        term: "Tenuring Threshold",
+        definitionVi:
+          "Số chu kỳ Minor GC tối đa mà một đối tượng có thể sống sót trong Survivor Spaces (S0/S1) trước khi được HotSpot GC thăng hạng (promoted) sang Old Generation (Tenured).",
+      },
+    ],
+    stages: {
+      what: {
+        heading: "1. Khái niệm cốt lõi (WHAT)",
+        paragraphs: [
+          "Trong kiến trúc Java Virtual Machine (JVM Runtime Data Areas), bộ nhớ thực thi của ứng dụng được chia thành hai vùng chính có vòng đời và hành vi hoàn toàn khác biệt: Thread Call Stack và Heap Memory.",
+          "Thread Stack lưu trữ các Stack Frame đại diện cho lời gọi hàm đang hoạt động. Mỗi Stack Frame chứa các biến nguyên thủy (int, long, boolean, double) và các biến tham chiếu (reference pointer) trỏ đến địa chỉ thực của đối tượng. Khi một hàm kết thúc, Stack Frame bị pop và toàn bộ biến cục bộ bị xóa tức thì mà không cần bất kỳ sự can thiệp nào từ Garbage Collector.",
+          "Ngược lại, Heap Memory là vùng nhớ dùng chung (shared memory) cho toàn bộ JVM, nơi mọi thể hiện của Object (vd: new Order(), new User()) và mảng (arrays) được cấp phát. Do không thể tự động giải phóng khi hàm kết thúc, JVM sử dụng Garbage Collector (GC) để tự động thu hồi các vùng nhớ không còn được tham chiếu từ GC Roots.",
+        ],
+        bulletPoints: [
+          "Stack: Thread-safe riêng biệt cho từng luồng, truy cập cực nhanh, dung lượng nhỏ (mặc định 1MB), tự hủy khi hàm kết thúc.",
+          "Heap: Dùng chung đa luồng, quản lý bởi Garbage Collector, chia thành Young Gen (Eden + S0/S1) và Old Gen (Tenured).",
+          "Metaspace: Nằm ở Native Memory ngoài Heap (từ Java 8 thay thế PermGen), lưu trữ Class metadata, Bytecode, và Constant Pool.",
+        ],
+      },
+      why: {
+        heading: "2. Tại sao HotSpot chia tách Heap thành các Thế Hệ? (WHY)",
+        paragraphs: [
+          "Nếu Heap là một không gian phẳng nguyên khối khổng lồ, mỗi lần dọn rác, JVM sẽ phải quét toàn bộ hàng chục Gigabyte bộ nhớ để đánh dấu đối tượng sống (Mark-Sweep-Compact). Quá trình này sẽ gây ra hiện tượng Stop-The-World (STW) kéo dài hàng chục giây hoặc thậm chí hàng phút, làm sập dịch vụ Backend.",
+          "Để giải quyết triệt để vấn đề này, các kỹ sư JVM áp dụng Giả thuyết Thế Hệ (Weak Generational Hypothesis):",
+        ],
+        bulletPoints: [
+          "Đa số đối tượng (98%) có vòng đời cực ngắn: chỉ sinh ra để phục vụ tính toán trong một phương thức (vd: StringBuilder, DTO, JSON parser buffer) rồi trở thành rác ngay khi hàm return.",
+          "Rất ít đối tượng tồn tại lâu dài: chỉ các singleton beans (Spring @Service, @Repository), connection pool, và in-memory caches mới sống sót qua thời gian.",
+        ],
+        callout: {
+          tone: "note",
+          title: "Ý nghĩa của việc phân chia thế hệ",
+          body: "Bằng cách dồn các đối tượng mới vào Young Generation (Eden), Minor GC chỉ cần tập trung quét một vùng nhớ nhỏ trong vài mili-giây bằng thuật toán sao chép (Evacuation Copy). Chỉ những đối tượng sống sót qua nhiều chu kỳ (vượt ngưỡng Tenuring Threshold) mới được chuyển sang Old Gen.",
+        },
+      },
+      how: {
+        heading: "3. Vòng đời Cấp phát & Chu kỳ Thu gom rác (HOW)",
+        paragraphs: [
+          "Vòng đời của một đối tượng Java diễn ra tuần tự qua các giai đoạn nghiêm ngặt:",
+          "1. Cấp phát trên Eden: Khi từ khóa new được thực thi, đối tượng được cấp phát trực tiếp trên Eden Space. HotSpot sử dụng Thread-Local Allocation Buffer (TLAB) để cấp phát vùng nhớ không cần tranh chấp khóa đa luồng (lock-free bump-the-pointer).",
+          "2. Kích hoạt Minor GC (Eden đầy): Khi Eden không còn đủ chỗ chứa đối tượng mới, JVM tạm dừng luồng ứng dụng (Stop-The-World trong thời gian ngắn) để chạy Minor GC.",
+          "3. Quét GC Roots & Sơ tán (Evacuation Copy): GC truy vết các đối tượng còn sống bắt đầu từ các GC Roots (biến trên Stack Frame hiện tại). Các đối tượng sống từ Eden và From-Survivor được sao chép sang To-Survivor. Tuổi thọ (tenuringAge) của chúng tăng thêm 1. Toàn bộ đối tượng chết trên Eden và From-Survivor bị quét sạch.",
+          "4. Đổi vai trò Survivor (From/To Swap): Hai vùng S0 và S1 hoán đổi vai trò cho nhau. Vùng vừa nhận đối tượng trở thành From-Survivor, vùng còn lại để trống làm To-Survivor cho chu kỳ tới.",
+          "5. Thăng hạng sang Old Gen (Promotion): Khi một đối tượng có tenuringAge >= TenuringThreshold (mặc định 15 hoặc tự điều chỉnh), nó được di chuyển vĩnh viễn sang Old Gen.",
+          "6. Major / Full GC: Khi Old Gen bị đầy, JVM kích hoạt Major GC (hoặc Full GC) để dọn dẹp và dồn nén bộ nhớ (Compaction). Quá trình này tốn nhiều CPU và thời gian STW dài hơn đáng kể.",
+        ],
+      },
+      internals: {
+        heading: "4. Cơ chế nội tại: Object Header, Mark Word & Card Table (INTERNALS)",
+        paragraphs: [
+          "Mỗi đối tượng trên Java Heap được lưu trữ với một Object Header gồm 2 phần chính:",
+          "1. Mark Word (32-bit hoặc 64-bit): Lưu mã băm (identity hashCode), cờ khóa (Locking state: Biased, Lightweight, Heavyweight), và đặc biệt là 4 bit dành cho Tenuring Age (do chỉ có 4 bit nên tuổi tối đa chỉ có thể là 15: 2^4 - 1 = 15).",
+          "2. Klass Word: Con trỏ trỏ tới siêu dữ liệu Class Metadata của đối tượng trong Metaspace.",
+          "Để tránh việc Minor GC phải quét toàn bộ Old Gen nhằm tìm kiếm các tham chiếu từ Old Gen trỏ ngược về Young Gen, HotSpot sử dụng cấu trúc Card Table kết hợp Write Barrier: mỗi byte trong Card Table đại diện cho một khối 512 byte trong Old Gen. Khi có con trỏ ghi từ Old Gen sang Young Gen, byte tương ứng bị đánh dấu là 'dirty'. Minor GC chỉ cần quét các card bị dirty thay vì toàn bộ Old Gen.",
+        ],
+        codeSnippet: {
+          language: "bash",
+          caption: "Các tham số JVM HotSpot thiết yếu để cấu hình bộ nhớ và GC",
+          code: `# Thiết lập dung lượng Heap tối thiểu và tối đa bằng nhau để tránh co giãn runtime
+java -Xms4g -Xmx4g \\
+     -XX:+UseG1GC \\
+     -XX:MaxGCPauseMillis=200 \\
+     -XX:InitiatingHeapOccupancyPercent=45 \\
+     -XX:SurvivorRatio=8 \\
+     -XX:MaxTenuringThreshold=15 \\
+     -Xlog:gc*,gc+phases=debug:file=/var/log/app/gc.log:time,uptime,pid:filecount=5,filesize=50m \\
+     -jar backend-service.jar`,
+        },
+      },
+      tradeOffs: {
+        heading: "5. Phân tích đánh đổi giữa các bộ thu gom rác (TRADE-OFFS)",
+        paragraphs: [
+          "Không có bộ Garbage Collector nào hoàn hảo cho mọi kịch bản. Việc lựa chọn phụ thuộc vào sự cân bằng giữa Throughput (Thông lượng CPU) và Latency (Độ trễ P99 Stop-The-World):",
+        ],
+        bulletPoints: [
+          "Parallel GC (-XX:+UseParallelGC): Tối đa hóa Throughput tính toán batch job (99% thời gian CPU cho app), nhưng thời gian STW pause có thể dài từ vài trăm ms đến vài giây.",
+          "G1 GC (-XX:+UseG1GC): Mặc định từ Java 9. Chia heap thành hàng ngàn Region độc lập (~1MB đến 32MB). Cho phép đặt mục tiêu độ trễ tối đa (-XX:MaxGCPauseMillis=200). Cân bằng hoàn hảo cho microservices.",
+          "ZGC (-XX:+UseZGC): Bộ thu gom rác thế hệ mới (Generational ZGC trong Java 21). Sử dụng Colored Pointers và Load Barriers để thực hiện dọn dẹp đồng thời (Concurrent). Đạt độ trễ Pause cực thấp (< 1 mili-giây) ngay cả với Heap dung lượng lên tới 16 Terabytes, nhưng tiêu tốn thêm khoảng 2-5% CPU overhead.",
+        ],
+      },
+      failureScenarios: {
+        heading: "6. Các kịch bản sự cố bộ nhớ thực tế (FAILURE SCENARIOS)",
+        paragraphs: [
+          "1. Memory Leak thông qua Static Collection: Thêm đối tượng vào một static List, Map hoặc Cache nội bộ không có cơ chế TTL/Eviction. Do biến static được neo vào ClassLoader (một GC Root vĩnh viễn), các đối tượng này không bao giờ bị thu hồi, dần dần lấp đầy Old Gen và dẫn đến java.lang.OutOfMemoryError: Java heap space.",
+          "2. GC Overhead Limit Exceeded: Ứng dụng dành hơn 98% thời gian CPU cho GC nhưng chỉ thu hồi được dưới 2% heap. JVM chủ động ném OutOfMemoryError để ngăn chặn việc ứng dụng đóng băng hoàn toàn.",
+          "3. Premature Promotion: Do Eden Space quá nhỏ hoặc tần suất cấp phát đột biến (allocation burst), các đối tượng ngắn ngày bị tràn khỏi Survivor Space và bị đẩy sớm sang Old Gen khi chưa đủ tuổi (tenuring age thấp). Khiến Old Gen nhanh đầy và kích hoạt Full GC thường xuyên.",
+        ],
+        callout: {
+          tone: "warning",
+          title: "Cạm bẫy ThreadLocal Memory Leak",
+          body: "Trong môi trường Servlet/Tomcat sử dụng Thread Pool, các Worker Thread được tái sử dụng liên tục. Nếu gọi ThreadLocal.set() mà không đảm bảo gọi ThreadLocal.remove() trong khối finally, dữ liệu của request cũ sẽ bị rò rỉ và tồn tại vĩnh viễn trên ThreadLocalMap của worker thread.",
+        },
+      },
+      productionEngineering: {
+        heading: "7. Kinh nghiệm vận hành Production (PRODUCTION ENGINEERING)",
+        paragraphs: [
+          "Để vận hành ứng dụng Java ổn định ở quy mô lớn, kỹ sư Backend cần áp dụng các chuẩn thực hành sau:",
+          "1. Luôn cấu hình -Xms bằng -Xmx để ngăn chặn việc JVM phải xin cấp phát thêm bộ nhớ từ hệ điều hành trong quá trình chạy, loại bỏ overhead co giãn heap.",
+          "2. Bật GC Logging chi tiết với cờ -Xlog:gc* để phân tích P99 pause times và phân bổ thế hệ thông qua các công cụ như GCeasy hoặc JDK Mission Control.",
+          "3. Kích hoạt cờ tự động chụp ảnh Heap Dump khi gặp sự cố: -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/var/dumps/heap_oom.hprof.",
+          "4. Với Java 21+, ưu tiên thử nghiệm Generational ZGC (-XX:+UseZGC -XX:+ZGenerational) cho các dịch vụ tài chính, thanh toán hoặc API Gateway yêu cầu độ trễ P99 siêu nghiêm ngặt.",
+        ],
+      },
+    },
+    sourceIds: ["jvm-spec-se21"],
+    questionIds: ["java-q1-stack-vs-heap", "java-q2-generational-promotion"],
+  },
+
+  // 2. Java Core Collections: HashMap Internals & Treeification
+  {
+    id: "java-hashmap-treeification",
+    slug: "java-hashmap-treeification",
+    domainId: "java",
+    title: "Java Collections — HashMap Internals, Hash Collisions & Red-Black Treeification",
+    subtitle:
+      "Giải phẫu mảng Node<K,V>[], Hàm băm Perturbation, Ngưỡng Treeify 8 và Thuật toán Tách chuỗi khi Resize x2",
+    governanceStatus: "VERIFIED",
+    estimatedMinutes: 25,
+    difficulty: "Intermediate",
+    simulationId: "java-hashmap-treeification",
+    keyTerms: [
+      {
+        term: "Perturbation Function",
+        definitionVi:
+          "Hàm phân tán bit: (h = key.hashCode()) ^ (h >>> 16). Dịch chuyển và XOR 16 bit bậc cao xuống 16 bit bậc thấp nhằm giảm thiểu va chạm khi bảng băm có kích thước nhỏ.",
+      },
+      {
+        term: "Bitwise Indexing",
+        definitionVi:
+          "Công thức tính chỉ số bucket: (capacity - 1) & hash. Nhờ dung lượng luôn là lũy thừa của 2, phép toán bitwise AND này cho kết quả tương đương toán học với phép chia dư hash % capacity nhưng thực thi ở tốc độ nano giây.",
+      },
+      {
+        term: "TREEIFY_THRESHOLD (8)",
+        definitionVi:
+          "Ngưỡng số lượng Node va chạm trong một bucket kích hoạt việc chuyển đổi từ Singly-Linked List thành Cây Đỏ-Đen (Red-Black Tree TreeNode), giảm độ phức tạp tìm kiếm từ O(n) xuống O(log n).",
+      },
+      {
+        term: "Load Factor (0.75)",
+        definitionVi:
+          "Hệ số tải mặc định 0.75, điểm cân bằng tối ưu giữa chi phí không gian bộ nhớ (space overhead) và thời gian truy xuất (time complexity) theo phân phối Poisson.",
+      },
+    ],
+    stages: {
+      what: {
+        heading: "1. Khái niệm cốt lõi (WHAT)",
+        paragraphs: [
+          "java.util.HashMap là cấu trúc dữ liệu bảng băm (hash table) quan trọng nhất trong hệ sinh thái Java. Nó cung cấp các thao tác put(), get(), remove() với độ phức tạp trung bình O(1) dựa trên cặp khóa-giá trị (Key-Value pairs).",
+          "Bên trong, HashMap được cấu tạo bởi một mảng các bucket: Node<K,V>[] table. Mỗi bucket là điểm neo của một danh sách liên kết đơn (Singly-Linked List) hoặc một Cây Đỏ-Đen (Red-Black Tree) nhằm giải quyết hiện tượng va chạm băm (Hash Collision) khi hai khóa khác nhau cùng ánh xạ về một chỉ số mảng.",
+        ],
+        bulletPoints: [
+          "Dung lượng ban đầu (DEFAULT_INITIAL_CAPACITY): 16 slots.",
+          "Hệ số tải (DEFAULT_LOAD_FACTOR): 0.75.",
+          "Ngưỡng mở rộng (Threshold): capacity * loadFactor (16 * 0.75 = 12 phần tử).",
+          "Ngưỡng Treeify: 8 phần tử trong một bucket kết hợp dung lượng bảng tối thiểu 64.",
+        ],
+      },
+      why: {
+        heading: "2. Tại sao Java 8 giới thiệu Treeification? (WHY)",
+        paragraphs: [
+          "Trong Java 7 trở về trước, mọi va chạm băm trong một bucket đều được giải quyết đơn thuần bằng danh sách liên kết đơn. Khi kẻ tấn công cố tình tạo ra hàng ngàn chuỗi ký tự khác nhau nhưng có cùng hashCode() (tấn công Hash Collision DoS / HashDOS), toàn bộ dữ liệu sẽ dồn vào một bucket duy nhất.",
+          "Hậu quả: Độ phức tạp của thao tác get() và put() thoái hóa nghiêm trọng từ O(1) thành O(n). Một request HTTP chứa 10,000 form parameters va chạm có thể khiến CPU của máy chủ nhảy vọt lên 100% trong hàng chục giây, gây nghẽn toàn bộ dịch vụ Backend.",
+        ],
+        callout: {
+          tone: "warning",
+          title: "Giải pháp Red-Black Tree trong Java 8",
+          body: "Bắt đầu từ Java 8 (JEP 180), khi số phần tử trong một bucket chạm ngưỡng 8 và dung lượng mảng đạt ít nhất 64, bucket sẽ tự động chuyển hóa thành Cây Đỏ-Đen (TreeNode). Điều này chặn đứng hoàn toàn nguy cơ HashDOS bằng cách đảm bảo thời gian tra cứu tồi nhất luôn là O(log n).",
+        },
+      },
+      how: {
+        heading: "3. Quy trình tính toán Băm & Chèn dữ liệu (HOW)",
+        paragraphs: [
+          "Khi thực hiện put(key, value), HashMap thực thi theo quy trình 4 bước chính xác:",
+          "1. Tính mã băm phân tán (Perturbation Hash): Gọi key.hashCode() để lấy số nguyên 32-bit h, sau đó thực hiện XOR với chính nó đã dịch phải 16 bit: hash = (h ^ (h >>> 16)).",
+          "2. Tính vị trí Bucket (Index Mapping): Xác định chỉ số mảng qua công thức bitwise: index = (n - 1) & hash (trong đó n là capacity).",
+          "3. Duyệt và Xử lý va chạm: Nếu bucket [index] trống, tạo Node mới làm Head. Nếu đã có dữ liệu, duyệt qua chuỗi: nếu tìm thấy key trùng (thỏa mãn p.hash == hash && (p.key == key || key.equals(p.key))), ghi đè value. Nếu không trùng, nối Node mới vào đuôi danh sách (tail-insertion).",
+          "4. Kiểm tra ngưỡng Treeify & Resize: Nếu độ dài chuỗi node >= 8, kích hoạt treeifyBin(). Sau đó, nếu tổng số phần tử (size) vượt quá threshold, kích hoạt resize() nhân đôi dung lượng mảng.",
+        ],
+      },
+      internals: {
+        heading: "4. Cơ chế nội tại: Phép toán Bitwise & Tách chuỗi khi Resize (INTERNALS)",
+        paragraphs: [
+          "Hai đột phá kỹ thuật nổi bật nhất trong source code java.util.HashMap của OpenJDK:",
+          "1. Tại sao capacity luôn là lũy thừa của 2? Vì khi n là lũy thừa của 2, (n - 1) luôn có dạng nhị phân toàn số 1 (vd: n = 16 = 0001 0000 -> n - 1 = 15 = 0000 1111). Phép toán (n - 1) & hash đóng vai trò như một bộ lọc bit (bitmask), giữ lại các bit thấp nhất. Kết quả hoàn toàn tương đương với hash % n nhưng chạy nhanh hơn gấp hàng chục lần vì thực thi trực tiếp trên mạch logic bit của CPU.",
+          "2. Thuật toán tách chuỗi (High-Bit Split) khi Resize: Trong Java 7, khi resize, từng phần tử phải tính lại chỉ số index và chèn ngược vào đầu (head-insertion), gây ra lỗi vòng lặp vô tận (Infinite Loop Deadlock) kinh điển khi chạy đa luồng. Trong Java 8+, HashMap sử dụng tail-insertion kết hợp kiểm tra bit: (e.hash & oldCap) == 0. Nếu bằng 0, node giữ nguyên ở vị trí cũ (index). Nếu khác 0, node chuyển sang vị trí mới chính xác bằng (index + oldCap). Không cần tính toán lại bất kỳ phép toán băm nào!",
+        ],
+        codeSnippet: {
+          language: "java",
+          caption: "Trích xuất thuật toán phân tán băm và kiểm tra bit từ OpenJDK HashMap",
+          code: `// 1. Hàm phân tán bit bậc cao (Perturbation spread)
+static final int hash(Object key) {
+    int h;
+    return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
+}
+
+// 2. Tính vị trí bucket bằng bitwise AND
+int index = (capacity - 1) & hash;
+
+// 3. Phân tách chuỗi khi Resize nhân đôi (Java 8+)
+Node<K,V> loHead = null, loTail = null; // Giữ nguyên vị trí index cũ
+Node<K,V> hiHead = null, hiTail = null; // Chuyển sang (index + oldCap)
+do {
+    next = e.next;
+    if ((e.hash & oldCap) == 0) {
+        if (loTail == null) loHead = e; else loTail.next = e;
+        loTail = e;
+    } else {
+        if (hiTail == null) hiHead = e; else hiTail.next = e;
+        hiTail = e;
+    }
+} while ((e = next) != null);`,
+        },
+      },
+      tradeOffs: {
+        heading: "5. Phân tích đánh đổi kỹ thuật (TRADE-OFFS)",
+        paragraphs: [
+          "Treeification mang lại sự bảo mật và tính ổn định thời gian, nhưng đi kèm các đánh đổi:",
+        ],
+        bulletPoints: [
+          "Memory Footprint: Một Node thông thường chỉ gồm 4 trường (hash, key, value, next). Một TreeNode (Red-Black Tree) cần thêm parent, left, right, prev, và boolean red/black, tiêu tốn bộ nhớ gấp đôi. Đây là lý do Java chỉ treeify khi thực sự cần thiết (ngưỡng 8).",
+          "Load Factor 0.75: Giảm loadFactor xuống 0.5 giúp giảm tối đa va chạm nhưng lãng phí 50% bộ nhớ. Tăng lên 1.0 tiết kiệm RAM nhưng làm tăng số lượng va chạm và thời gian lookup.",
+          "Thread Safety: HashMap KHÔNG thread-safe. Trong môi trường đồng thời, bắt buộc phải sử dụng ConcurrentHashMap thay vì Collections.synchronizedMap() để đạt thông lượng cao nhờ kỹ thuật Lock Striping / CAS trên từng bucket node.",
+        ],
+      },
+      failureScenarios: {
+        heading: "6. Các kịch bản sự cố thực tế (FAILURE SCENARIOS)",
+        paragraphs: [
+          "1. Vi phạm hợp đồng equals() và hashCode(): Ghi đè (override) equals() nhưng quên ghi đè hashCode(). Kết quả: Hai đối tượng có cùng thuộc tính logic nhưng lại sinh ra hai mã băm khác nhau, khiến map.get(key) trả về null ngay sau khi map.put(key, val).",
+          "2. Mutable Object làm Key: Đưa một đối tượng có thể thay đổi trạng thái (Mutable) làm Key, sau đó sửa đổi thuộc tính cấu thành hashCode() của đối tượng. Mã băm bị thay đổi khiến HashMap tra cứu sai bucket và làm 'biến mất' phần tử khỏi bảng băm vĩnh viễn (Memory Leak ngầm).",
+          "3. Concurrency Race Condition: Dùng HashMap thường trong môi trường đa luồng (multi-threaded). Khi nhiều luồng cùng gọi put() gây resize đồng thời, kích thước size bị sai lệch hoặc mất mát dữ liệu (silent data loss).",
+        ],
+        callout: {
+          tone: "warning",
+          title: "Luôn dùng Immutable Object làm Key",
+          body: "Luôn sử dụng các kiểu dữ liệu bất biến (Immutable) như String, Integer, UUID, hoặc Java 17+ Record làm Key cho HashMap để đảm bảo mã hashCode() không bao giờ bị biến động sau khi đã đưa vào bảng.",
+        },
+      },
+      productionEngineering: {
+        heading: "7. Kinh nghiệm vận hành Production (PRODUCTION ENGINEERING)",
+        paragraphs: [
+          "Các bài học thực chiến khi làm việc với Collections trong Backend quy mô lớn:",
+          "1. Luôn ước lượng và cấu hình initialCapacity: Nếu biết trước map sẽ chứa khoảng 1,000 phần tử, hãy khởi tạo: new HashMap<>(Math.ceil(1000 / 0.75) + 1) tức là 1,334 (làm tròn lên lũy thừa 2 là 2,048). Điều này triệt tiêu hoàn toàn chi phí rehash và resize bảng.",
+          "2. Với ConcurrentHashMap trong Java 8+, cơ chế khóa đã chuyển từ Segment locking sang CAS lock-free trên head node rỗng và synchronized chỉ trên first node của bucket va chạm, đạt hiệu năng đọc song song vượt trội.",
+          "3. Khi cần bảo toàn thứ tự chèn (insertion order) cho audit trail, sử dụng LinkedHashMap. Khi cần sắp xếp tự nhiên theo Key, sử dụng TreeMap.",
+        ],
+      },
+    },
+    sourceIds: ["openjdk-hashmap-source"],
+    questionIds: ["java-q3-hashmap-indexing", "java-q4-treeify-threshold"],
+  },
+
+  // 3. Java 8+ Functional & Stream API Internals
+  {
+    id: "java-streams-lazy-evaluation",
+    slug: "java-streams-lazy-evaluation",
+    domainId: "java",
+    title: "Java 8+ — Stream API Internals, Lazy Evaluation & Pipeline Fusion",
+    subtitle:
+      "Kiến trúc Spliterator, Khác biệt Intermediate vs Terminal Ops, Loop Fusion và Hiểm họa ForkJoinPool.commonPool",
+    governanceStatus: "VERIFIED",
+    estimatedMinutes: 20,
+    difficulty: "Foundational",
+    keyTerms: [
+      {
+        term: "Functional Interface",
+        definitionVi:
+          "Interface chỉ chứa duy nhất một phương thức trừu tượng (Single Abstract Method - SAM), được đánh dấu bằng @FunctionalInterface (vd: Function<T,R>, Predicate<T>, Consumer<T>, Supplier<T>), làm nền tảng cho cú pháp Lambda Expressions.",
+      },
+      {
+        term: "Lazy Evaluation (Đánh giá Lười biếng)",
+        definitionVi:
+          "Cơ chế trong Stream API: các thao tác trung gian (filter, map) không hề thực thi ngay khi được khai báo, mà chỉ tạo ra các mô tả pipeline. Việc tính toán chỉ thực sự diễn ra khi một thao tác kết thúc (Terminal Operation) được kích hoạt.",
+      },
+      {
+        term: "Loop Fusion (Hợp nhất Vòng lặp)",
+        definitionVi:
+          "Kỹ thuật tối ưu hóa của Stream engine: thay vì duyệt qua danh sách nhiều lần và tạo các collection trung gian, Stream hợp nhất tất cả các bước filter, map thành một lượt duyệt duy nhất trên từng phần tử.",
+      },
+      {
+        term: "Short-Circuiting Operation",
+        definitionVi:
+          "Các thao tác kết thúc cho phép dừng xử lý pipeline ngay khi điều kiện được thỏa mãn (vd: findFirst, anyMatch, limit) mà không cần duyệt hết các phần tử còn lại của nguồn dữ liệu vô hạn.",
+      },
+    ],
+    stages: {
+      what: {
+        heading: "1. Khái niệm cốt lõi (WHAT)",
+        paragraphs: [
+          "Được giới thiệu trong Java 8 (JSR 335), Stream API đã cách mạng hóa phong cách lập trình Backend trong Java từ phong cách mệnh lệnh (Imperative Programming) với các vòng lặp for/while lồng nhau sang phong cách khai báo (Declarative / Functional Programming).",
+          "Một Java Stream đại diện cho một chuỗi các phần tử (sequence of elements) hỗ trợ các thao tác tính toán tuần tự hoặc song song. Điểm cốt lõi: Stream không phải là một cấu trúc dữ liệu lưu trữ phần tử (nó không sở hữu dữ liệu), mà là một đường ống tính toán (computation pipeline) chuyển giao dữ liệu từ nguồn (Collection, Array, I/O channel) đến đích.",
+        ],
+        bulletPoints: [
+          "Nguồn dữ liệu (Source): Collection.stream(), Arrays.stream(), Stream.of(), Files.lines().",
+          "Thao tác trung gian (Intermediate Operations): filter, map, flatMap, distinct, sorted, peek. Luôn trả về một Stream mới và luôn ở trạng thái LAZY.",
+          "Thao tác kết thúc (Terminal Operations): forEach, collect, toList, reduce, count, findFirst, anyMatch. Kích hoạt dòng chảy dữ liệu và đóng stream.",
+        ],
+      },
+      why: {
+        heading: "2. Tại sao Stream API vượt trội hơn Vòng lặp truyền thống? (WHY)",
+        paragraphs: [
+          "Khi xử lý tập dữ liệu lớn với nhiều bước biến đổi trong lập trình truyền thống:",
+          "1. Lãng phí Bộ nhớ nghiêm trọng: Cách tiếp cận cũ thường tạo ra hàng loạt các danh sách trung gian (vd: list lọc -> new ArrayList -> list biến đổi -> new ArrayList). Với hàng triệu bản ghi, việc này gây áp lực kinh hoàng lên Eden Space và kích hoạt GC liên tục.",
+          "2. Không tận dụng được Short-circuiting: Muốn tìm bản ghi hợp lệ đầu tiên sau 3 bước lọc phức tạp, lập trình viên phải tự viết các cờ break rối rắm.",
+          "Stream API giải quyết cả hai vấn đề bằng kiến trúc Pipeline Fusion: các phần tử được kéo (pull-based) qua từng tầng xử lý một cách đơn lẻ (element-by-element), loại bỏ 100% các danh sách trung gian.",
+        ],
+      },
+      how: {
+        heading: "3. Kiến trúc Vận hành chi tiết: Spliterator & Sink Chain (HOW)",
+        paragraphs: [
+          "Dưới tầng source code của OpenJDK, một Stream pipeline được xây dựng dựa trên 3 trụ cột:",
+          "1. Spliterator (Splitable Iterator): Chịu trách nhiệm phân tách và duyệt qua các phần tử của nguồn. Phương thức tryAdvance() duyệt tuần tự từng phần tử, trong khi trySplit() chia đôi dữ liệu để phục vụ xử lý song song.",
+          "2. ReferencePipeline: Mỗi lần gọi .filter() hoặc .map(), một đối tượng StatelessOp hoặc StatefulOp được khởi tạo và liên kết thành một danh sách liên kết kép (Doubly-Linked List) các công đoạn.",
+          "3. Sink Chain: Khi thao tác terminal (vd: collect) được gọi, JVM dịch ngược pipeline thành một chuỗi các đối tượng Sink lồng nhau (Sink chain). Dữ liệu từ Spliterator được đẩy qua từng mắt xích của Sink. Nếu một mắt xích từ chối (vd: filter trả về false), phần tử đó bị loại bỏ ngay lập tức trước khi chạm tới các mắt xích phía sau.",
+        ],
+      },
+      internals: {
+        heading: "4. Cơ chế nội tại & Hiểm họa ForkJoinPool.commonPool (INTERNALS)",
+        paragraphs: [
+          "Một trong những tính năng hấp dẫn nhất của Stream API là khả năng chuyển đổi sang xử lý song song chỉ bằng một cú gọi: list.parallelStream().",
+          "Tuy nhiên, cơ chế bên dưới của parallelStream() ẩn chứa một hiểm họa kiến trúc lớn: Mặc định, tất cả các parallel stream trong toàn bộ tiến trình JVM đều chia sẻ chung duy nhất một ForkJoinPool tĩnh: ForkJoinPool.commonPool(), với số lượng worker thread bằng (Runtime.getRuntime().availableProcessors() - 1).",
+          "ForkJoinPool được thiết kế tối ưu tuyệt đối cho các tác vụ tính toán CPU-bound (chia để trị - divide and conquer). Nếu một lập trình viên vô tình gọi các tác vụ I/O chặn (Blocking I/O như HTTP call, gRPC, hoặc truy vấn JDBC) bên trong parallelStream, các worker thread của commonPool sẽ bị giữ chặt và đóng băng. Toàn bộ các luồng parallel stream khác của toàn bộ ứng dụng (kể cả CompletableFuture async) sẽ bị chết đói (thread starvation).",
+        ],
+        codeSnippet: {
+          language: "java",
+          caption: "Mẫu sử dụng Stream Pipeline tối ưu và tách biệt Thread Pool an toàn",
+          code: `// 1. Pipeline lười biếng với Short-circuiting (Zero intermediate lists)
+Optional<String> firstVip = customers.stream()
+    .filter(c -> c.isActive())        // StatelessOp
+    .filter(c -> c.isVip())           // StatelessOp
+    .map(Customer::getEmail)         // StatelessOp
+    .findFirst();                    // Terminal Short-circuit: dừng ngay khi tìm thấy 1 VIP
+
+// 2. Xử lý song song an toàn với Custom ForkJoinPool thay vì dùng commonPool
+ForkJoinPool customPool = new ForkJoinPool(4);
+try {
+    List<OrderResult> results = customPool.submit(() ->
+        orders.parallelStream()
+            .map(this::heavyCpuCalculation)
+            .toList()
+    ).get();
+} finally {
+    customPool.shutdown();
+}`,
+        },
+      },
+      tradeOffs: {
+        heading: "5. Phân tích đánh đổi kỹ thuật (TRADE-OFFS)",
+        paragraphs: [
+          "So sánh giữa Stream API và Vòng lặp For truyền thống:",
+        ],
+        bulletPoints: [
+          "Hiệu năng micro-benchmark: Với các danh sách nhỏ (< 1,000 phần tử cơ bản), vòng lặp for truyền thống nhanh hơn Stream API khoảng 10-20% do không có chi phí khởi tạo đối tượng Pipeline, Spliterator, và polymorphic call.",
+          "Khả năng bảo trì mã nguồn (Readability): Stream API vượt trội hoàn toàn về độ trong sáng của code nghiệp vụ, giảm thiểu bug off-by-one và dễ dàng composition.",
+          "Debugging: Debug một Stream pipeline phức tạp khó khăn hơn nhiều so với đặt breakpoint trong vòng lặp for (dù các IDE hiện đại đã hỗ trợ Stream Trace debugger).",
+        ],
+      },
+      failureScenarios: {
+        heading: "6. Các kịch bản sự cố thực tế (FAILURE SCENARIOS)",
+        paragraphs: [
+          "1. Tái sử dụng Stream đã đóng: Gọi terminal operation hai lần trên cùng một đối tượng Stream. JVM sẽ ném ngoại lệ java.lang.IllegalStateException: stream has already been operated upon or closed.",
+          "2. Đột biến trạng thái dùng chung (Shared Mutable State): Truy cập và ghi vào biến bên ngoài từ trong parallelStream mà không có đồng bộ hóa: list.parallelStream().forEach(res::add). Sẽ dẫn đến race condition làm sai lệch kích thước hoặc ném ArrayIndexOutOfBoundsException.",
+          "3. Infinite Stream không có Limit: Sử dụng Stream.iterate() hoặc Stream.generate() kết hợp với sorted() hoặc toList() mà quên limit(). Thao tác sorted() là StatefulOp đòi hỏi phải gom đủ toàn bộ phần tử mới có thể sắp xếp, dẫn đến OutOfMemoryError ngay lập tức.",
+        ],
+        callout: {
+          tone: "production",
+          title: "Quy tắc vàng với Parallel Streams",
+          body: "KHÔNG BAO GIỜ sử dụng parallelStream() cho các tác vụ có dính líu đến I/O mạng hoặc database. Chỉ sử dụng parallelStream() cho các bài toán tính toán CPU thuần túy với số lượng phần tử đủ lớn (> 10,000 items).",
+        },
+      },
+      productionEngineering: {
+        heading: "7. Kinh nghiệm vận hành Production (PRODUCTION ENGINEERING)",
+        paragraphs: [
+          "Thực tiễn tốt nhất khi thiết kế code Backend với Stream API:",
+          "1. Từ Java 16+, ưu tiên sử dụng .toList() thay vì .collect(Collectors.toList()) vì .toList() trả về unmodifiable list và tối ưu hóa cấp phát mảng nội bộ.",
+          "2. Sử dụng Primitive Streams (IntStream, LongStream, DoubleStream) khi làm việc với số học để tránh chi phí Auto-boxing / Unboxing gây áp lực lên Heap GC.",
+          "3. Trong kiến trúc bất đồng bộ (Asynchronous Architecture), kết hợp Stream với CompletableFuture: chuyển các Future thành Stream và dùng CompletableFuture.allOf() để tổng hợp kết quả non-blocking.",
+        ],
+      },
+    },
+    sourceIds: ["jsr-335-streams"],
+    questionIds: ["java-q5-stream-lazy-fusion", "java-q6-parallel-stream-pitfall"],
+  },
+
+  // 4. Java 21 Modern Internals: Virtual Threads (Project Loom)
+  {
+    id: "java-virtual-threads-loom",
+    slug: "java-virtual-threads-loom",
+    domainId: "java",
+    title: "Java 21 — Virtual Threads (Project Loom), Carrier Scheduling & Concurrency Internals",
+    subtitle:
+      "Mô hình M:N Threads, Cơ chế Continuation Yield khi I/O Chặn, và Cạm bẫy Thread Pinning với khối Synchronized",
+    governanceStatus: "VERIFIED",
+    estimatedMinutes: 30,
+    difficulty: "Senior / Staff",
+    simulationId: "java-virtual-threads",
+    keyTerms: [
+      {
+        term: "Virtual Thread (JEP 444)",
+        definitionVi:
+          "Luồng người dùng (user-mode lightweight thread) do JVM quản lý trực tiếp thay vì hệ điều hành. Có chi phí khởi tạo siêu rẻ và kích thước stack co giãn trên Heap (vài KB), cho phép chạy hàng triệu luồng đồng thời.",
+      },
+      {
+        term: "Carrier Thread",
+        definitionVi:
+          "Luồng hệ điều hành thực tế (OS Platform Thread) thuộc một ForkJoinPool ngầm của JVM, đóng vai trò 'vật mang' để mount và thực thi mã byte của Virtual Thread trên CPU core.",
+      },
+      {
+        term: "Continuation.yield()",
+        definitionVi:
+          "Cơ chế cốt lõi của Project Loom: khi Virtual Thread gặp thao tác I/O chặn (Socket read/write), JVM tạm dừng luồng, lưu stack frame hiện tại lên Heap và unmount khỏi Carrier Thread, giải phóng Carrier Thread tức thì cho luồng khác.",
+      },
+      {
+        term: "Thread Pinning",
+        definitionVi:
+          "Hiện tượng tiêu cực khi Virtual Thread thực thi I/O chặn bên trong khối synchronized hoặc qua native JNI call. JVM không thể unmount call stack, khiến Carrier Thread bị 'ghim chặt' và đóng băng, làm nghẽn toàn bộ Carrier Pool.",
+      },
+    ],
+    stages: {
+      what: {
+        heading: "1. Khái niệm cốt lõi (WHAT)",
+        paragraphs: [
+          "Trong suốt 25 năm lịch sử của Java, mô hình luồng java.lang.Thread luôn là ánh xạ 1:1 trực tiếp với Luồng Hệ Điều Hành (OS Kernel Thread / Platform Thread). Mỗi khi tạo một new Thread(), hệ điều hành phải cấp phát một vùng nhớ Call Stack cố định (mặc định 1MB) và thực hiện chuyển đổi ngữ cảnh (Context Switching) đắt đỏ qua kernel space.",
+          "Chính vì vậy, trong mô hình Thread-per-Request truyền thống của các web server như Tomcat/Spring Boot, một máy chủ chỉ có thể duy trì tối đa vài ngàn luồng trước khi cạn kiệt RAM và CPU do thrashing.",
+          "Java 21 LTS chính thức giới thiệu Virtual Threads (Project Loom - JEP 444). Virtual Threads là mô hình luồng M:N: hàng triệu luồng ảo người dùng (Virtual Threads) được ánh xạ linh hoạt lên một số lượng nhỏ các luồng hệ điều hành (Carrier Threads).",
+        ],
+        bulletPoints: [
+          "Platform Thread: 1:1 OS thread, ngốn 1MB RAM cố định, giới hạn ~2,000 - 5,000 threads/server.",
+          "Virtual Thread: M:N user thread, ngốn ~1-2 KB Heap, co giãn động, có thể tạo 1,000,000+ threads dễ dàng.",
+          "Mã nguồn không thay đổi: Vẫn viết code tuần tự (blocking sequential style) quen thuộc mà không cần Reactive programming phức tạp (WebFlux/RxJava).",
+        ],
+      },
+      why: {
+        heading: "2. Tại sao Virtual Threads thay thế Reactive Programming? (WHY)",
+        paragraphs: [
+          "Để đạt được thông lượng cao (High Throughput) với hàng chục ngàn kết nối đồng thời trên luồng truyền thống, cộng đồng Backend từng phải chuyển sang các framework Reactive (Spring WebFlux, Project Reactor, Vert.x) dựa trên kiến trúc Non-blocking Event Loop.",
+          "Tuy nhiên, Reactive Programming mang lại cái giá quá đắt về trải nghiệm kỹ thuật (Developer Experience):",
+        ],
+        bulletPoints: [
+          "Stack trace bị vỡ vụn: Khi có lỗi xảy ra, stack trace chỉ toàn các hàm nội bộ của Reactor (Flux.publishOn, Mono.flatMap) mà không thể hiện được luồng nghiệp vụ thực tế.",
+          "Không thể dùng ThreadLocal: Làm tê liệt các cơ chế truyền context kinh điển như Spring Security context, Distributed Tracing (MDC, Zipkin, OpenTelemetry).",
+          "Đường cong học tập dốc đứng: Buộc kỹ sư phải từ bỏ các cấu trúc if/else, try/catch/finally quen thuộc.",
+        ],
+        callout: {
+          tone: "note",
+          title: "Cuộc cách mạng của Project Loom",
+          body: "Virtual Threads mang lại 'sự kỳ diệu': Giữ nguyên mô hình lập trình tuần tự đơn giản, debug dễ dàng với stack trace hoàn chỉnh, nhưng đạt được thông lượng ngang ngửa hoặc vượt trội hơn Reactive Programming!",
+        },
+      },
+      how: {
+        heading: "3. Cơ chế Lên lịch & Tạm dừng (Mount / Unmount / Yield) (HOW)",
+        paragraphs: [
+          "Cách thức Virtual Threads vận hành bên dưới tầng HotSpot JVM:",
+          "1. Mount: Khi một Virtual Thread sẵn sàng chạy, JVM chọn một Carrier Thread rảnh từ ForkJoinPool nội bộ và 'mount' luồng ảo vào. Con trỏ stack của Virtual Thread được ánh xạ vào stack của Carrier Thread và CPU bắt đầu thực thi.",
+          "2. Phát hiện I/O Chặn (Blocking Call): Khi Virtual Thread gọi một phương thức chặn (vd: Socket.read, Database query qua JDBC, Thread.sleep, LockSupport.park), JDK đã viết lại toàn bộ các thư viện mạng nội bộ để chuyển thành non-blocking.",
+          "3. Unmount & Yield Continuation: Thay vì block luồng OS, HotSpot gọi Continuation.yield(): sao chép các stack frame đang thực thi của Virtual Thread vào JVM Heap. Virtual Thread được tháo dỡ (unmount) khỏi Carrier Thread.",
+          "4. Giải phóng Carrier Thread: Carrier Thread được tự do NGAY LẬP TỨC để quay lại hàng đợi và nhận một Virtual Thread khác đang chờ.",
+          "5. Unpark & Resume: Một luồng ngầm Poller (dựa trên epoll của Linux hoặc kqueue của macOS) giám sát socket descriptor. Khi dữ liệu mạng tới, Poller đánh thức Virtual Thread, đưa nó trở lại hàng đợi Runnable. Virtual Thread sau đó được mount vào BẤT KỲ Carrier Thread nào đang rảnh để tiếp tục chạy từ đúng điểm đã tạm dừng.",
+        ],
+      },
+      internals: {
+        heading: "4. Cơ chế nội tại & Hiểm họa Thread Pinning (INTERNALS)",
+        paragraphs: [
+          "Dù Virtual Threads mang lại thông lượng đột phá, các kỹ sư Backend bắt buộc phải nắm vững khái niệm Thread Pinning (Ghim luồng).",
+          "Thread Pinning là tình trạng xảy ra khi một Virtual Thread thực hiện một thao tác I/O chặn trong khi đang ở một trong hai trường hợp:",
+          "1. Nằm bên trong một khối hoặc phương thức có từ khóa synchronized.",
+          "2. Đang thực thi một phương thức Native (thông qua JNI hoặc Foreign Function & Memory API).",
+          "Khi bị Pinning, HotSpot hiện tại chưa thể tháo rời call stack ra khỏi luồng OS. Hậu quả: Virtual Thread không thể unmount và buộc phải GIỮ CHẶT Carrier Thread trong trạng thái bị block. Nếu có 10 Virtual Threads cùng bị pinned bên trong synchronized block khi gọi database, toàn bộ Carrier Pool (thường chỉ có 8 worker threads trên máy 8-core) sẽ bị đóng băng hoàn toàn. Mọi Virtual Thread khác trong hệ thống sẽ bị chết đói (starvation).",
+        ],
+        codeSnippet: {
+          language: "java",
+          caption: "Khắc phục Thread Pinning: Thay thế synchronized bằng ReentrantLock",
+          code: `// KHÔNG NÊN: Gây Thread Pinning làm nghẽn Carrier Thread Pool!
+public synchronized String fetchLegacyData(String url) {
+    return restTemplate.getForObject(url, String.class); // I/O chặn bên trong synchronized
+}
+
+// KHUYÊN DÙNG TRONG JAVA 21: Sử dụng ReentrantLock hoàn toàn tương thích với Virtual Threads
+private final ReentrantLock lock = new ReentrantLock();
+
+public String fetchModernData(String url) {
+    lock.lock();
+    try {
+        return restTemplate.getForObject(url, String.class); // Unmount an toàn khi chặn I/O!
+    } finally {
+        lock.unlock();
+    }
+}
+
+// Khởi chạy Virtual Thread Per Request Executor trong Spring Boot 3.2+
+@Bean(TomcatProtocolHandlerCustomizer.class)
+public TomcatProtocolHandlerCustomizer<?> protocolHandlerVirtualThreadExecutorCustomizer() {
+    return protocolHandler -> {
+        protocolHandler.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+    };
+}`,
+        },
+      },
+      tradeOffs: {
+        heading: "5. Phân tích đánh đổi kỹ thuật (TRADE-OFFS)",
+        paragraphs: [
+          "Virtual Threads không phải là viên đạn bạc cho mọi bài toán hiệu năng:",
+        ],
+        bulletPoints: [
+          "Tác vụ I/O-bound (Rất phù hợp): Web APIs, Microservices gọi Database, Kafka, REST downstream services. Thông lượng có thể tăng từ 200% đến 500% mà không tốn thêm RAM.",
+          "Tác vụ CPU-bound (Không có lợi ích): Xử lý video, mã hóa crypto, tính toán ma trận lớn. Vì CPU-bound bị giới hạn bởi số core vật lý, Virtual Threads không làm tăng tốc độ tính toán mà còn tốn thêm chi phí điều phối.",
+          "Tuyệt đối không 'Pool' Virtual Threads: Tạo Virtual Thread Pool (như ThreadPoolExecutor(200)) là một Anti-Pattern. Virtual Threads được thiết kế để sinh ra theo từng tác vụ (Task-per-Thread) rồi tự hủy.",
+        ],
+      },
+      failureScenarios: {
+        heading: "6. Các kịch bản sự cố thực tế (FAILURE SCENARIOS)",
+        paragraphs: [
+          "1. Carrier Pool Exhaustion do Thread Pinning: Sử dụng thư viện JDBC driver cũ hoặc code legacy chứa synchronized block bao quanh lệnh gọi socket. Khi traffic tăng cao, các Carrier Threads bị ghim hết khiến hệ thống ngưng trệ.",
+          "2. Cạn kiệt Database Connection Pool: Khi Tomcat có thể mở 50,000 request đồng thời nhờ Virtual Threads, nếu tất cả cùng lao vào xin connection từ HikariCP (vốn chỉ có maxPoolSize=20), hàng chục ngàn Virtual Threads sẽ bị kẹt chờ kết nối, gây tràn bộ nhớ queue của connection pool.",
+          "3. Lạm dụng ThreadLocal ngốn bộ nhớ Heap: Nếu mỗi Virtual Thread lưu một object 1MB vào ThreadLocal, khi có 100,000 Virtual Threads chạy đồng thời, bộ nhớ Heap sẽ bị nuốt chửng 100GB dẫn đến OutOfMemoryError.",
+        ],
+        callout: {
+          tone: "warning",
+          title: "Truy vết Thread Pinning trong Production",
+          body: "Luôn khởi chạy ứng dụng với cờ JVM: -Djdk.tracePinnedThreads=full. HotSpot sẽ in cảnh báo chi tiết cùng stack trace mỗi khi có một Virtual Thread bị pin trên Carrier Thread.",
+        },
+      },
+      productionEngineering: {
+        heading: "7. Kinh nghiệm vận hành Production (PRODUCTION ENGINEERING)",
+        paragraphs: [
+          "Các nguyên tắc vàng khi đưa Virtual Threads vào sản phẩm:",
+          "1. Bật tính năng Virtual Threads trong Spring Boot 3.2+: Chỉ cần thêm cấu hình spring.threads.virtual.enabled=true trong file application.yml.",
+          "2. Quản trị áp lực hạ tầng (Backpressure & Rate Limiting): Sử dụng Semaphore để giới hạn số lượng truy vấn đồng thời tới các tài nguyên hữu hạn (như Database Connection Pool hoặc Payment Gateway bên ngoài).",
+          "3. Thay thế ThreadLocal bằng Scoped Values (JEP 446 / Java 21 preview) để chia sẻ dữ liệu bất biến giữa các tác vụ con một cách an toàn và tiết kiệm bộ nhớ.",
+          "4. Đảm bảo toàn bộ dependencies và JDBC Drivers đã được nâng cấp lên phiên bản mới nhất hỗ trợ Loom (PostgreSQL JDBC driver 42.6+, MySQL Connector/J 8.2+).",
+        ],
+      },
+    },
+    sourceIds: ["jep-444-virtual-threads"],
+    questionIds: ["java-q7-virtual-threads-yield", "java-q8-thread-pinning-hazard"],
+  },
+
+  // Existing Flagship Deep-Dive: Kafka Consumer Groups & Rebalancing
   {
     id: "kafka-consumer-groups-rebalance",
     slug: "kafka-consumer-groups-rebalance",

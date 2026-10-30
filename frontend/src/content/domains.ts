@@ -2,6 +2,28 @@ import type { DomainCatalogEntry } from "../domain";
 
 export const domainCatalog: DomainCatalogEntry[] = [
   {
+    id: "java",
+    title: "Java Core & JVM Internals",
+    tagline: "Memory Layout, Garbage Collection, Collections, Stream API & Virtual Threads",
+    descriptionVi:
+      "Làm chủ toàn diện hệ sinh thái Java: Từ kiến trúc JVM Runtime (Stack vs Heap, Metaspace), giải thuật Garbage Collection thế hệ, cấu trúc dữ liệu cốt lõi (HashMap treeification), đến Stream API lười biếng (lazy evaluation) và đột phá Virtual Threads (Project Loom) trong Java 21.",
+    status: "Active Interactive Labs",
+    topics: [
+      "JVM Runtime Memory (Stack Frames, Heap, Metaspace & GC Roots)",
+      "Generational Garbage Collection (Eden, Survivor S0/S1, Tenured & STW Pauses)",
+      "Java Collections: HashMap Hashing, Collisions & Red-Black Treeification",
+      "Java 8+ Functional Interfaces, Lambda & Stream Pipeline Fusion",
+      "CompletableFuture & Asynchronous Non-blocking Pipelines",
+      "Java 21 Virtual Threads (Project Loom), Carrier Scheduling & Thread Pinning",
+    ],
+    featuredModuleSlugs: [
+      "java-memory-heap-stack-gc",
+      "java-hashmap-treeification",
+      "java-streams-lazy-evaluation",
+      "java-virtual-threads-loom",
+    ],
+  },
+  {
     id: "messaging",
     title: "Messaging & Event Streaming",
     tagline: "Apache Kafka, Event Logs, Consumer Groups & Exactly-Once Semantics",

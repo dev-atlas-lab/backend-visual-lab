@@ -3,6 +3,9 @@ import {
   kafkaConsumerGroupSimulation,
   redisStampedeSimulation,
   postgresMvccBtreeSimulation,
+  javaMemoryGcSimulation,
+  javaHashMapSimulation,
+  javaVirtualThreadsSimulation,
   computePartitionAssignment,
   buildPresetTape,
 } from "../engines/simulation";
@@ -155,5 +158,177 @@ describe("PostgreSQL B-Tree & MVCC Simulation Engine", () => {
     // Under REPEATABLE READ, reader still sees initial $500 snapshot!
     const select = engine.applyCommand(committed, { type: "EXECUTE_READER_SELECT" });
     expect(select.state.returnedBalanceUsd).toBe(500);
+  });
+});
+
+describe("JVM Memory & Generational GC Simulation Engine", () => {
+  it("allocates objects on Eden, invalidates reachability upon method return, and evacuates live objects during Minor GC", () => {
+    const engine = javaMemoryGcSimulation;
+    const initial = engine.createInitialFrame({
+      edenCapacity: 5,
+      survivorCapacity: 3,
+      oldGenCapacity: 6,
+      tenuringThreshold: 3,
+    });
+
+    expect(initial.state.youngEden.length).toBe(0);
+    expect(initial.state.threadStack.length).toBe(1);
+
+    // Call method & allocate objects
+    const called = engine.applyCommand(initial, { type: "CALL_METHOD", methodName: "orderService.checkout()" });
+    expect(called.state.threadStack.length).toBe(2);
+
+    const alloc1 = engine.applyCommand(called, { type: "ALLOCATE_OBJECT", className: "Order", varName: "o1" });
+    const alloc2 = engine.applyCommand(alloc1, { type: "ALLOCATE_OBJECT", className: "TempBuf", varName: "b1" });
+    expect(alloc2.state.youngEden.length).toBe(2);
+    expect(alloc2.state.youngEden.every((o) => o.isRootReachable)).toBe(true);
+
+    // Return method -> stack frame popped, references invalidated
+    const returned = engine.applyCommand(alloc2, { type: "RETURN_METHOD" });
+    expect(returned.state.threadStack.length).toBe(1);
+    expect(returned.state.youngEden.every((o) => !o.isRootReachable)).toBe(true);
+
+    // Minor GC -> dead objects in Eden swept, To-Survivor remains empty
+    const gcFrame = engine.applyCommand(returned, { type: "TRIGGER_MINOR_GC" });
+    expect(gcFrame.state.minorGcCount).toBe(1);
+    expect(gcFrame.state.youngEden.length).toBe(0);
+    expect(gcFrame.state.youngS0.length).toBe(0);
+    expect(gcFrame.state.youngS1.length).toBe(0);
+  });
+
+  it("promotes long-lived objects to Old Gen when tenuringAge reaches threshold", () => {
+    const engine = javaMemoryGcSimulation;
+    const initial = engine.createInitialFrame({
+      edenCapacity: 5,
+      survivorCapacity: 3,
+      oldGenCapacity: 6,
+      tenuringThreshold: 3,
+    });
+
+    // Allocate in main frame (root persistent)
+    let frame = engine.applyCommand(initial, { type: "ALLOCATE_OBJECT", className: "GlobalConfig", varName: "cfg" });
+    expect(frame.state.youngEden[0].isRootReachable).toBe(true);
+
+    // Cycle 1: Minor GC -> evacuated to S1 with age 1
+    frame = engine.applyCommand(frame, { type: "TRIGGER_MINOR_GC" });
+    expect(frame.state.youngS1.length).toBe(1);
+    expect(frame.state.youngS1[0].tenuringAge).toBe(1);
+
+    // Cycle 2: Minor GC -> evacuated to S0 with age 2
+    frame = engine.applyCommand(frame, { type: "TRIGGER_MINOR_GC" });
+    expect(frame.state.youngS0.length).toBe(1);
+    expect(frame.state.youngS0[0].tenuringAge).toBe(2);
+
+    // Cycle 3: Minor GC -> reaches threshold 3 -> PROMOTED to Old Gen!
+    frame = engine.applyCommand(frame, { type: "TRIGGER_MINOR_GC" });
+    expect(frame.state.oldGen.length).toBe(1);
+    expect(frame.state.oldGen[0].className).toBe("GlobalConfig");
+    expect(frame.state.oldGen[0].generation).toBe("OLD_GEN");
+    expect(frame.invariants.every((i) => i.passed)).toBe(true);
+  });
+});
+
+describe("Java HashMap Internals & Treeification Simulation Engine", () => {
+  it("computes bitwise slot index (n - 1) & hash and inserts key-value pairs", () => {
+    const engine = javaHashMapSimulation;
+    const initial = engine.createInitialFrame({
+      initialCapacity: 16,
+      loadFactor: 0.75,
+      treeifyThreshold: 8,
+      minTreeifyCapacity: 32,
+    });
+
+    expect(initial.state.capacity).toBe(16);
+    expect(initial.state.threshold).toBe(12);
+
+    const put1 = engine.applyCommand(initial, { type: "PUT", key: "username", value: "alice" });
+    expect(put1.state.size).toBe(1);
+    expect(put1.state.lastOperationDetails?.key).toBe("username");
+    expect(put1.invariants.every((i) => i.passed)).toBe(true);
+  });
+
+  it("converts colliding bucket chain to Red-Black Tree when collision depth exceeds threshold 8", () => {
+    const engine = javaHashMapSimulation;
+    const initial = engine.createInitialFrame({
+      initialCapacity: 16,
+      loadFactor: 0.75,
+      treeifyThreshold: 8,
+      minTreeifyCapacity: 16, // lowered for educational check
+    });
+
+    // Burst 9 colliding keys into slot 3
+    const treeified = engine.applyCommand(initial, {
+      type: "BURST_COLLIDING_KEYS",
+      count: 9,
+      targetBucketIndex: 3,
+    });
+
+    const bucket3 = treeified.state.buckets[3];
+    expect(bucket3.nodes.length).toBe(9);
+    expect(bucket3.mode).toBe("RED_BLACK_TREE");
+    expect(treeified.state.treeifiedBucketsCount).toBe(1);
+    expect(treeified.invariants.find((i) => i.id === "treeification-integrity")?.passed).toBe(true);
+  });
+
+  it("doubles table capacity (power of two) and splits buckets when size exceeds threshold", () => {
+    const engine = javaHashMapSimulation;
+    const initial = engine.createInitialFrame({
+      initialCapacity: 16,
+      loadFactor: 0.75,
+      treeifyThreshold: 8,
+      minTreeifyCapacity: 32,
+    });
+
+    // Trigger explicit resize
+    const resized = engine.applyCommand(initial, { type: "TRIGGER_RESIZE_DOUBLING" });
+    expect(resized.state.capacity).toBe(32);
+    expect(resized.state.threshold).toBe(24);
+    expect(resized.state.buckets.length).toBe(32);
+    expect(resized.invariants.find((i) => i.id === "power-of-two-capacity")?.passed).toBe(true);
+  });
+});
+
+describe("Java 21 Virtual Threads & Loom Simulation Engine", () => {
+  it("mounts virtual threads onto OS Carrier Threads and unmounts cleanly upon blocking I/O", () => {
+    const engine = javaVirtualThreadsSimulation;
+    const initial = engine.createInitialFrame({
+      carrierPoolSize: 2,
+      initialSpawnCount: 4,
+    });
+
+    expect(initial.state.carrierThreads.length).toBe(2);
+    expect(initial.state.carrierThreads.every((c) => c.status === "IDLE")).toBe(true);
+
+    // Step execution: carrier threads mount 2 virtual threads
+    const step1 = engine.applyCommand(initial, { type: "STEP_EXECUTION" });
+    expect(step1.state.carrierThreads.every((c) => c.status === "BUSY")).toBe(true);
+    expect(step1.state.virtualThreads.filter((v) => v.status === "MOUNTED_RUNNING").length).toBe(2);
+
+    // Trigger blocking I/O on running task: Continuation yields, carrier freed immediately!
+    const ioYield = engine.applyCommand(step1, { type: "TRIGGER_BLOCKING_IO" });
+    const yieldedTask = ioYield.state.virtualThreads.find((v) => v.status === "YIELDED_PARKED_IO");
+    expect(yieldedTask).toBeDefined();
+    // One carrier thread freed!
+    expect(ioYield.state.carrierThreads.some((c) => c.status === "IDLE")).toBe(true);
+
+    // Step execution again: idle carrier immediately picks up another task from queue!
+    const step2 = engine.applyCommand(ioYield, { type: "STEP_EXECUTION" });
+    expect(step2.state.carrierThreads.every((c) => c.status === "BUSY")).toBe(true);
+  });
+
+  it("detects Thread Pinning when synchronized block is invoked during blocking call", () => {
+    const engine = javaVirtualThreadsSimulation;
+    const initial = engine.createInitialFrame({
+      carrierPoolSize: 2,
+      initialSpawnCount: 2,
+    });
+
+    const step1 = engine.applyCommand(initial, { type: "STEP_EXECUTION" });
+    const pinned = engine.applyCommand(step1, { type: "TRIGGER_SYNCHRONIZED_PINNING" });
+
+    expect(pinned.state.hasPinnedCarrierAlert).toBe(true);
+    expect(pinned.state.carrierThreads.some((c) => c.status === "PINNED")).toBe(true);
+    const pinningInvariant = pinned.invariants.find((i) => i.id === "thread-pinning-safety");
+    expect(pinningInvariant?.passed).toBe(false);
   });
 });

@@ -7,6 +7,7 @@ export const identifierSchema = z
   .regex(/^[a-z0-9-]+$/, "Identifier must be lowercase kebab-case");
 
 export const domainIdSchema = z.enum([
+  "java",
   "messaging",
   "distributed-systems",
   "databases",
@@ -87,6 +88,9 @@ export const simulationIdSchema = z.enum([
   "kafka-consumer-group",
   "redis-stampede",
   "postgres-mvcc-btree",
+  "java-memory-gc",
+  "java-hashmap-treeification",
+  "java-virtual-threads",
 ]);
 
 export type SimulationId = z.infer<typeof simulationIdSchema>;
@@ -100,7 +104,7 @@ export const learningModuleSchema = z.object({
   governanceStatus: governanceStatusSchema,
   estimatedMinutes: z.number().int().min(5).max(180),
   difficulty: z.enum(["Foundational", "Intermediate", "Senior / Staff"]),
-  simulationId: simulationIdSchema,
+  simulationId: simulationIdSchema.optional(),
   keyTerms: z.array(
     z.object({
       term: z.string().trim().min(1),

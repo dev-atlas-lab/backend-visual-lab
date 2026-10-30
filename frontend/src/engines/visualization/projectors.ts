@@ -2,6 +2,9 @@ import type {
   KafkaConsumerGroupState,
   PostgresMvccBtreeState,
   RedisStampedeState,
+  JavaMemoryGcState,
+  JavaHashMapState,
+  JavaVirtualThreadsState,
   SimulationStepFrame,
 } from "../simulation";
 
@@ -206,6 +209,264 @@ export function projectPostgresFrameToLanes(
       laneId: "pg-heap-tuples",
       laneTitle: `8 KB Slotted Heap Pages — Reader Tx ${state.readerTxId} (${state.isolationLevel})`,
       cards: tupleCards,
+    },
+  ];
+}
+
+export function projectJavaMemoryFrameToLanes(
+  frame: SimulationStepFrame<JavaMemoryGcState>,
+): VisualLaneProjection[] {
+  const { state } = frame;
+
+  const stackCards: VisualNodeCard[] = state.threadStack.map((f, idx) => ({
+    id: f.id,
+    title: f.methodName,
+    subtitle: `Stack Frame #${idx + 1} (Local Variables: ${f.localReferences.length})`,
+    badgeText: idx === state.threadStack.length - 1 ? "ACTIVE (TOP)" : "SUSPENDED",
+    tone: idx === state.threadStack.length - 1 ? "healthy" : "muted",
+    details: f.localReferences.map(
+      (r) =>
+        r.isPrimitive
+          ? `primitive: ${r.varName} = ${r.primitiveValue}`
+          : `ref: ${r.varName} -> [${r.targetHeapId}]`,
+    ),
+  }));
+
+  const edenCards: VisualNodeCard[] = state.youngEden.map((o) => ({
+    id: o.id,
+    title: `new ${o.className}()`,
+    subtitle: `Heap ID: ${o.id}`,
+    badgeText: o.isRootReachable ? "LIVE (ROOT-REACHABLE)" : "GARBAGE (UNREACHABLE)",
+    tone: o.isRootReachable ? "healthy" : "danger",
+    details: [
+      `Variable: ${o.variableName ?? "anonymous"}`,
+      `Generation: EDEN | Age: ${o.tenuringAge}`,
+      `Size: ${o.sizeBytes} bytes`,
+    ],
+  }));
+
+  const activeSurvivorList = state.activeSurvivor === 0 ? state.youngS0 : state.youngS1;
+  const survivorCards: VisualNodeCard[] = activeSurvivorList.map((o) => ({
+    id: o.id,
+    title: o.className,
+    subtitle: `Survivor Space S${state.activeSurvivor}`,
+    badgeText: `AGE ${o.tenuringAge} / ${state.tenuringThreshold}`,
+    tone: o.tenuringAge >= state.tenuringThreshold - 1 ? "warning" : "info",
+    details: [
+      `Heap ID: ${o.id}`,
+      `Status: Surviving Minor GC #${o.tenuringAge}`,
+      `Next GC: ${o.tenuringAge + 1 >= state.tenuringThreshold ? "PROMOTE TO OLD GEN" : "Copy to S" + (1 - state.activeSurvivor)}`,
+    ],
+  }));
+
+  const oldGenCards: VisualNodeCard[] = state.oldGen.map((o) => ({
+    id: o.id,
+    title: o.className,
+    subtitle: "Tenured / Old Generation",
+    badgeText: "PROMOTED (LONG-LIVED)",
+    tone: o.isRootReachable ? "healthy" : "warning",
+    details: [
+      `Heap ID: ${o.id}`,
+      `Origin: Promoted after reaching Tenuring Age ${o.tenuringAge}`,
+      `Reachable: ${o.isRootReachable ? "YES" : "NO (Awaiting Full GC)"}`,
+    ],
+  }));
+
+  return [
+    {
+      laneId: "jvm-thread-stack",
+      laneTitle: `JVM Call Stack (GC Roots) — ${state.threadStack.length} Frame(s)`,
+      cards: stackCards,
+    },
+    {
+      laneId: "jvm-young-eden",
+      laneTitle: `Young Gen: Eden Space (${state.youngEden.length}/${state.edenCapacity} slots)`,
+      cards: edenCards.length > 0 ? edenCards : [
+        {
+          id: "eden-empty",
+          title: "Eden Space Trống",
+          subtitle: "Sẵn sàng cấp phát",
+          badgeText: "0 OBJECTS",
+          tone: "muted",
+          details: ["Chưa có đối tượng mới nào hoặc vừa hoàn tất Minor GC dọn sạch."],
+        },
+      ],
+    },
+    {
+      laneId: "jvm-young-survivor",
+      laneTitle: `Young Gen: Active Survivor S${state.activeSurvivor} (To-Space S${1 - state.activeSurvivor} is Empty)`,
+      cards: survivorCards.length > 0 ? survivorCards : [
+        {
+          id: "survivor-empty",
+          title: `Survivor S${state.activeSurvivor} Trống`,
+          subtitle: "Chưa có object sống sót qua Minor GC",
+          badgeText: "0 OBJECTS",
+          tone: "muted",
+          details: ["Các đối tượng chết ngay trong Eden mà không cần sơ tán vào Survivor."],
+        },
+      ],
+    },
+    {
+      laneId: "jvm-old-gen",
+      laneTitle: `Old Gen / Tenured Space (${state.oldGen.length}/${state.oldGenCapacity} slots)`,
+      cards: oldGenCards.length > 0 ? oldGenCards : [
+        {
+          id: "oldgen-empty",
+          title: "Old Generation Trống",
+          subtitle: "Chưa có đối tượng thăng hạng",
+          badgeText: "0 OBJECTS",
+          tone: "muted",
+          details: ["Đối tượng cần sống sót qua 3 chu kỳ Minor GC để được thăng hạng."],
+        },
+      ],
+    },
+  ];
+}
+
+export function projectJavaHashMapFrameToLanes(
+  frame: SimulationStepFrame<JavaHashMapState>,
+): VisualLaneProjection[] {
+  const { state } = frame;
+
+  const bucketCards: VisualNodeCard[] = state.buckets
+    .filter((b) => b.nodes.length > 0)
+    .map((b) => ({
+      id: `bucket-${b.index}`,
+      title: `Bucket Slot #${b.index}`,
+      subtitle: `${b.nodes.length} Node(s) — Mode: ${b.mode}`,
+      badgeText: b.mode === "RED_BLACK_TREE" ? "RED-BLACK TREE O(log n)" : b.nodes.length > 1 ? "COLLISION CHAIN O(n)" : "HEAD NODE O(1)",
+      tone: b.mode === "RED_BLACK_TREE" ? "danger" : b.nodes.length > 1 ? "warning" : "healthy",
+      details: b.nodes.map(
+        (n, i) =>
+          `[#${i + 1}] "${n.key}" -> "${n.value}" (rawHash: ${n.rawHashCode}, spread: 0x${n.spreadHash.toString(16)})`,
+      ),
+    }));
+
+  const opCards: VisualNodeCard[] = state.lastOperationDetails ? [
+    {
+      id: "last-op",
+      title: `Phép tính Băm: "${state.lastOperationDetails.key}"`,
+      subtitle: `hashCode() = ${state.lastOperationDetails.rawHashCode}`,
+      badgeText: state.lastOperationDetails.collisionOccurred ? "VA CHẠM (COLLISION)" : "SLOT MỚI",
+      tone: state.lastOperationDetails.collisionOccurred ? "warning" : "healthy",
+      details: [
+        `Perturbation hash: (h ^ (h >>> 16)) = 0x${state.lastOperationDetails.spreadHash.toString(16)}`,
+        `Index: (${state.capacity} - 1) & hash = ${state.lastOperationDetails.targetIndex}`,
+        `Treeified: ${state.lastOperationDetails.treeified ? "YES (Mô hình Cây)" : "NO"}`,
+      ],
+    },
+  ] : [
+    {
+      id: "no-op",
+      title: "Chưa có Thao tác Băm",
+      subtitle: "Nhấn Put Entry để bắt đầu",
+      badgeText: "IDLE",
+      tone: "muted",
+      details: ["Thực hiện lệnh PUT để xem cách tính hash và vị trí bucket."],
+    },
+  ];
+
+  return [
+    {
+      laneId: "hashmap-calculation",
+      laneTitle: `Thao tác & Phép tính Phân tán Băm (Perturbation)`,
+      cards: opCards,
+    },
+    {
+      laneId: "hashmap-active-buckets",
+      laneTitle: `Mảng Table Node<K,V>[] — Đang sử dụng ${bucketCards.length}/${state.capacity} slots (Threshold: ${state.threshold})`,
+      cards: bucketCards.length > 0 ? bucketCards : [
+        {
+          id: "all-empty",
+          title: "Toàn bộ Buckets đang Trống",
+          subtitle: `Capacity: ${state.capacity}`,
+          badgeText: "SIZE: 0",
+          tone: "muted",
+          details: ["Chưa có phần tử nào được thêm vào HashMap."],
+        },
+      ],
+    },
+  ];
+}
+
+export function projectJavaVirtualThreadsFrameToLanes(
+  frame: SimulationStepFrame<JavaVirtualThreadsState>,
+): VisualLaneProjection[] {
+  const { state } = frame;
+
+  const carrierCards: VisualNodeCard[] = state.carrierThreads.map((c) => ({
+    id: c.id,
+    title: c.name,
+    subtitle: `OS Platform Thread (Tasks processed: ${c.totalTasksProcessed})`,
+    badgeText: c.status === "PINNED" ? "CRITICAL: PINNED" : c.status === "BUSY" ? "BUSY (MOUNTED)" : "IDLE",
+    tone: c.status === "PINNED" ? "danger" : c.status === "BUSY" ? "healthy" : "muted",
+    details: [
+      `Trạng thái: ${c.status}`,
+      `Đang chạy: ${c.currentVirtualThreadId ?? "None (Rảnh rỗi)"}`,
+      c.status === "PINNED" ? "ĐANG BỊ KHÓA BỞI SYNCHRONIZED BLOCK!" : "Sẵn sàng nhận Virtual Thread tiếp theo",
+    ],
+  }));
+
+  const activeVtCards: VisualNodeCard[] = state.virtualThreads
+    .filter((vt) => vt.status !== "QUEUED_RUNNABLE" && vt.status !== "COMPLETED")
+    .map((vt) => ({
+      id: vt.id,
+      title: vt.name,
+      subtitle: `Trạng thái: ${vt.status}`,
+      badgeText: vt.status === "PINNED_BLOCKED" ? "PINNED" : vt.status === "YIELDED_PARKED_IO" ? "PARKED (I/O YIELD)" : "MOUNTED",
+      tone: vt.status === "PINNED_BLOCKED" ? "danger" : vt.status === "YIELDED_PARKED_IO" ? "warning" : "healthy",
+      details: [
+        `Mounted Carrier: ${vt.mountedCarrierId ?? "None (Continuation on Heap)"}`,
+        `Stack footprint: ~${vt.stackSizeKb} KB (co giãn động)`,
+        vt.pinningReason ? `Cảnh báo: ${vt.pinningReason}` : "I/O non-blocking yield",
+      ],
+    }));
+
+  const runnableQueueCards: VisualNodeCard[] = state.virtualThreads
+    .filter((vt) => vt.status === "QUEUED_RUNNABLE")
+    .slice(0, 8)
+    .map((vt) => ({
+      id: vt.id,
+      title: vt.name,
+      subtitle: "Hàng đợi Runnable Queue",
+      badgeText: "CHỜ CARRIER",
+      tone: "info",
+      details: ["Sẵn sàng mount vào Carrier Thread tiếp theo rảnh."],
+    }));
+
+  return [
+    {
+      laneId: "vt-carrier-pool",
+      laneTitle: `OS Carrier Thread Pool (${state.carrierPoolSize} Kernel Threads) — Pinning Alert: ${state.hasPinnedCarrierAlert ? "ON" : "OFF"}`,
+      cards: carrierCards,
+    },
+    {
+      laneId: "vt-active-threads",
+      laneTitle: `Virtual Threads Đang Chạy hoặc Chờ I/O (${activeVtCards.length} active)`,
+      cards: activeVtCards.length > 0 ? activeVtCards : [
+        {
+          id: "no-active-vt",
+          title: "Không có Virtual Thread nào đang chạy",
+          subtitle: "Nhấn Chạy bước (Step Execution) để mount tác vụ",
+          badgeText: "IDLE",
+          tone: "muted",
+          details: ["Tất cả Virtual Threads đang trong hàng đợi runnable hoặc đã hoàn tất."],
+        },
+      ],
+    },
+    {
+      laneId: "vt-run-queue",
+      laneTitle: `Hàng đợi Chờ Điều phối (${state.virtualThreads.filter((v) => v.status === "QUEUED_RUNNABLE").length} Tasks)`,
+      cards: runnableQueueCards.length > 0 ? runnableQueueCards : [
+        {
+          id: "queue-empty",
+          title: "Hàng đợi Runnable Trống",
+          subtitle: "Mọi tác vụ đã được lên lịch",
+          badgeText: "0 QUEUED",
+          tone: "muted",
+          details: ["Nhấn Spawn Virtual Threads để thêm tải công việc."],
+        },
+      ],
     },
   ];
 }
