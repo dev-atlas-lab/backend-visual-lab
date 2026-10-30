@@ -108,7 +108,11 @@ export const learningModuleSchema = z.object({
   keyTerms: z.array(
     z.object({
       term: z.string().trim().min(1),
-      definitionVi: z.string().trim().min(1),
+      definition: z.string().trim().min(1).optional(),
+      definitionEn: z.string().trim().min(1).optional(),
+      definitionVi: z.string().trim().min(1).optional(),
+    }).refine((d) => Boolean(d.definition || d.definitionEn || d.definitionVi), {
+      message: "Either definition, definitionEn, or definitionVi must be provided",
     }),
   ).min(3),
   stages: z.object({
@@ -130,10 +134,14 @@ export const domainCatalogEntrySchema = z.object({
   id: domainIdSchema,
   title: z.string().trim().min(1),
   tagline: z.string().trim().min(1),
-  descriptionVi: z.string().trim().min(1),
+  description: z.string().trim().min(1).optional(),
+  descriptionEn: z.string().trim().min(1).optional(),
+  descriptionVi: z.string().trim().min(1).optional(),
   status: z.enum(["Active Interactive Labs", "Planned Expansion"]),
   topics: z.array(z.string().trim().min(1)).min(4),
   featuredModuleSlugs: z.array(identifierSchema),
+}).refine((d) => Boolean(d.description || d.descriptionEn || d.descriptionVi), {
+  message: "Either description, descriptionEn, or descriptionVi must be provided",
 });
 
 export type DomainCatalogEntry = z.infer<typeof domainCatalogEntrySchema>;

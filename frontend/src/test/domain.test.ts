@@ -21,13 +21,14 @@ describe("Content Pack Validation & Decoupling Invariants", () => {
     }
   });
 
-  it("ensures each question has unique choices and valid non-empty Vietnamese explanations for all choices", () => {
+  it("ensures each question has unique choices and valid non-empty explanations for all choices", () => {
     for (const q of validatedContentPack.questions) {
       expect(q.stem.length).toBeGreaterThan(10);
       expect(q.choices.length).toBeGreaterThanOrEqual(3);
       for (const choice of q.choices) {
         expect(choice.text.length).toBeGreaterThan(0);
-        expect(choice.explanationVi.length).toBeGreaterThan(0);
+        const explanation = choice.explanation || choice.explanationEn || choice.explanationVi;
+        expect(explanation?.length).toBeGreaterThan(0);
       }
     }
   });

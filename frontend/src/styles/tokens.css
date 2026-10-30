@@ -1,120 +1,179 @@
+/*
+ * Design Tokens — Backend Visual Lab
+ * Inherited from Dev Atlas Lab Claude Associate aesthetic:
+ * Terracotta (#e2a173) & Warm Charcoal / Paper palette with Inter & JetBrains Mono
+ */
+
 :root {
-  /* Color Palette — Dark default */
-  --surface-0: #0d1117;
-  --surface-1: #161b22;
-  --surface-2: #21262d;
-  --surface-3: #30363d;
-  --surface-inset: #090d13;
-
-  --border-subtle: #30363d;
-  --border-bold: #484f58;
-
-  --text-primary: #f0f6fc;
-  --text-secondary: #9da7b3;
-  --text-tertiary: #8b949e;
-
-  --accent-primary: #38bdf8;
-  --accent-hover: #0284c7;
-  --accent-subtle: rgba(56, 189, 248, 0.15);
-
-  --status-ok: #3fb950;
-  --status-ok-subtle: rgba(63, 185, 80, 0.2);
-
-  --status-warn: #d29922;
-  --status-warn-subtle: rgba(210, 153, 34, 0.2);
-
-  --status-danger: #f85149;
-  --status-danger-subtle: rgba(248, 81, 73, 0.2);
-
-  --status-info: #58a6ff;
-  --status-info-subtle: rgba(88, 166, 255, 0.2);
-
-  --focus-ring: #38bdf8;
-
-  /* Typography & Layout Tokens */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Typography scale */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  --text-xs: 0.6875rem;   /* 11px */
+  --text-sm: 0.75rem;     /* 12px */
+  --text-base: 0.875rem;  /* 14px */
+  --text-md: 0.9375rem;   /* 15px */
+  --text-lg: 1.0625rem;   /* 17px */
+  --text-xl: 1.3125rem;   /* 21px */
+  --text-2xl: 1.625rem;   /* 26px */
+  --text-3xl: 2rem;       /* 32px */
+
+  --leading-tight: 1.25;
+  --leading-snug: 1.45;
+  --leading-normal: 1.65;
+  --leading-relaxed: 1.8;
+
+  /* Spacing Scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* Border Radii */
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 13px;
+  --radius-xl: 18px;
   --radius-full: 9999px;
 
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-
-  --max-content-width: 1280px;
+  /* Layout geometry */
+  --max-content-width: 1240px;
   --lesson-reading-width: 76ch;
+  --topbar-height: 58px;
+
+  /* Transitions */
+  --ease-out: cubic-bezier(0.22, 0.68, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+
+  /* Dark theme — Warm Charcoal default */
+  color-scheme: dark;
+
+  --surface-0: #0e0f12;
+  --surface-1: #14161a;
+  --surface-2: #191b20;
+  --surface-3: #202329;
+  --surface-inset: #111317;
+
+  --border-subtle: #24272e;
+  --border-bold: #353941;
+
+  --text-primary: #ecebe7;
+  --text-secondary: #a9aab1;
+  --text-tertiary: #82858e;
+
+  /* Signature Anthropic Terracotta */
+  --accent: #e2a173;
+  --accent-primary: #e2a173;
+  --accent-strong: #f2bb90;
+  --accent-hover: #f2bb90;
+  --accent-subtle: rgba(226, 161, 115, 0.14);
+  --accent-contrast: #1b120b;
+
+  /* Status Colors */
+  --status-ok: #8dc7a9;
+  --status-ok-subtle: rgba(141, 199, 169, 0.14);
+
+  --status-warn: #e2c583;
+  --status-warn-subtle: rgba(226, 197, 131, 0.14);
+
+  --status-danger: #e79b92;
+  --status-danger-subtle: rgba(231, 155, 146, 0.14);
+
+  --status-info: #93bde6;
+  --status-info-subtle: rgba(147, 189, 230, 0.14);
+
+  --focus-ring: #f2bb90;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 10px 30px -12px rgba(0, 0, 0, 0.65);
 }
 
 [data-theme="light"] {
-  --surface-0: #f6f8fa;
-  --surface-1: #ffffff;
-  --surface-2: #f1f3f5;
-  --surface-3: #e1e4e8;
-  --surface-inset: #eaeef2;
+  /* Light theme — Warm Paper-like */
+  color-scheme: light;
 
-  --border-subtle: #d0d7de;
-  --border-bold: #afb8c1;
+  --surface-0: #f7f6f3;
+  --surface-1: #fdfcfa;
+  --surface-2: #ffffff;
+  --surface-3: #f1efe9;
+  --surface-inset: #f4f2ed;
 
-  --text-primary: #1f2328;
-  --text-secondary: #59636e;
-  --text-tertiary: #656d76;
+  --border-subtle: #e4e1d9;
+  --border-bold: #cdc8bd;
 
-  --accent-primary: #0969da;
-  --accent-hover: #0550ae;
-  --accent-subtle: rgba(9, 105, 218, 0.1);
+  --text-primary: #1d1e21;
+  --text-secondary: #55575f;
+  --text-tertiary: #6b6d75;
 
-  --status-ok: #1a7f37;
-  --status-ok-subtle: rgba(26, 127, 55, 0.12);
+  --accent: #a95c2b;
+  --accent-primary: #a95c2b;
+  --accent-strong: #8a471c;
+  --accent-hover: #8a471c;
+  --accent-subtle: rgba(169, 92, 43, 0.12);
+  --accent-contrast: #fffaf6;
 
-  --status-warn: #9a6700;
-  --status-warn-subtle: rgba(154, 103, 0, 0.12);
+  --status-ok: #256b4d;
+  --status-ok-subtle: rgba(37, 107, 77, 0.12);
 
-  --status-danger: #cf222e;
-  --status-danger-subtle: rgba(207, 34, 46, 0.12);
+  --status-warn: #7d5a13;
+  --status-warn-subtle: rgba(125, 90, 19, 0.12);
 
-  --status-info: #0969da;
-  --status-info-subtle: rgba(9, 105, 218, 0.12);
+  --status-danger: #9c3a31;
+  --status-danger-subtle: rgba(156, 58, 49, 0.12);
 
-  --focus-ring: #0969da;
+  --status-info: #2c5f8f;
+  --status-info-subtle: rgba(44, 95, 143, 0.12);
+
+  --focus-ring: #8a471c;
+  --shadow-sm: 0 1px 2px rgba(31, 27, 20, 0.08);
+  --shadow-md: 0 12px 28px -16px rgba(31, 27, 20, 0.24);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
   background-color: var(--surface-0);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 a {
   color: var(--accent-primary);
   text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 a:hover {
+  color: var(--accent-hover);
   text-decoration: underline;
 }
 
-code, pre {
-  font-family: var(--font-mono);
+button {
+  font-family: inherit;
+  cursor: pointer;
 }
 
-:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+pre, code {
+  font-family: var(--font-mono);
 }

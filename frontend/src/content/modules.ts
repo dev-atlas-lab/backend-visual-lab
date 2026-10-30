@@ -8,7 +8,7 @@ export const learningModules: LearningModule[] = [
     domainId: "java",
     title: "Java Memory Management — Stack Frames, Heap Layout & Generational Garbage Collection",
     subtitle:
-      "Phân biệt Call Stack vs Heap, Vòng đời Young Gen (Eden, S0/S1), Thăng hạng Tenured và Cơ chế Dọn rác HotSpot",
+      "Deconstruct Call Stack vs Heap, Young Gen lifecycles (Eden, S0/S1), Tenured Promotion, and HotSpot Garbage Collection",
     governanceStatus: "VERIFIED",
     estimatedMinutes: 25,
     difficulty: "Intermediate",
@@ -16,79 +16,79 @@ export const learningModules: LearningModule[] = [
     keyTerms: [
       {
         term: "JVM Stack Frame",
-        definitionVi:
-          "Vùng nhớ được cấp phát trên Thread Stack mỗi khi một phương thức được gọi. Chứa Local Variable Table (biến nguyên thủy và con trỏ tham chiếu), Operand Stack, và Frame Data. Tự động giải phóng ngay khi hàm return với chi phí 0 ns GC.",
+        definition:
+          "Memory allocated on a Thread Stack whenever a method is invoked. Contains the Local Variable Table (primitives and reference pointers), Operand Stack, and Frame Data. Automatically deallocated upon method return with 0 ns GC cost.",
       },
       {
         term: "GC Roots",
-        definitionVi:
-          "Các đối tượng đặc biệt làm điểm bắt đầu truy vết khả năng tiếp cận (Reachability Analysis) của Garbage Collector. Bao gồm: biến cục bộ trong Stack Frame, static fields của loaded classes, JNI global/local references.",
+        definition:
+          "Special references that serve as starting anchors for Garbage Collector reachability analysis. Includes active local variables in thread stack frames, static fields of loaded classes, and active JNI global/local pointers.",
       },
       {
         term: "Weak Generational Hypothesis",
-        definitionVi:
-          "Giả thuyết thế hệ thực nghiệm chứng minh rằng 95% đến 98% đối tượng trong ứng dụng Java chết ngay sau khi được khởi tạo. Đây là nền tảng cho việc chia tách Heap thành Young Generation và Old Generation.",
+        definition:
+          "Empirical finding that 95% to 98% of objects allocated in Java applications die shortly after creation. Forms the foundational rationale for partitioning Heap into Young and Old Generations.",
       },
       {
         term: "Tenuring Threshold",
-        definitionVi:
-          "Số chu kỳ Minor GC tối đa mà một đối tượng có thể sống sót trong Survivor Spaces (S0/S1) trước khi được HotSpot GC thăng hạng (promoted) sang Old Generation (Tenured).",
+        definition:
+          "The maximum number of Minor GC evacuation cycles an object can survive within Survivor spaces (S0/S1) before being promoted by the HotSpot GC into the Old Generation (Tenured).",
       },
     ],
     stages: {
       what: {
-        heading: "1. Khái niệm cốt lõi (WHAT)",
+        heading: "1. Core Architectural Concepts (WHAT)",
         paragraphs: [
-          "Trong kiến trúc Java Virtual Machine (JVM Runtime Data Areas), bộ nhớ thực thi của ứng dụng được chia thành hai vùng chính có vòng đời và hành vi hoàn toàn khác biệt: Thread Call Stack và Heap Memory.",
-          "Thread Stack lưu trữ các Stack Frame đại diện cho lời gọi hàm đang hoạt động. Mỗi Stack Frame chứa các biến nguyên thủy (int, long, boolean, double) và các biến tham chiếu (reference pointer) trỏ đến địa chỉ thực của đối tượng. Khi một hàm kết thúc, Stack Frame bị pop và toàn bộ biến cục bộ bị xóa tức thì mà không cần bất kỳ sự can thiệp nào từ Garbage Collector.",
-          "Ngược lại, Heap Memory là vùng nhớ dùng chung (shared memory) cho toàn bộ JVM, nơi mọi thể hiện của Object (vd: new Order(), new User()) và mảng (arrays) được cấp phát. Do không thể tự động giải phóng khi hàm kết thúc, JVM sử dụng Garbage Collector (GC) để tự động thu hồi các vùng nhớ không còn được tham chiếu từ GC Roots.",
+          "In the Java Virtual Machine runtime architecture (JVM Runtime Data Areas), execution memory is split into two primary areas with fundamentally different lifecycles and concurrency behaviors: Thread Call Stacks and the Shared Heap Memory.",
+          "Each Thread Stack stores Stack Frames representing active method invocations. Every Stack Frame holds primitive variables (int, long, boolean, double) and 4-byte/8-byte reference pointers pointing to actual object instances on the Heap. When a method returns, its Stack Frame is popped and all local variables are destroyed instantaneously with zero Garbage Collector intervention.",
+          "Conversely, the Heap Memory is shared across all application threads, acting as the dynamic allocation pool for all Object instances (e.g., new Order(), new User()) and array buffers. Because Heap memory cannot be reclaimed synchronously upon method exit, the JVM employs automated Garbage Collection (GC) to reclaim memory that is no longer reachable from any GC Root.",
         ],
         bulletPoints: [
-          "Stack: Thread-safe riêng biệt cho từng luồng, truy cập cực nhanh, dung lượng nhỏ (mặc định 1MB), tự hủy khi hàm kết thúc.",
-          "Heap: Dùng chung đa luồng, quản lý bởi Garbage Collector, chia thành Young Gen (Eden + S0/S1) và Old Gen (Tenured).",
-          "Metaspace: Nằm ở Native Memory ngoài Heap (từ Java 8 thay thế PermGen), lưu trữ Class metadata, Bytecode, và Constant Pool.",
+          "Thread Stack: Thread-isolated, ultra-fast L1/L2 cache locality, small fixed footprint (default 1MB), deallocated automatically on return.",
+          "Shared Heap: Multithreaded access, managed by HotSpot GC, divided into Young Generation (Eden + S0/S1) and Old Generation (Tenured).",
+          "Metaspace: Resides in off-heap native memory (replacing PermGen in Java 8+), storing Class metadata, bytecode definitions, and the Constant Pool.",
         ],
       },
       why: {
-        heading: "2. Tại sao HotSpot chia tách Heap thành các Thế Hệ? (WHY)",
+        heading: "2. Why HotSpot Partitions Heap into Generations (WHY)",
         paragraphs: [
-          "Nếu Heap là một không gian phẳng nguyên khối khổng lồ, mỗi lần dọn rác, JVM sẽ phải quét toàn bộ hàng chục Gigabyte bộ nhớ để đánh dấu đối tượng sống (Mark-Sweep-Compact). Quá trình này sẽ gây ra hiện tượng Stop-The-World (STW) kéo dài hàng chục giây hoặc thậm chí hàng phút, làm sập dịch vụ Backend.",
-          "Để giải quyết triệt để vấn đề này, các kỹ sư JVM áp dụng Giả thuyết Thế Hệ (Weak Generational Hypothesis):",
+          "If the Java Heap were a single contiguous monolithic space, every garbage collection event would force the JVM to scan tens of gigabytes of memory to distinguish live objects from garbage (Mark-Sweep-Compact). This would inflict Stop-The-World (STW) pauses lasting seconds or even minutes, crippling backend latency SLA guarantees.",
+          "To resolve this bottleneck, JVM architects leveraged the Weak Generational Hypothesis:",
         ],
         bulletPoints: [
-          "Đa số đối tượng (98%) có vòng đời cực ngắn: chỉ sinh ra để phục vụ tính toán trong một phương thức (vd: StringBuilder, DTO, JSON parser buffer) rồi trở thành rác ngay khi hàm return.",
-          "Rất ít đối tượng tồn tại lâu dài: chỉ các singleton beans (Spring @Service, @Repository), connection pool, và in-memory caches mới sống sót qua thời gian.",
+          "The vast majority of objects (>95%) die almost immediately: temporary computation artifacts (StringBuilder buffers, JSON parser tokens, DTOs) become garbage as soon as their enclosing method scope pops.",
+          "A small fraction of objects live long: long-lived singletons (Spring @Service, @Repository beans), database connection pools, and long-term caches persist across the application lifespan.",
         ],
         callout: {
           tone: "note",
-          title: "Ý nghĩa của việc phân chia thế hệ",
-          body: "Bằng cách dồn các đối tượng mới vào Young Generation (Eden), Minor GC chỉ cần tập trung quét một vùng nhớ nhỏ trong vài mili-giây bằng thuật toán sao chép (Evacuation Copy). Chỉ những đối tượng sống sót qua nhiều chu kỳ (vượt ngưỡng Tenuring Threshold) mới được chuyển sang Old Gen.",
+          title: "Generational Partitioning Benefit",
+          body: "By routing new allocations to the Young Generation (Eden), Minor GC collections need only inspect a tiny fraction of total heap space using high-speed Mark-Copy evacuation in a few milliseconds. Only proven survivors crossing the Tenuring Threshold ever advance to the Old Generation.",
         },
       },
       how: {
-        heading: "3. Vòng đời Cấp phát & Chu kỳ Thu gom rác (HOW)",
+        heading: "3. Object Lifecycle & Generational Evacuation (HOW)",
         paragraphs: [
-          "Vòng đời của một đối tượng Java diễn ra tuần tự qua các giai đoạn nghiêm ngặt:",
-          "1. Cấp phát trên Eden: Khi từ khóa new được thực thi, đối tượng được cấp phát trực tiếp trên Eden Space. HotSpot sử dụng Thread-Local Allocation Buffer (TLAB) để cấp phát vùng nhớ không cần tranh chấp khóa đa luồng (lock-free bump-the-pointer).",
-          "2. Kích hoạt Minor GC (Eden đầy): Khi Eden không còn đủ chỗ chứa đối tượng mới, JVM tạm dừng luồng ứng dụng (Stop-The-World trong thời gian ngắn) để chạy Minor GC.",
-          "3. Quét GC Roots & Sơ tán (Evacuation Copy): GC truy vết các đối tượng còn sống bắt đầu từ các GC Roots (biến trên Stack Frame hiện tại). Các đối tượng sống từ Eden và From-Survivor được sao chép sang To-Survivor. Tuổi thọ (tenuringAge) của chúng tăng thêm 1. Toàn bộ đối tượng chết trên Eden và From-Survivor bị quét sạch.",
-          "4. Đổi vai trò Survivor (From/To Swap): Hai vùng S0 và S1 hoán đổi vai trò cho nhau. Vùng vừa nhận đối tượng trở thành From-Survivor, vùng còn lại để trống làm To-Survivor cho chu kỳ tới.",
-          "5. Thăng hạng sang Old Gen (Promotion): Khi một đối tượng có tenuringAge >= TenuringThreshold (mặc định 15 hoặc tự điều chỉnh), nó được di chuyển vĩnh viễn sang Old Gen.",
-          "6. Major / Full GC: Khi Old Gen bị đầy, JVM kích hoạt Major GC (hoặc Full GC) để dọn dẹp và dồn nén bộ nhớ (Compaction). Quá trình này tốn nhiều CPU và thời gian STW dài hơn đáng kể.",
+          "A Java object traverses a strictly sequenced series of memory stages:",
+          "1. Allocation in Eden: When 'new' executes, memory is reserved directly in Eden. HotSpot uses Thread-Local Allocation Buffers (TLAB) to enable lock-free bump-the-pointer allocations without thread contention.",
+          "2. Minor GC Triggered (Eden Full): When Eden lacks sufficient space for an incoming allocation, the JVM pauses application threads briefly (Stop-The-World) to execute a Minor GC.",
+          "3. GC Roots Traversal & Evacuation Copy: The GC traces reachability from GC Roots (active stack frame references). Live objects from Eden and the active From-Survivor space are copied into the To-Survivor space, incrementing their tenuring age by 1. Eden and From-Survivor are wiped clean instantly.",
+          "4. Survivor Role Swap: S0 and S1 swap logical roles. The recipient space becomes the new From-Survivor, leaving the counterpart completely empty as To-Survivor for the subsequent collection.",
+          "5. Promotion to Old Generation: Once an object's tenuring age reaches the TenuringThreshold (default 15, or dynamically adapted), it is promoted into the Old Generation (Tenured).",
+          "6. Major / Full GC: When Old Gen approaches capacity thresholds, the JVM initiates a Major or Full GC cycle to compact memory and eliminate tenured garbage, consuming substantially more CPU cycles and incurring longer STW pauses.",
         ],
       },
       internals: {
-        heading: "4. Cơ chế nội tại: Object Header, Mark Word & Card Table (INTERNALS)",
+        heading: "4. Internals: Object Header, Mark Word & Card Table (INTERNALS)",
         paragraphs: [
-          "Mỗi đối tượng trên Java Heap được lưu trữ với một Object Header gồm 2 phần chính:",
-          "1. Mark Word (32-bit hoặc 64-bit): Lưu mã băm (identity hashCode), cờ khóa (Locking state: Biased, Lightweight, Heavyweight), và đặc biệt là 4 bit dành cho Tenuring Age (do chỉ có 4 bit nên tuổi tối đa chỉ có thể là 15: 2^4 - 1 = 15).",
-          "2. Klass Word: Con trỏ trỏ tới siêu dữ liệu Class Metadata của đối tượng trong Metaspace.",
-          "Để tránh việc Minor GC phải quét toàn bộ Old Gen nhằm tìm kiếm các tham chiếu từ Old Gen trỏ ngược về Young Gen, HotSpot sử dụng cấu trúc Card Table kết hợp Write Barrier: mỗi byte trong Card Table đại diện cho một khối 512 byte trong Old Gen. Khi có con trỏ ghi từ Old Gen sang Young Gen, byte tương ứng bị đánh dấu là 'dirty'. Minor GC chỉ cần quét các card bị dirty thay vì toàn bộ Old Gen.",
+          "Every object instance on the Java Heap is prefixed with an Object Header containing two machine words:",
+          "1. Mark Word (32-bit or 64-bit): Encodes the identity hashCode, lock state flags (Biased, Lightweight, Heavyweight monitor), GC age (4 bits, capping the maximum tenuring threshold at 15: 2^4 - 1), and CMS/G1 marking metadata.",
+          "2. Klass Word: A direct pointer (or compressed class pointer via +UseCompressedClassPointers) referencing the instance's Class metadata in native Metaspace.",
+          "To prevent Minor GC cycles from scanning the entire Old Generation to discover inter-generational pointers (Old-to-Young references), HotSpot uses a Card Table structure paired with JIT write barriers. Each byte in the Card Table corresponds to a 512-byte card in the Old Generation. Whenever an Old Gen field is updated to reference a Young Gen object, the JIT-compiled write barrier marks the corresponding card as 'dirty'. Minor GC scans only dirty cards rather than gigabytes of Old Generation memory.",
         ],
         codeSnippet: {
           language: "bash",
-          caption: "Các tham số JVM HotSpot thiết yếu để cấu hình bộ nhớ và GC",
-          code: `# Thiết lập dung lượng Heap tối thiểu và tối đa bằng nhau để tránh co giãn runtime
+          caption: "Production JVM flags for memory tuning and unified GC logging",
+          code: `# Pin minimum and maximum heap equally to prevent runtime heap resizing pauses
 java -Xms4g -Xmx4g \\
      -XX:+UseG1GC \\
      -XX:MaxGCPauseMillis=200 \\
@@ -100,37 +100,37 @@ java -Xms4g -Xmx4g \\
         },
       },
       tradeOffs: {
-        heading: "5. Phân tích đánh đổi giữa các bộ thu gom rác (TRADE-OFFS)",
+        heading: "5. Garbage Collector Trade-Off Analysis (TRADE-OFFS)",
         paragraphs: [
-          "Không có bộ Garbage Collector nào hoàn hảo cho mọi kịch bản. Việc lựa chọn phụ thuộc vào sự cân bằng giữa Throughput (Thông lượng CPU) và Latency (Độ trễ P99 Stop-The-World):",
+          "No single Garbage Collector fits every operational profile. Engineers must balance Throughput (CPU time spent on business logic) against Latency (P99 Stop-The-World pause durations):",
         ],
         bulletPoints: [
-          "Parallel GC (-XX:+UseParallelGC): Tối đa hóa Throughput tính toán batch job (99% thời gian CPU cho app), nhưng thời gian STW pause có thể dài từ vài trăm ms đến vài giây.",
-          "G1 GC (-XX:+UseG1GC): Mặc định từ Java 9. Chia heap thành hàng ngàn Region độc lập (~1MB đến 32MB). Cho phép đặt mục tiêu độ trễ tối đa (-XX:MaxGCPauseMillis=200). Cân bằng hoàn hảo cho microservices.",
-          "ZGC (-XX:+UseZGC): Bộ thu gom rác thế hệ mới (Generational ZGC trong Java 21). Sử dụng Colored Pointers và Load Barriers để thực hiện dọn dẹp đồng thời (Concurrent). Đạt độ trễ Pause cực thấp (< 1 mili-giây) ngay cả với Heap dung lượng lên tới 16 Terabytes, nhưng tiêu tốn thêm khoảng 2-5% CPU overhead.",
+          "Parallel GC (-XX:+UseParallelGC): Maximizes raw CPU throughput for offline batch processing (99%+ CPU utilization), but STW pauses scale with heap size and can range from hundreds of milliseconds to several seconds.",
+          "G1 GC (-XX:+UseG1GC): Default since Java 9. Partitions the heap into thousands of equal-sized Regions (~1MB to 32MB). Accepts a target pause SLA (-XX:MaxGCPauseMillis=200) and evacuates highest-garbage regions first. Ideal default for microservices.",
+          "ZGC (-XX:+UseZGC -XX:+ZGenerational in Java 21): Ultra-low latency collector utilizing Colored Pointers and JIT Load Barriers to perform marking, evacuation, and compaction concurrently. Guarantees sub-millisecond pauses even on multi-terabyte heaps at the cost of 2-5% additional CPU overhead.",
         ],
       },
       failureScenarios: {
-        heading: "6. Các kịch bản sự cố bộ nhớ thực tế (FAILURE SCENARIOS)",
+        heading: "6. Real-World Memory Failure Modes (FAILURE SCENARIOS)",
         paragraphs: [
-          "1. Memory Leak thông qua Static Collection: Thêm đối tượng vào một static List, Map hoặc Cache nội bộ không có cơ chế TTL/Eviction. Do biến static được neo vào ClassLoader (một GC Root vĩnh viễn), các đối tượng này không bao giờ bị thu hồi, dần dần lấp đầy Old Gen và dẫn đến java.lang.OutOfMemoryError: Java heap space.",
-          "2. GC Overhead Limit Exceeded: Ứng dụng dành hơn 98% thời gian CPU cho GC nhưng chỉ thu hồi được dưới 2% heap. JVM chủ động ném OutOfMemoryError để ngăn chặn việc ứng dụng đóng băng hoàn toàn.",
-          "3. Premature Promotion: Do Eden Space quá nhỏ hoặc tần suất cấp phát đột biến (allocation burst), các đối tượng ngắn ngày bị tràn khỏi Survivor Space và bị đẩy sớm sang Old Gen khi chưa đủ tuổi (tenuring age thấp). Khiến Old Gen nhanh đầy và kích hoạt Full GC thường xuyên.",
+          "1. Memory Leak via Unbounded Static Collections: Appending objects to a static List, Map, or unbounded internal cache lacking eviction policies. Because static fields are rooted in the ClassLoader (a permanent GC Root), these references can never be reclaimed, causing steady Old Gen growth and terminating in java.lang.OutOfMemoryError: Java heap space.",
+          "2. GC Overhead Limit Exceeded: The JVM spends over 98% of total CPU time executing GC cycles while reclaiming less than 2% of heap capacity. HotSpot proactively raises OutOfMemoryError to halt thrashing.",
+          "3. Premature Promotion: Under-provisioned Eden spaces or sudden allocation spikes overflow Survivor spaces, forcing short-lived objects directly into Old Gen before their time. This triggers frequent, costly Full GC cycles.",
         ],
         callout: {
           tone: "warning",
-          title: "Cạm bẫy ThreadLocal Memory Leak",
-          body: "Trong môi trường Servlet/Tomcat sử dụng Thread Pool, các Worker Thread được tái sử dụng liên tục. Nếu gọi ThreadLocal.set() mà không đảm bảo gọi ThreadLocal.remove() trong khối finally, dữ liệu của request cũ sẽ bị rò rỉ và tồn tại vĩnh viễn trên ThreadLocalMap của worker thread.",
+          title: "ThreadLocal Leak Hazard in Servlet Containers",
+          body: "In application servers (Tomcat, Jetty) using worker thread pools, pooled threads persist indefinitely. Calling ThreadLocal.set() without invoking ThreadLocal.remove() within a finally block retains the referenced objects in the worker thread's ThreadLocalMap, causing silent cross-request memory leaks.",
         },
       },
       productionEngineering: {
-        heading: "7. Kinh nghiệm vận hành Production (PRODUCTION ENGINEERING)",
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
         paragraphs: [
-          "Để vận hành ứng dụng Java ổn định ở quy mô lớn, kỹ sư Backend cần áp dụng các chuẩn thực hành sau:",
-          "1. Luôn cấu hình -Xms bằng -Xmx để ngăn chặn việc JVM phải xin cấp phát thêm bộ nhớ từ hệ điều hành trong quá trình chạy, loại bỏ overhead co giãn heap.",
-          "2. Bật GC Logging chi tiết với cờ -Xlog:gc* để phân tích P99 pause times và phân bổ thế hệ thông qua các công cụ như GCeasy hoặc JDK Mission Control.",
-          "3. Kích hoạt cờ tự động chụp ảnh Heap Dump khi gặp sự cố: -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/var/dumps/heap_oom.hprof.",
-          "4. Với Java 21+, ưu tiên thử nghiệm Generational ZGC (-XX:+UseZGC -XX:+ZGenerational) cho các dịch vụ tài chính, thanh toán hoặc API Gateway yêu cầu độ trễ P99 siêu nghiêm ngặt.",
+          "Follow these industry best practices to ensure production JVM memory stability:",
+          "1. Always set -Xms equal to -Xmx to eliminate runtime heap expansion pauses and allow OS virtual memory pre-faulting.",
+          "2. Enable unified GC logging (-Xlog:gc*) to monitor P99 pause times, allocation rates, and tenuring age distributions via tools like GCeasy or JDK Mission Control.",
+          "3. Configure automated crash diagnostic captures: -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/var/dumps/app_oom.hprof.",
+          "4. For Java 21+, evaluate Generational ZGC (-XX:+UseZGC -XX:+ZGenerational) for latency-critical financial, trading, or API gateway systems requiring strict sub-5ms P99 SLAs.",
         ],
       },
     },
@@ -145,7 +145,7 @@ java -Xms4g -Xmx4g \\
     domainId: "java",
     title: "Java Collections — HashMap Internals, Hash Collisions & Red-Black Treeification",
     subtitle:
-      "Giải phẫu mảng Node<K,V>[], Hàm băm Perturbation, Ngưỡng Treeify 8 và Thuật toán Tách chuỗi khi Resize x2",
+      "Dissect Node<K,V>[] tables, the Bitwise Perturbation function, Treeify Threshold 8, and the High-Bit Resize Split algorithm",
     governanceStatus: "VERIFIED",
     estimatedMinutes: 25,
     difficulty: "Intermediate",
@@ -153,83 +153,83 @@ java -Xms4g -Xmx4g \\
     keyTerms: [
       {
         term: "Perturbation Function",
-        definitionVi:
-          "Hàm phân tán bit: (h = key.hashCode()) ^ (h >>> 16). Dịch chuyển và XOR 16 bit bậc cao xuống 16 bit bậc thấp nhằm giảm thiểu va chạm khi bảng băm có kích thước nhỏ.",
+        definition:
+          "Bit spreading function: (h = key.hashCode()) ^ (h >>> 16). XORs the upper 16 bits down onto the lower 16 bits to prevent upper-bit information loss when tables have small capacities.",
       },
       {
         term: "Bitwise Indexing",
-        definitionVi:
-          "Công thức tính chỉ số bucket: (capacity - 1) & hash. Nhờ dung lượng luôn là lũy thừa của 2, phép toán bitwise AND này cho kết quả tương đương toán học với phép chia dư hash % capacity nhưng thực thi ở tốc độ nano giây.",
+        definition:
+          "Bucket indexing formula: (capacity - 1) & hash. Because capacity is strictly a power of two, this bitwise AND is mathematically equivalent to hash % capacity while executing in sub-nanosecond CPU cycles.",
       },
       {
         term: "TREEIFY_THRESHOLD (8)",
-        definitionVi:
-          "Ngưỡng số lượng Node va chạm trong một bucket kích hoạt việc chuyển đổi từ Singly-Linked List thành Cây Đỏ-Đen (Red-Black Tree TreeNode), giảm độ phức tạp tìm kiếm từ O(n) xuống O(log n).",
+        definition:
+          "The collision depth threshold in a single bucket that triggers conversion from a Singly-Linked List into a Red-Black Tree (TreeNode), reducing worst-case search complexity from O(n) to O(log n).",
       },
       {
         term: "Load Factor (0.75)",
-        definitionVi:
-          "Hệ số tải mặc định 0.75, điểm cân bằng tối ưu giữa chi phí không gian bộ nhớ (space overhead) và thời gian truy xuất (time complexity) theo phân phối Poisson.",
+        definition:
+          "The default trade-off parameter balancing memory overhead against lookup latency, derived from Poisson distribution probability models under uniform hashing.",
       },
     ],
     stages: {
       what: {
-        heading: "1. Khái niệm cốt lõi (WHAT)",
+        heading: "1. Core Architectural Concepts (WHAT)",
         paragraphs: [
-          "java.util.HashMap là cấu trúc dữ liệu bảng băm (hash table) quan trọng nhất trong hệ sinh thái Java. Nó cung cấp các thao tác put(), get(), remove() với độ phức tạp trung bình O(1) dựa trên cặp khóa-giá trị (Key-Value pairs).",
-          "Bên trong, HashMap được cấu tạo bởi một mảng các bucket: Node<K,V>[] table. Mỗi bucket là điểm neo của một danh sách liên kết đơn (Singly-Linked List) hoặc một Cây Đỏ-Đen (Red-Black Tree) nhằm giải quyết hiện tượng va chạm băm (Hash Collision) khi hai khóa khác nhau cùng ánh xạ về một chỉ số mảng.",
+          "java.util.HashMap is the cornerstone associative key-value data structure in Java. It provides average O(1) time complexity for put(), get(), and remove() operations across large volumes of data.",
+          "Internally, HashMap is backed by an array of buckets: Node<K,V>[] table. Each bucket acts as the anchor for a Singly-Linked List or a balanced Red-Black Tree, accommodating Hash Collisions when distinct keys produce the same bucket index.",
         ],
         bulletPoints: [
-          "Dung lượng ban đầu (DEFAULT_INITIAL_CAPACITY): 16 slots.",
-          "Hệ số tải (DEFAULT_LOAD_FACTOR): 0.75.",
-          "Ngưỡng mở rộng (Threshold): capacity * loadFactor (16 * 0.75 = 12 phần tử).",
-          "Ngưỡng Treeify: 8 phần tử trong một bucket kết hợp dung lượng bảng tối thiểu 64.",
+          "Default Initial Capacity (DEFAULT_INITIAL_CAPACITY): 16 slots.",
+          "Default Load Factor (DEFAULT_LOAD_FACTOR): 0.75.",
+          "Resize Threshold: capacity * loadFactor (16 * 0.75 = 12 elements before doubling).",
+          "Treeify Threshold: 8 elements in a single bucket combined with a minimum total table capacity of 64.",
         ],
       },
       why: {
-        heading: "2. Tại sao Java 8 giới thiệu Treeification? (WHY)",
+        heading: "2. Why Java 8 Introduced Red-Black Treeification (WHY)",
         paragraphs: [
-          "Trong Java 7 trở về trước, mọi va chạm băm trong một bucket đều được giải quyết đơn thuần bằng danh sách liên kết đơn. Khi kẻ tấn công cố tình tạo ra hàng ngàn chuỗi ký tự khác nhau nhưng có cùng hashCode() (tấn công Hash Collision DoS / HashDOS), toàn bộ dữ liệu sẽ dồn vào một bucket duy nhất.",
-          "Hậu quả: Độ phức tạp của thao tác get() và put() thoái hóa nghiêm trọng từ O(1) thành O(n). Một request HTTP chứa 10,000 form parameters va chạm có thể khiến CPU của máy chủ nhảy vọt lên 100% trong hàng chục giây, gây nghẽn toàn bộ dịch vụ Backend.",
+          "Prior to Java 8, all hash collisions within a bucket were chained into a standard singly-linked list. Attackers exploited this by crafting thousands of distinct strings designed to produce identical 32-bit hash codes (Hash Collision DoS / HashDOS attacks), routing all entries into a single bucket.",
+          "Under this degradation, get() and put() search complexity collapsed from O(1) to O(n). An incoming HTTP request with 10,000 colliding form parameters could pin CPU utilization at 100% for minutes, halting service availability.",
         ],
         callout: {
           tone: "warning",
-          title: "Giải pháp Red-Black Tree trong Java 8",
-          body: "Bắt đầu từ Java 8 (JEP 180), khi số phần tử trong một bucket chạm ngưỡng 8 và dung lượng mảng đạt ít nhất 64, bucket sẽ tự động chuyển hóa thành Cây Đỏ-Đen (TreeNode). Điều này chặn đứng hoàn toàn nguy cơ HashDOS bằng cách đảm bảo thời gian tra cứu tồi nhất luôn là O(log n).",
+          title: "Java 8 Red-Black Tree Defense",
+          body: "Starting with Java 8 (JEP 180), when collision chain depth reaches 8 and table capacity is at least 64, the bucket automatically treeifies into a Red-Black Tree (TreeNode). This bounds worst-case lookup latency strictly to O(log n), neutralizing Hash Collision DoS exploits.",
         },
       },
       how: {
-        heading: "3. Quy trình tính toán Băm & Chèn dữ liệu (HOW)",
+        heading: "3. Hashing & Entry Insertion Pipeline (HOW)",
         paragraphs: [
-          "Khi thực hiện put(key, value), HashMap thực thi theo quy trình 4 bước chính xác:",
-          "1. Tính mã băm phân tán (Perturbation Hash): Gọi key.hashCode() để lấy số nguyên 32-bit h, sau đó thực hiện XOR với chính nó đã dịch phải 16 bit: hash = (h ^ (h >>> 16)).",
-          "2. Tính vị trí Bucket (Index Mapping): Xác định chỉ số mảng qua công thức bitwise: index = (n - 1) & hash (trong đó n là capacity).",
-          "3. Duyệt và Xử lý va chạm: Nếu bucket [index] trống, tạo Node mới làm Head. Nếu đã có dữ liệu, duyệt qua chuỗi: nếu tìm thấy key trùng (thỏa mãn p.hash == hash && (p.key == key || key.equals(p.key))), ghi đè value. Nếu không trùng, nối Node mới vào đuôi danh sách (tail-insertion).",
-          "4. Kiểm tra ngưỡng Treeify & Resize: Nếu độ dài chuỗi node >= 8, kích hoạt treeifyBin(). Sau đó, nếu tổng số phần tử (size) vượt quá threshold, kích hoạt resize() nhân đôi dung lượng mảng.",
+          "When put(key, value) is invoked, HashMap executes a 4-step sequence:",
+          "1. Perturbation Hashing: Invokes key.hashCode() to retrieve 32-bit integer h, then XORs it with its own upper 16 bits: hash = (h ^ (h >>> 16)).",
+          "2. Bucket Index Mapping: Computes array index via bitwise masking: index = (n - 1) & hash (where n is the current capacity).",
+          "3. Bucket Traversal & Collision Handling: If bucket[index] is null, a new Node is instantiated as head. If occupied, HashMap traverses the chain: if an existing key matches (p.hash == hash && (p.key == key || key.equals(p.key))), the value is updated. Otherwise, the new node is appended to the tail.",
+          "4. Treeification & Resizing Evaluation: If chain length reaches 8, treeifyBin() is triggered. Next, if overall size exceeds threshold, resize() doubles table capacity and redistributes elements.",
         ],
       },
       internals: {
-        heading: "4. Cơ chế nội tại: Phép toán Bitwise & Tách chuỗi khi Resize (INTERNALS)",
+        heading: "4. Internals: Bitwise Arithmetic & High-Bit Resize Splitting (INTERNALS)",
         paragraphs: [
-          "Hai đột phá kỹ thuật nổi bật nhất trong source code java.util.HashMap của OpenJDK:",
-          "1. Tại sao capacity luôn là lũy thừa của 2? Vì khi n là lũy thừa của 2, (n - 1) luôn có dạng nhị phân toàn số 1 (vd: n = 16 = 0001 0000 -> n - 1 = 15 = 0000 1111). Phép toán (n - 1) & hash đóng vai trò như một bộ lọc bit (bitmask), giữ lại các bit thấp nhất. Kết quả hoàn toàn tương đương với hash % n nhưng chạy nhanh hơn gấp hàng chục lần vì thực thi trực tiếp trên mạch logic bit của CPU.",
-          "2. Thuật toán tách chuỗi (High-Bit Split) khi Resize: Trong Java 7, khi resize, từng phần tử phải tính lại chỉ số index và chèn ngược vào đầu (head-insertion), gây ra lỗi vòng lặp vô tận (Infinite Loop Deadlock) kinh điển khi chạy đa luồng. Trong Java 8+, HashMap sử dụng tail-insertion kết hợp kiểm tra bit: (e.hash & oldCap) == 0. Nếu bằng 0, node giữ nguyên ở vị trí cũ (index). Nếu khác 0, node chuyển sang vị trí mới chính xác bằng (index + oldCap). Không cần tính toán lại bất kỳ phép toán băm nào!",
+          "Two standout algorithmic techniques define OpenJDK's java.util.HashMap implementation:",
+          "1. Power-of-Two Capacity Invariant: When capacity n is a power of 2, (n - 1) produces a contiguous sequence of binary 1s (e.g., n = 16 = 0001 0000 -> n - 1 = 15 = 0000 1111). Bitwise ANDing (n - 1) & hash acts as a bitmask, isolating the lowest bits. This achieves the exact arithmetic result of hash % n at ALU hardware speed.",
+          "2. High-Bit Splitting on Resize: Java 7 recomputed bucket indices and inserted nodes via head-insertion, which caused infinite loop deadlocks during concurrent resize. In Java 8+, HashMap uses tail-insertion and checks a single bit: (e.hash & oldCap) == 0. If zero, the node stays at its original index. If non-zero, it shifts to (index + oldCap). Zero hash recomputations required!",
         ],
         codeSnippet: {
           language: "java",
-          caption: "Trích xuất thuật toán phân tán băm và kiểm tra bit từ OpenJDK HashMap",
-          code: `// 1. Hàm phân tán bit bậc cao (Perturbation spread)
+          caption: "Perturbation spread and high-bit split logic from OpenJDK HashMap source",
+          code: `// 1. Bitwise perturbation spread function
 static final int hash(Object key) {
     int h;
     return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
 }
 
-// 2. Tính vị trí bucket bằng bitwise AND
+// 2. Bucket index calculation via bitmask
 int index = (capacity - 1) & hash;
 
-// 3. Phân tách chuỗi khi Resize nhân đôi (Java 8+)
-Node<K,V> loHead = null, loTail = null; // Giữ nguyên vị trí index cũ
-Node<K,V> hiHead = null, hiTail = null; // Chuyển sang (index + oldCap)
+// 3. High-bit chain split during table doubling (Java 8+)
+Node<K,V> loHead = null, loTail = null; // Stays at old index
+Node<K,V> hiHead = null, hiTail = null; // Moves to (oldIndex + oldCap)
 do {
     next = e.next;
     if ((e.hash & oldCap) == 0) {
@@ -243,36 +243,36 @@ do {
         },
       },
       tradeOffs: {
-        heading: "5. Phân tích đánh đổi kỹ thuật (TRADE-OFFS)",
+        heading: "5. Technical Trade-Off Analysis (TRADE-OFFS)",
         paragraphs: [
-          "Treeification mang lại sự bảo mật và tính ổn định thời gian, nhưng đi kèm các đánh đổi:",
+          "Treeification provides security and latency predictability, accompanied by specific trade-offs:",
         ],
         bulletPoints: [
-          "Memory Footprint: Một Node thông thường chỉ gồm 4 trường (hash, key, value, next). Một TreeNode (Red-Black Tree) cần thêm parent, left, right, prev, và boolean red/black, tiêu tốn bộ nhớ gấp đôi. Đây là lý do Java chỉ treeify khi thực sự cần thiết (ngưỡng 8).",
-          "Load Factor 0.75: Giảm loadFactor xuống 0.5 giúp giảm tối đa va chạm nhưng lãng phí 50% bộ nhớ. Tăng lên 1.0 tiết kiệm RAM nhưng làm tăng số lượng va chạm và thời gian lookup.",
-          "Thread Safety: HashMap KHÔNG thread-safe. Trong môi trường đồng thời, bắt buộc phải sử dụng ConcurrentHashMap thay vì Collections.synchronizedMap() để đạt thông lượng cao nhờ kỹ thuật Lock Striping / CAS trên từng bucket node.",
+          "Memory Footprint: A standard Node stores 4 references (hash, key, value, next). A TreeNode requires parent, left, right, prev pointers and a red/black color boolean, consuming twice the heap memory. This is why Java treeifies only when collision depth reaches 8.",
+          "Load Factor 0.75: Lowering loadFactor to 0.5 minimizes collisions but wastes 50% table memory. Increasing to 1.0 reduces memory overhead at the cost of higher collision frequency and increased lookup latency.",
+          "Concurrency Boundary: HashMap is NOT thread-safe. In multithreaded environments, developers must use ConcurrentHashMap rather than Collections.synchronizedMap() to achieve scalable throughput via lock-free CAS on bucket heads and fine-grained per-bucket synchronization.",
         ],
       },
       failureScenarios: {
-        heading: "6. Các kịch bản sự cố thực tế (FAILURE SCENARIOS)",
+        heading: "6. Real-World HashMap Failure Modes (FAILURE SCENARIOS)",
         paragraphs: [
-          "1. Vi phạm hợp đồng equals() và hashCode(): Ghi đè (override) equals() nhưng quên ghi đè hashCode(). Kết quả: Hai đối tượng có cùng thuộc tính logic nhưng lại sinh ra hai mã băm khác nhau, khiến map.get(key) trả về null ngay sau khi map.put(key, val).",
-          "2. Mutable Object làm Key: Đưa một đối tượng có thể thay đổi trạng thái (Mutable) làm Key, sau đó sửa đổi thuộc tính cấu thành hashCode() của đối tượng. Mã băm bị thay đổi khiến HashMap tra cứu sai bucket và làm 'biến mất' phần tử khỏi bảng băm vĩnh viễn (Memory Leak ngầm).",
-          "3. Concurrency Race Condition: Dùng HashMap thường trong môi trường đa luồng (multi-threaded). Khi nhiều luồng cùng gọi put() gây resize đồng thời, kích thước size bị sai lệch hoặc mất mát dữ liệu (silent data loss).",
+          "1. Broken equals() and hashCode() Contract: Overriding equals() while omitting hashCode(). Result: Two logically identical objects produce different 32-bit hash codes, causing map.get(key) to return null immediately after map.put(key, val).",
+          "2. Mutable Objects as Keys: Using a mutable object as a map key and modifying its fields post-insertion. The object's calculated hash changes, causing HashMap to look in the wrong bucket and rendering the entry unretrievable—a silent in-memory leak.",
+          "3. Concurrency Data Loss: Invoking put() on a standard HashMap across concurrent threads. Simultaneous resize operations corrupt internal pointers and trigger silent data loss.",
         ],
         callout: {
           tone: "warning",
-          title: "Luôn dùng Immutable Object làm Key",
-          body: "Luôn sử dụng các kiểu dữ liệu bất biến (Immutable) như String, Integer, UUID, hoặc Java 17+ Record làm Key cho HashMap để đảm bảo mã hashCode() không bao giờ bị biến động sau khi đã đưa vào bảng.",
+          title: "Enforce Immutable Keys",
+          body: "Always use immutable types such as String, Integer, UUID, or Java 17+ Records as HashMap keys to guarantee that hashCode() values remain invariant throughout the map lifecycle.",
         },
       },
       productionEngineering: {
-        heading: "7. Kinh nghiệm vận hành Production (PRODUCTION ENGINEERING)",
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
         paragraphs: [
-          "Các bài học thực chiến khi làm việc với Collections trong Backend quy mô lớn:",
-          "1. Luôn ước lượng và cấu hình initialCapacity: Nếu biết trước map sẽ chứa khoảng 1,000 phần tử, hãy khởi tạo: new HashMap<>(Math.ceil(1000 / 0.75) + 1) tức là 1,334 (làm tròn lên lũy thừa 2 là 2,048). Điều này triệt tiêu hoàn toàn chi phí rehash và resize bảng.",
-          "2. Với ConcurrentHashMap trong Java 8+, cơ chế khóa đã chuyển từ Segment locking sang CAS lock-free trên head node rỗng và synchronized chỉ trên first node của bucket va chạm, đạt hiệu năng đọc song song vượt trội.",
-          "3. Khi cần bảo toàn thứ tự chèn (insertion order) cho audit trail, sử dụng LinkedHashMap. Khi cần sắp xếp tự nhiên theo Key, sử dụng TreeMap.",
+          "Key engineering rules when utilizing Collections in high-scale backends:",
+          "1. Pre-size HashMap Capacities: If you expect a map to hold ~1,000 entries, instantiate it with: new HashMap<>(Math.ceil(1000 / 0.75) + 1) -> 1,334 (rounded to power-of-two capacity 2,048). This completely avoids expensive rehash and table allocation during runtime.",
+          "2. In Java 8+ ConcurrentHashMap, bucket locking transitioned from coarse Segment locks to lock-free CAS on empty heads and synchronization only on colliding chain heads, achieving massive parallel read performance.",
+          "3. Use LinkedHashMap when insertion or access order must be preserved (e.g., LRU cache implementations). Use TreeMap when keys must remain naturally sorted.",
         ],
       },
     },
@@ -287,81 +287,81 @@ do {
     domainId: "java",
     title: "Java 8+ — Stream API Internals, Lazy Evaluation & Pipeline Fusion",
     subtitle:
-      "Kiến trúc Spliterator, Khác biệt Intermediate vs Terminal Ops, Loop Fusion và Hiểm họa ForkJoinPool.commonPool",
+      "Spliterator mechanics, Intermediate vs Terminal ops, Loop Fusion, and the dangers of ForkJoinPool.commonPool",
     governanceStatus: "VERIFIED",
     estimatedMinutes: 20,
     difficulty: "Foundational",
     keyTerms: [
       {
         term: "Functional Interface",
-        definitionVi:
-          "Interface chỉ chứa duy nhất một phương thức trừu tượng (Single Abstract Method - SAM), được đánh dấu bằng @FunctionalInterface (vd: Function<T,R>, Predicate<T>, Consumer<T>, Supplier<T>), làm nền tảng cho cú pháp Lambda Expressions.",
+        definition:
+          "An interface containing exactly one Single Abstract Method (SAM), annotated with @FunctionalInterface (e.g., Function<T,R>, Predicate<T>, Consumer<T>, Supplier<T>), enabling Lambda expression syntax.",
       },
       {
-        term: "Lazy Evaluation (Đánh giá Lười biếng)",
-        definitionVi:
-          "Cơ chế trong Stream API: các thao tác trung gian (filter, map) không hề thực thi ngay khi được khai báo, mà chỉ tạo ra các mô tả pipeline. Việc tính toán chỉ thực sự diễn ra khi một thao tác kết thúc (Terminal Operation) được kích hoạt.",
+        term: "Lazy Evaluation",
+        definition:
+          "The processing paradigm of the Stream API: intermediate operations (filter, map) do not execute upon declaration. Computation begins only when a Terminal Operation is invoked on the pipeline.",
       },
       {
-        term: "Loop Fusion (Hợp nhất Vòng lặp)",
-        definitionVi:
-          "Kỹ thuật tối ưu hóa của Stream engine: thay vì duyệt qua danh sách nhiều lần và tạo các collection trung gian, Stream hợp nhất tất cả các bước filter, map thành một lượt duyệt duy nhất trên từng phần tử.",
+        term: "Loop Fusion",
+        definition:
+          "Stream engine optimization: rather than iterating across a collection multiple times and creating intermediate collections, Stream fuses filter and map stages into a single pass per element.",
       },
       {
         term: "Short-Circuiting Operation",
-        definitionVi:
-          "Các thao tác kết thúc cho phép dừng xử lý pipeline ngay khi điều kiện được thỏa mãn (vd: findFirst, anyMatch, limit) mà không cần duyệt hết các phần tử còn lại của nguồn dữ liệu vô hạn.",
+        definition:
+          "Terminal or intermediate operations that truncate pipeline traversal as soon as a condition is satisfied (e.g., findFirst, anyMatch, limit), enabling safe operation on infinite data streams.",
       },
     ],
     stages: {
       what: {
-        heading: "1. Khái niệm cốt lõi (WHAT)",
+        heading: "1. Core Architectural Concepts (WHAT)",
         paragraphs: [
-          "Được giới thiệu trong Java 8 (JSR 335), Stream API đã cách mạng hóa phong cách lập trình Backend trong Java từ phong cách mệnh lệnh (Imperative Programming) với các vòng lặp for/while lồng nhau sang phong cách khai báo (Declarative / Functional Programming).",
-          "Một Java Stream đại diện cho một chuỗi các phần tử (sequence of elements) hỗ trợ các thao tác tính toán tuần tự hoặc song song. Điểm cốt lõi: Stream không phải là một cấu trúc dữ liệu lưu trữ phần tử (nó không sở hữu dữ liệu), mà là một đường ống tính toán (computation pipeline) chuyển giao dữ liệu từ nguồn (Collection, Array, I/O channel) đến đích.",
+          "Introduced in Java 8 (JSR 335), the Stream API transformed Java backend engineering from imperative styles characterized by nested for/while loops and mutating state into declarative, functional pipelines.",
+          "A Java Stream represents a sequence of elements supporting sequential or parallel aggregate computations. Crucially: a Stream is not an in-memory data structure and does not own data; it is a computational pipeline that pulls data from a source (Collection, Array, I/O channel) and routes it to a sink destination.",
         ],
         bulletPoints: [
-          "Nguồn dữ liệu (Source): Collection.stream(), Arrays.stream(), Stream.of(), Files.lines().",
-          "Thao tác trung gian (Intermediate Operations): filter, map, flatMap, distinct, sorted, peek. Luôn trả về một Stream mới và luôn ở trạng thái LAZY.",
-          "Thao tác kết thúc (Terminal Operations): forEach, collect, toList, reduce, count, findFirst, anyMatch. Kích hoạt dòng chảy dữ liệu và đóng stream.",
+          "Data Sources: Collection.stream(), Arrays.stream(), Stream.of(), Files.lines().",
+          "Intermediate Operations: filter, map, flatMap, distinct, sorted, peek. Always return a new Stream and remain completely LAZY.",
+          "Terminal Operations: forEach, collect, toList, reduce, count, findFirst, anyMatch. Triggers pipeline execution and consumes the stream.",
         ],
       },
       why: {
-        heading: "2. Tại sao Stream API vượt trội hơn Vòng lặp truyền thống? (WHY)",
+        heading: "2. Why the Stream API Outperforms Imperative Loops (WHY)",
         paragraphs: [
-          "Khi xử lý tập dữ liệu lớn với nhiều bước biến đổi trong lập trình truyền thống:",
-          "1. Lãng phí Bộ nhớ nghiêm trọng: Cách tiếp cận cũ thường tạo ra hàng loạt các danh sách trung gian (vd: list lọc -> new ArrayList -> list biến đổi -> new ArrayList). Với hàng triệu bản ghi, việc này gây áp lực kinh hoàng lên Eden Space và kích hoạt GC liên tục.",
-          "2. Không tận dụng được Short-circuiting: Muốn tìm bản ghi hợp lệ đầu tiên sau 3 bước lọc phức tạp, lập trình viên phải tự viết các cờ break rối rắm.",
-          "Stream API giải quyết cả hai vấn đề bằng kiến trúc Pipeline Fusion: các phần tử được kéo (pull-based) qua từng tầng xử lý một cách đơn lẻ (element-by-element), loại bỏ 100% các danh sách trung gian.",
+          "When processing datasets across multiple transformation stages using traditional loops:",
+          "1. Intermediate Memory Bloat: Imperative code frequently allocates temporary collections at each step (e.g., filtered list -> new ArrayList -> mapped list -> new ArrayList). For large datasets, this puts intense allocation pressure on Eden and triggers frequent GC cycles.",
+          "2. Complex Short-Circuiting: Halting execution at the first valid match across three filtering conditions requires verbose break/return control flow.",
+          "The Stream API solves both issues via Pipeline Fusion: elements are pulled through stages individually (element-by-element), eliminating intermediate collection allocations entirely.",
         ],
       },
       how: {
-        heading: "3. Kiến trúc Vận hành chi tiết: Spliterator & Sink Chain (HOW)",
+        heading: "3. Architecture: Spliterator & Sink Chains (HOW)",
         paragraphs: [
-          "Dưới tầng source code của OpenJDK, một Stream pipeline được xây dựng dựa trên 3 trụ cột:",
-          "1. Spliterator (Splitable Iterator): Chịu trách nhiệm phân tách và duyệt qua các phần tử của nguồn. Phương thức tryAdvance() duyệt tuần tự từng phần tử, trong khi trySplit() chia đôi dữ liệu để phục vụ xử lý song song.",
-          "2. ReferencePipeline: Mỗi lần gọi .filter() hoặc .map(), một đối tượng StatelessOp hoặc StatefulOp được khởi tạo và liên kết thành một danh sách liên kết kép (Doubly-Linked List) các công đoạn.",
-          "3. Sink Chain: Khi thao tác terminal (vd: collect) được gọi, JVM dịch ngược pipeline thành một chuỗi các đối tượng Sink lồng nhau (Sink chain). Dữ liệu từ Spliterator được đẩy qua từng mắt xích của Sink. Nếu một mắt xích từ chối (vd: filter trả về false), phần tử đó bị loại bỏ ngay lập tức trước khi chạm tới các mắt xích phía sau.",
+          "Inside OpenJDK, a Stream pipeline is driven by three core pillars:",
+          "1. Spliterator (Splittable Iterator): Traverses and partitions source elements. The tryAdvance() method steps sequentially through elements, while trySplit() divides data partitions to enable parallel processing.",
+          "2. ReferencePipeline: Each .filter() or .map() call instantiates a StatelessOp or StatefulOp linked into a doubly-linked pipeline descriptor chain.",
+          "3. Sink Chain: When a terminal operation (e.g., collect) is invoked, the JVM constructs a nested chain of Sink objects. Elements from the Spliterator are pushed through each Sink stage. If a stage rejects an item (e.g., filter returns false), processing immediately advances to the next source element without traversing downstream sinks.",
         ],
       },
       internals: {
-        heading: "4. Cơ chế nội tại & Hiểm họa ForkJoinPool.commonPool (INTERNALS)",
+        heading: "4. Internals & The Hazard of ForkJoinPool.commonPool (INTERNALS)",
         paragraphs: [
-          "Một trong những tính năng hấp dẫn nhất của Stream API là khả năng chuyển đổi sang xử lý song song chỉ bằng một cú gọi: list.parallelStream().",
-          "Tuy nhiên, cơ chế bên dưới của parallelStream() ẩn chứa một hiểm họa kiến trúc lớn: Mặc định, tất cả các parallel stream trong toàn bộ tiến trình JVM đều chia sẻ chung duy nhất một ForkJoinPool tĩnh: ForkJoinPool.commonPool(), với số lượng worker thread bằng (Runtime.getRuntime().availableProcessors() - 1).",
-          "ForkJoinPool được thiết kế tối ưu tuyệt đối cho các tác vụ tính toán CPU-bound (chia để trị - divide and conquer). Nếu một lập trình viên vô tình gọi các tác vụ I/O chặn (Blocking I/O như HTTP call, gRPC, hoặc truy vấn JDBC) bên trong parallelStream, các worker thread của commonPool sẽ bị giữ chặt và đóng băng. Toàn bộ các luồng parallel stream khác của toàn bộ ứng dụng (kể cả CompletableFuture async) sẽ bị chết đói (thread starvation).",
+          "One of the Stream API's most accessible features is seamless parallelization via list.parallelStream().",
+          "However, parallelStream() conceals a critical architectural pitfall: By default, every parallel stream across the entire JVM process shares a single static thread pool: ForkJoinPool.commonPool(), sized to (Runtime.getRuntime().availableProcessors() - 1) worker threads.",
+          "ForkJoinPool is optimized strictly for CPU-bound divide-and-conquer workloads. If an engineer executes blocking I/O calls (HTTP requests, JDBC queries, third-party RPCs) inside a parallelStream, the commonPool worker threads become pinned and stalled. This starves all other parallel streams and asynchronous CompletableFuture tasks application-wide.",
         ],
         codeSnippet: {
           language: "java",
-          caption: "Mẫu sử dụng Stream Pipeline tối ưu và tách biệt Thread Pool an toàn",
-          code: `// 1. Pipeline lười biếng với Short-circuiting (Zero intermediate lists)
+          caption: "Short-circuiting lazy stream pipeline and custom ForkJoinPool isolation",
+          code: `// 1. Lazy evaluation with short-circuiting (Zero intermediate lists allocated)
 Optional<String> firstVip = customers.stream()
-    .filter(c -> c.isActive())        // StatelessOp
-    .filter(c -> c.isVip())           // StatelessOp
-    .map(Customer::getEmail)         // StatelessOp
-    .findFirst();                    // Terminal Short-circuit: dừng ngay khi tìm thấy 1 VIP
+    .filter(Customer::isActive)        // StatelessOp
+    .filter(Customer::isVip)           // StatelessOp
+    .map(Customer::getEmail)          // StatelessOp
+    .findFirst();                     // Terminal short-circuit: stops immediately on first match
 
-// 2. Xử lý song song an toàn với Custom ForkJoinPool thay vì dùng commonPool
+// 2. Safe parallel execution isolated in a dedicated ForkJoinPool
 ForkJoinPool customPool = new ForkJoinPool(4);
 try {
     List<OrderResult> results = customPool.submit(() ->
@@ -375,36 +375,36 @@ try {
         },
       },
       tradeOffs: {
-        heading: "5. Phân tích đánh đổi kỹ thuật (TRADE-OFFS)",
+        heading: "5. Technical Trade-Off Analysis (TRADE-OFFS)",
         paragraphs: [
-          "So sánh giữa Stream API và Vòng lặp For truyền thống:",
+          "Comparing Stream pipelines against traditional imperative for-loops:",
         ],
         bulletPoints: [
-          "Hiệu năng micro-benchmark: Với các danh sách nhỏ (< 1,000 phần tử cơ bản), vòng lặp for truyền thống nhanh hơn Stream API khoảng 10-20% do không có chi phí khởi tạo đối tượng Pipeline, Spliterator, và polymorphic call.",
-          "Khả năng bảo trì mã nguồn (Readability): Stream API vượt trội hoàn toàn về độ trong sáng của code nghiệp vụ, giảm thiểu bug off-by-one và dễ dàng composition.",
-          "Debugging: Debug một Stream pipeline phức tạp khó khăn hơn nhiều so với đặt breakpoint trong vòng lặp for (dù các IDE hiện đại đã hỗ trợ Stream Trace debugger).",
+          "Micro-Benchmark Overhead: For tiny collections (<1,000 primitive elements), traditional for-loops run 10-20% faster due to zero pipeline object instantiation and polymorphic method call overhead.",
+          "Readability & Maintainability: The Stream API delivers superior clarity for business logic transformations, eliminating index out-of-bounds bugs and enabling clean function composition.",
+          "Debugging Complexity: Stepping through complex Stream pipelines using standard line breakpoints is more difficult than in imperative loops (though modern IDEs provide Stream Trace tooling).",
         ],
       },
       failureScenarios: {
-        heading: "6. Các kịch bản sự cố thực tế (FAILURE SCENARIOS)",
+        heading: "6. Real-World Stream Failure Modes (FAILURE SCENARIOS)",
         paragraphs: [
-          "1. Tái sử dụng Stream đã đóng: Gọi terminal operation hai lần trên cùng một đối tượng Stream. JVM sẽ ném ngoại lệ java.lang.IllegalStateException: stream has already been operated upon or closed.",
-          "2. Đột biến trạng thái dùng chung (Shared Mutable State): Truy cập và ghi vào biến bên ngoài từ trong parallelStream mà không có đồng bộ hóa: list.parallelStream().forEach(res::add). Sẽ dẫn đến race condition làm sai lệch kích thước hoặc ném ArrayIndexOutOfBoundsException.",
-          "3. Infinite Stream không có Limit: Sử dụng Stream.iterate() hoặc Stream.generate() kết hợp với sorted() hoặc toList() mà quên limit(). Thao tác sorted() là StatefulOp đòi hỏi phải gom đủ toàn bộ phần tử mới có thể sắp xếp, dẫn đến OutOfMemoryError ngay lập tức.",
+          "1. Reusing a Consumed Stream: Invoking a terminal operation twice on the same Stream instance throws java.lang.IllegalStateException: stream has already been operated upon or closed.",
+          "2. Shared Mutable State in Parallel Streams: Appending to non-thread-safe collections from within parallelStream(): list.parallelStream().forEach(result::add). This causes race conditions, corrupted sizing, or ArrayIndexOutOfBoundsException.",
+          "3. Unbounded Streams Missing Limit: Pairing Stream.iterate() or Stream.generate() with stateful operations like sorted() or toList() without limit(). Because sorted() requires collecting all elements to order them, the JVM immediately runs out of memory.",
         ],
         callout: {
           tone: "production",
-          title: "Quy tắc vàng với Parallel Streams",
-          body: "KHÔNG BAO GIỜ sử dụng parallelStream() cho các tác vụ có dính líu đến I/O mạng hoặc database. Chỉ sử dụng parallelStream() cho các bài toán tính toán CPU thuần túy với số lượng phần tử đủ lớn (> 10,000 items).",
+          title: "Golden Rule for Parallel Streams",
+          body: "NEVER execute network, database, or disk I/O operations inside parallelStream(). Reserve parallelStream() strictly for CPU-intensive computations over large in-memory collections (>10,000 items).",
         },
       },
       productionEngineering: {
-        heading: "7. Kinh nghiệm vận hành Production (PRODUCTION ENGINEERING)",
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
         paragraphs: [
-          "Thực tiễn tốt nhất khi thiết kế code Backend với Stream API:",
-          "1. Từ Java 16+, ưu tiên sử dụng .toList() thay vì .collect(Collectors.toList()) vì .toList() trả về unmodifiable list và tối ưu hóa cấp phát mảng nội bộ.",
-          "2. Sử dụng Primitive Streams (IntStream, LongStream, DoubleStream) khi làm việc với số học để tránh chi phí Auto-boxing / Unboxing gây áp lực lên Heap GC.",
-          "3. Trong kiến trúc bất đồng bộ (Asynchronous Architecture), kết hợp Stream với CompletableFuture: chuyển các Future thành Stream và dùng CompletableFuture.allOf() để tổng hợp kết quả non-blocking.",
+          "Best practices for designing backend services with the Stream API:",
+          "1. In Java 16+, prefer .toList() over .collect(Collectors.toList()) because .toList() produces an unmodifiable list with optimized internal array sizing.",
+          "2. Use Primitive Streams (IntStream, LongStream, DoubleStream) for numeric operations to avoid auto-boxing and unboxing overhead that burdens Young Gen GC.",
+          "3. In asynchronous architectures, combine Streams with CompletableFuture: map futures to streams and aggregate completion non-blockingly using CompletableFuture.allOf().",
         ],
       },
     },
@@ -419,7 +419,7 @@ try {
     domainId: "java",
     title: "Java 21 — Virtual Threads (Project Loom), Carrier Scheduling & Concurrency Internals",
     subtitle:
-      "Mô hình M:N Threads, Cơ chế Continuation Yield khi I/O Chặn, và Cạm bẫy Thread Pinning với khối Synchronized",
+      "M:N threading model, Continuation Yield mechanics during blocking I/O, and the Thread Pinning synchronized pitfall",
     governanceStatus: "VERIFIED",
     estimatedMinutes: 30,
     difficulty: "Senior / Staff",
@@ -427,97 +427,97 @@ try {
     keyTerms: [
       {
         term: "Virtual Thread (JEP 444)",
-        definitionVi:
-          "Luồng người dùng (user-mode lightweight thread) do JVM quản lý trực tiếp thay vì hệ điều hành. Có chi phí khởi tạo siêu rẻ và kích thước stack co giãn trên Heap (vài KB), cho phép chạy hàng triệu luồng đồng thời.",
+        definition:
+          "Lightweight user-mode thread managed directly by the JVM runtime rather than the OS. Features near-zero creation overhead and dynamic heap-allocated stack frames (~few KB), enabling millions of concurrent threads.",
       },
       {
         term: "Carrier Thread",
-        definitionVi:
-          "Luồng hệ điều hành thực tế (OS Platform Thread) thuộc một ForkJoinPool ngầm của JVM, đóng vai trò 'vật mang' để mount và thực thi mã byte của Virtual Thread trên CPU core.",
+        definition:
+          "An actual OS Platform Thread within an internal JVM ForkJoinPool that acts as the physical vehicle to mount and execute Virtual Thread bytecode on CPU cores.",
       },
       {
         term: "Continuation.yield()",
-        definitionVi:
-          "Cơ chế cốt lõi của Project Loom: khi Virtual Thread gặp thao tác I/O chặn (Socket read/write), JVM tạm dừng luồng, lưu stack frame hiện tại lên Heap và unmount khỏi Carrier Thread, giải phóng Carrier Thread tức thì cho luồng khác.",
+        definition:
+          "Core mechanism of Project Loom: when a Virtual Thread executes blocking I/O (Socket read/write, sleep), the JVM suspends the continuation, stashes stack frames on the Heap, and unmounts from the Carrier Thread.",
       },
       {
         term: "Thread Pinning",
-        definitionVi:
-          "Hiện tượng tiêu cực khi Virtual Thread thực thi I/O chặn bên trong khối synchronized hoặc qua native JNI call. JVM không thể unmount call stack, khiến Carrier Thread bị 'ghim chặt' và đóng băng, làm nghẽn toàn bộ Carrier Pool.",
+        definition:
+          "Adverse state where a Virtual Thread performs blocking operations inside a synchronized block or native JNI call. The JVM cannot unmount call frames, pinning the Carrier Thread and starving the worker pool.",
       },
     ],
     stages: {
       what: {
-        heading: "1. Khái niệm cốt lõi (WHAT)",
+        heading: "1. Core Architectural Concepts (WHAT)",
         paragraphs: [
-          "Trong suốt 25 năm lịch sử của Java, mô hình luồng java.lang.Thread luôn là ánh xạ 1:1 trực tiếp với Luồng Hệ Điều Hành (OS Kernel Thread / Platform Thread). Mỗi khi tạo một new Thread(), hệ điều hành phải cấp phát một vùng nhớ Call Stack cố định (mặc định 1MB) và thực hiện chuyển đổi ngữ cảnh (Context Switching) đắt đỏ qua kernel space.",
-          "Chính vì vậy, trong mô hình Thread-per-Request truyền thống của các web server như Tomcat/Spring Boot, một máy chủ chỉ có thể duy trì tối đa vài ngàn luồng trước khi cạn kiệt RAM và CPU do thrashing.",
-          "Java 21 LTS chính thức giới thiệu Virtual Threads (Project Loom - JEP 444). Virtual Threads là mô hình luồng M:N: hàng triệu luồng ảo người dùng (Virtual Threads) được ánh xạ linh hoạt lên một số lượng nhỏ các luồng hệ điều hành (Carrier Threads).",
+          "For 25 years, java.lang.Thread maintained a direct 1:1 mapping with Operating System Kernel Threads (Platform Threads). Every thread creation forced the OS to allocate a dedicated call stack (default 1MB) and execute kernel-space context switches.",
+          "Consequently, in traditional Thread-per-Request web servers (Tomcat, Spring Boot MVC), a server could sustain only 2,000 to 5,000 concurrent threads before exhausting memory and suffering CPU thrashing.",
+          "Java 21 LTS officially introduced Virtual Threads (Project Loom - JEP 444). Virtual Threads adopt an M:N threading model: millions of lightweight user-mode Virtual Threads are multiplexed dynamically across a small pool of OS Carrier Threads.",
         ],
         bulletPoints: [
-          "Platform Thread: 1:1 OS thread, ngốn 1MB RAM cố định, giới hạn ~2,000 - 5,000 threads/server.",
-          "Virtual Thread: M:N user thread, ngốn ~1-2 KB Heap, co giãn động, có thể tạo 1,000,000+ threads dễ dàng.",
-          "Mã nguồn không thay đổi: Vẫn viết code tuần tự (blocking sequential style) quen thuộc mà không cần Reactive programming phức tạp (WebFlux/RxJava).",
+          "Platform Threads: 1:1 OS thread mapping, 1MB fixed stack memory, constrained to ~2,000-5,000 threads per node.",
+          "Virtual Threads: M:N user-mode mapping, 1-2 KB dynamic heap stack, easily scaling to 1,000,000+ concurrent threads.",
+          "Zero Codebase Rewrites: Write straightforward, sequential blocking code without the complexity of Reactive paradigms (WebFlux/RxJava).",
         ],
       },
       why: {
-        heading: "2. Tại sao Virtual Threads thay thế Reactive Programming? (WHY)",
+        heading: "2. Why Virtual Threads Supersede Reactive Programming (WHY)",
         paragraphs: [
-          "Để đạt được thông lượng cao (High Throughput) với hàng chục ngàn kết nối đồng thời trên luồng truyền thống, cộng đồng Backend từng phải chuyển sang các framework Reactive (Spring WebFlux, Project Reactor, Vert.x) dựa trên kiến trúc Non-blocking Event Loop.",
-          "Tuy nhiên, Reactive Programming mang lại cái giá quá đắt về trải nghiệm kỹ thuật (Developer Experience):",
+          "To achieve high concurrency across thousands of open connections on legacy threads, backend architectures previously shifted to Reactive frameworks (Spring WebFlux, Project Reactor, Vert.x) based on non-blocking event loops.",
+          "However, Reactive Programming exacted a heavy toll on Developer Experience:",
         ],
         bulletPoints: [
-          "Stack trace bị vỡ vụn: Khi có lỗi xảy ra, stack trace chỉ toàn các hàm nội bộ của Reactor (Flux.publishOn, Mono.flatMap) mà không thể hiện được luồng nghiệp vụ thực tế.",
-          "Không thể dùng ThreadLocal: Làm tê liệt các cơ chế truyền context kinh điển như Spring Security context, Distributed Tracing (MDC, Zipkin, OpenTelemetry).",
-          "Đường cong học tập dốc đứng: Buộc kỹ sư phải từ bỏ các cấu trúc if/else, try/catch/finally quen thuộc.",
+          "Fragmented Stack Traces: When exceptions occur, stack traces contain dozens of Reactor internal frames (Flux.publishOn, Mono.flatMap) that obscure the real business sequence.",
+          "Loss of ThreadLocal Context: Thread-bound context mechanisms (Spring Security context, MDC logging, Zipkin/OpenTelemetry distributed tracing) broke without specialized context propagation.",
+          "Steep Learning Curve: Developers were forced to abandon standard if/else logic, try/catch/finally blocks, and straightforward unit testing.",
         ],
         callout: {
           tone: "note",
-          title: "Cuộc cách mạng của Project Loom",
-          body: "Virtual Threads mang lại 'sự kỳ diệu': Giữ nguyên mô hình lập trình tuần tự đơn giản, debug dễ dàng với stack trace hoàn chỉnh, nhưng đạt được thông lượng ngang ngửa hoặc vượt trội hơn Reactive Programming!",
+          title: "The Project Loom Revolution",
+          body: "Virtual Threads deliver the best of both worlds: preserve simple, sequential, debuggable code with complete stack traces, while achieving throughput parity with or exceeding Reactive systems.",
         },
       },
       how: {
-        heading: "3. Cơ chế Lên lịch & Tạm dừng (Mount / Unmount / Yield) (HOW)",
+        heading: "3. Carrier Scheduling & Continuation Yield (HOW)",
         paragraphs: [
-          "Cách thức Virtual Threads vận hành bên dưới tầng HotSpot JVM:",
-          "1. Mount: Khi một Virtual Thread sẵn sàng chạy, JVM chọn một Carrier Thread rảnh từ ForkJoinPool nội bộ và 'mount' luồng ảo vào. Con trỏ stack của Virtual Thread được ánh xạ vào stack của Carrier Thread và CPU bắt đầu thực thi.",
-          "2. Phát hiện I/O Chặn (Blocking Call): Khi Virtual Thread gọi một phương thức chặn (vd: Socket.read, Database query qua JDBC, Thread.sleep, LockSupport.park), JDK đã viết lại toàn bộ các thư viện mạng nội bộ để chuyển thành non-blocking.",
-          "3. Unmount & Yield Continuation: Thay vì block luồng OS, HotSpot gọi Continuation.yield(): sao chép các stack frame đang thực thi của Virtual Thread vào JVM Heap. Virtual Thread được tháo dỡ (unmount) khỏi Carrier Thread.",
-          "4. Giải phóng Carrier Thread: Carrier Thread được tự do NGAY LẬP TỨC để quay lại hàng đợi và nhận một Virtual Thread khác đang chờ.",
-          "5. Unpark & Resume: Một luồng ngầm Poller (dựa trên epoll của Linux hoặc kqueue của macOS) giám sát socket descriptor. Khi dữ liệu mạng tới, Poller đánh thức Virtual Thread, đưa nó trở lại hàng đợi Runnable. Virtual Thread sau đó được mount vào BẤT KỲ Carrier Thread nào đang rảnh để tiếp tục chạy từ đúng điểm đã tạm dừng.",
+          "How Virtual Threads operate within the HotSpot JVM:",
+          "1. Mount: When a Virtual Thread transitions to Runnable, the JVM schedules it on an idle Carrier Thread from its internal ForkJoinPool. The Virtual Thread stack pointer is mounted to the Carrier stack, and the CPU begins execution.",
+          "2. Blocking Call Interception: When the Virtual Thread invokes a blocking operation (Socket.read, JDBC query, Thread.sleep, LockSupport.park), JDK internal networking libraries intercept the call.",
+          "3. Continuation Yield & Unmount: Instead of parking the OS thread, HotSpot invokes Continuation.yield(): current stack frames are copied to the JVM heap, and the Virtual Thread unmounts from its Carrier Thread.",
+          "4. Carrier Thread Release: The Carrier Thread is immediately freed to pick up and execute the next waiting Virtual Thread from the run queue.",
+          "5. Unpark & Resume: An internal background Poller thread (leveraging Linux epoll or macOS kqueue) monitors the socket descriptor. When network data arrives, the Poller wakes the Virtual Thread, queuing it as Runnable to be mounted on ANY available Carrier Thread.",
         ],
       },
       internals: {
-        heading: "4. Cơ chế nội tại & Hiểm họa Thread Pinning (INTERNALS)",
+        heading: "4. Internals & The Threat of Thread Pinning (INTERNALS)",
         paragraphs: [
-          "Dù Virtual Threads mang lại thông lượng đột phá, các kỹ sư Backend bắt buộc phải nắm vững khái niệm Thread Pinning (Ghim luồng).",
-          "Thread Pinning là tình trạng xảy ra khi một Virtual Thread thực hiện một thao tác I/O chặn trong khi đang ở một trong hai trường hợp:",
-          "1. Nằm bên trong một khối hoặc phương thức có từ khóa synchronized.",
-          "2. Đang thực thi một phương thức Native (thông qua JNI hoặc Foreign Function & Memory API).",
-          "Khi bị Pinning, HotSpot hiện tại chưa thể tháo rời call stack ra khỏi luồng OS. Hậu quả: Virtual Thread không thể unmount và buộc phải GIỮ CHẶT Carrier Thread trong trạng thái bị block. Nếu có 10 Virtual Threads cùng bị pinned bên trong synchronized block khi gọi database, toàn bộ Carrier Pool (thường chỉ có 8 worker threads trên máy 8-core) sẽ bị đóng băng hoàn toàn. Mọi Virtual Thread khác trong hệ thống sẽ bị chết đói (starvation).",
+          "While Virtual Threads dramatically expand concurrency, backend engineers must understand and prevent Thread Pinning.",
+          "Thread Pinning occurs when a Virtual Thread executes a blocking operation under either of two conditions:",
+          "1. Inside a synchronized block or synchronized method.",
+          "2. Inside a native method call (via JNI or the Foreign Function & Memory API).",
+          "When pinned, HotSpot cannot cleanly unmount the execution stack from the OS thread. The Virtual Thread pins the Carrier Thread in an OS BLOCKED state. If 10 Virtual Threads are pinned simultaneously while waiting on database calls, an 8-core Carrier Pool is completely starved. All remaining Virtual Threads in the application stall.",
         ],
         codeSnippet: {
           language: "java",
-          caption: "Khắc phục Thread Pinning: Thay thế synchronized bằng ReentrantLock",
-          code: `// KHÔNG NÊN: Gây Thread Pinning làm nghẽn Carrier Thread Pool!
+          caption: "Resolving Thread Pinning: Replacing synchronized with ReentrantLock",
+          code: `// HAZARDOUS: Causes Thread Pinning and starves the Carrier Thread Pool!
 public synchronized String fetchLegacyData(String url) {
-    return restTemplate.getForObject(url, String.class); // I/O chặn bên trong synchronized
+    return restTemplate.getForObject(url, String.class); // Blocking I/O inside synchronized
 }
 
-// KHUYÊN DÙNG TRONG JAVA 21: Sử dụng ReentrantLock hoàn toàn tương thích với Virtual Threads
+// RECOMMENDED IN JAVA 21: ReentrantLock unmounts cleanly on blocking I/O
 private final ReentrantLock lock = new ReentrantLock();
 
 public String fetchModernData(String url) {
     lock.lock();
     try {
-        return restTemplate.getForObject(url, String.class); // Unmount an toàn khi chặn I/O!
+        return restTemplate.getForObject(url, String.class); // Clean Continuation unmount!
     } finally {
         lock.unlock();
     }
 }
 
-// Khởi chạy Virtual Thread Per Request Executor trong Spring Boot 3.2+
+// Enabling Virtual Threads per Task in Spring Boot 3.2+
 @Bean(TomcatProtocolHandlerCustomizer.class)
 public TomcatProtocolHandlerCustomizer<?> protocolHandlerVirtualThreadExecutorCustomizer() {
     return protocolHandler -> {
@@ -527,37 +527,37 @@ public TomcatProtocolHandlerCustomizer<?> protocolHandlerVirtualThreadExecutorCu
         },
       },
       tradeOffs: {
-        heading: "5. Phân tích đánh đổi kỹ thuật (TRADE-OFFS)",
+        heading: "5. Technical Trade-Off Analysis (TRADE-OFFS)",
         paragraphs: [
-          "Virtual Threads không phải là viên đạn bạc cho mọi bài toán hiệu năng:",
+          "Virtual Threads are not a silver bullet for all performance workloads:",
         ],
         bulletPoints: [
-          "Tác vụ I/O-bound (Rất phù hợp): Web APIs, Microservices gọi Database, Kafka, REST downstream services. Thông lượng có thể tăng từ 200% đến 500% mà không tốn thêm RAM.",
-          "Tác vụ CPU-bound (Không có lợi ích): Xử lý video, mã hóa crypto, tính toán ma trận lớn. Vì CPU-bound bị giới hạn bởi số core vật lý, Virtual Threads không làm tăng tốc độ tính toán mà còn tốn thêm chi phí điều phối.",
-          "Tuyệt đối không 'Pool' Virtual Threads: Tạo Virtual Thread Pool (như ThreadPoolExecutor(200)) là một Anti-Pattern. Virtual Threads được thiết kế để sinh ra theo từng tác vụ (Task-per-Thread) rồi tự hủy.",
+          "I/O-Bound Workloads (Optimal): Web APIs, microservices calling databases, Kafka producers/consumers, external REST services. Throughput increases by 200% to 500% with minimal extra RAM.",
+          "CPU-Bound Workloads (Zero Benefit): Video transcoding, cryptographic hashing, machine learning matrix math. Because compute is physically bounded by CPU cores, Virtual Threads add scheduling overhead without throughput gains.",
+          "Never Pool Virtual Threads: Creating a Virtual Thread Pool (such as ThreadPoolExecutor(200)) is an anti-pattern. Virtual Threads are ephemeral and designed to be instantiated per task (Task-per-Thread) and discarded upon completion.",
         ],
       },
       failureScenarios: {
-        heading: "6. Các kịch bản sự cố thực tế (FAILURE SCENARIOS)",
+        heading: "6. Real-World Virtual Thread Failure Modes (FAILURE SCENARIOS)",
         paragraphs: [
-          "1. Carrier Pool Exhaustion do Thread Pinning: Sử dụng thư viện JDBC driver cũ hoặc code legacy chứa synchronized block bao quanh lệnh gọi socket. Khi traffic tăng cao, các Carrier Threads bị ghim hết khiến hệ thống ngưng trệ.",
-          "2. Cạn kiệt Database Connection Pool: Khi Tomcat có thể mở 50,000 request đồng thời nhờ Virtual Threads, nếu tất cả cùng lao vào xin connection từ HikariCP (vốn chỉ có maxPoolSize=20), hàng chục ngàn Virtual Threads sẽ bị kẹt chờ kết nối, gây tràn bộ nhớ queue của connection pool.",
-          "3. Lạm dụng ThreadLocal ngốn bộ nhớ Heap: Nếu mỗi Virtual Thread lưu một object 1MB vào ThreadLocal, khi có 100,000 Virtual Threads chạy đồng thời, bộ nhớ Heap sẽ bị nuốt chửng 100GB dẫn đến OutOfMemoryError.",
+          "1. Carrier Pool Starvation via Pinning: Outdated JDBC drivers or legacy third-party libraries enclosing socket calls in synchronized methods. Under load spikes, all Carrier Threads become pinned, causing application-wide deadlocks.",
+          "2. Database Connection Pool Exhaustion: When Tomcat can spawn 50,000 concurrent requests via Virtual Threads, if all 50,000 attempt to acquire a database connection from HikariCP (configured with maximumPoolSize=20), connection pool queues overflow and requests timeout.",
+          "3. Heap Bloat from Unbounded ThreadLocal Storage: If each Virtual Thread stores a 1MB buffer in ThreadLocal, spawning 100,000 concurrent Virtual Threads consumes 100GB of Heap, triggering rapid OutOfMemoryError.",
         ],
         callout: {
           tone: "warning",
-          title: "Truy vết Thread Pinning trong Production",
-          body: "Luôn khởi chạy ứng dụng với cờ JVM: -Djdk.tracePinnedThreads=full. HotSpot sẽ in cảnh báo chi tiết cùng stack trace mỗi khi có một Virtual Thread bị pin trên Carrier Thread.",
+          title: "Detecting Thread Pinning in Production",
+          body: "Always launch production services with the JVM diagnostic flag: -Djdk.tracePinnedThreads=full. HotSpot will print detailed stack traces whenever a Virtual Thread pins its Carrier Thread during blocking calls.",
         },
       },
       productionEngineering: {
-        heading: "7. Kinh nghiệm vận hành Production (PRODUCTION ENGINEERING)",
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
         paragraphs: [
-          "Các nguyên tắc vàng khi đưa Virtual Threads vào sản phẩm:",
-          "1. Bật tính năng Virtual Threads trong Spring Boot 3.2+: Chỉ cần thêm cấu hình spring.threads.virtual.enabled=true trong file application.yml.",
-          "2. Quản trị áp lực hạ tầng (Backpressure & Rate Limiting): Sử dụng Semaphore để giới hạn số lượng truy vấn đồng thời tới các tài nguyên hữu hạn (như Database Connection Pool hoặc Payment Gateway bên ngoài).",
-          "3. Thay thế ThreadLocal bằng Scoped Values (JEP 446 / Java 21 preview) để chia sẻ dữ liệu bất biến giữa các tác vụ con một cách an toàn và tiết kiệm bộ nhớ.",
-          "4. Đảm bảo toàn bộ dependencies và JDBC Drivers đã được nâng cấp lên phiên bản mới nhất hỗ trợ Loom (PostgreSQL JDBC driver 42.6+, MySQL Connector/J 8.2+).",
+          "Golden rules for deploying Virtual Threads in production backends:",
+          "1. Enable Virtual Threads in Spring Boot 3.2+: Set spring.threads.virtual.enabled=true in application.yml.",
+          "2. Implement Concurrency Limiting (Backpressure): Use Semaphores to throttle concurrent access to downstream finite resources (such as database connection pools or payment gateways).",
+          "3. Adopt Scoped Values (JEP 446 / Java 21 preview) to replace ThreadLocal for sharing immutable context across tasks cleanly and efficiently.",
+          "4. Upgrade all database drivers to Loom-compatible versions (PostgreSQL JDBC driver 42.6+, MySQL Connector/J 8.2+).",
         ],
       },
     },
@@ -572,7 +572,7 @@ public TomcatProtocolHandlerCustomizer<?> protocolHandlerVirtualThreadExecutorCu
     domainId: "messaging",
     title: "Apache Kafka — Consumer Groups, Partition Assignment & Rebalance Internals",
     subtitle:
-      "Hiểu sâu về cơ chế phân bổ Partition, Stop-The-World vs Cooperative Sticky (KIP-429), và máy trạng thái GroupCoordinator",
+      "Deep dive into Partition assignment, Stop-The-World vs Cooperative Sticky (KIP-429), and the GroupCoordinator state machine",
     governanceStatus: "VERIFIED",
     estimatedMinutes: 25,
     difficulty: "Intermediate",
@@ -580,112 +580,112 @@ public TomcatProtocolHandlerCustomizer<?> protocolHandlerVirtualThreadExecutorCu
     keyTerms: [
       {
         term: "Consumer Group",
-        definitionVi:
-          "Tập hợp các consumer instances cùng phối hợp để tiêu thụ dữ liệu song song từ một hoặc nhiều Topic. Mỗi Partition trong Topic chỉ được gán cho duy nhất 1 Consumer tại một thời điểm.",
+        definition:
+          "A set of consumer instances cooperating to consume data in parallel from one or more Topics. Each Partition in a Topic is assigned to exactly one Consumer member at any time.",
       },
       {
         term: "GroupCoordinator",
-        definitionVi:
-          "Một Broker được chỉ định (dựa trên hash của groupId trên topic nội bộ __consumer_offsets) để quản lý tư cách thành viên, heartbeat, và vòng đời Rebalance của nhóm.",
+        definition:
+          "A designated Broker (determined by hashing the groupId to the internal __consumer_offsets topic) responsible for managing membership, heartbeats, and rebalance lifecycles.",
       },
       {
         term: "CooperativeStickyAssignor (KIP-429)",
-        definitionVi:
-          "Chiến lược phân bổ Partition lũy tiến (Incremental Cooperative), loại bỏ việc thu hồi toàn bộ Partition (Stop-The-World) khi có thành viên rời hoặc gia nhập nhóm.",
+        definition:
+          "Incremental cooperative assignment protocol that avoids global Stop-The-World partition revocation when consumers join or leave the group.",
       },
       {
         term: "generationId",
-        definitionVi:
-          "Một số nguyên đơn điệu tăng dần do GroupCoordinator quản lý. Mỗi lần Rebalance hoàn tất, generationId tăng lên để loại bỏ (fence) các request commit offset muộn từ thế hệ cũ.",
+        definition:
+          "Monotonically increasing integer maintained by the GroupCoordinator. Incremented on each rebalance completion to fence off stale offset commit requests from older generations.",
       },
     ],
     stages: {
       what: {
-        heading: "1. Khái niệm cốt lõi (WHAT)",
+        heading: "1. Core Architectural Concepts (WHAT)",
         paragraphs: [
-          "Apache Kafka đạt được khả năng mở rộng thông lượng tiêu thụ (horizontal scalability) thông qua cơ chế Consumer Group. Thay vì để một consumer duy nhất gánh toàn bộ dữ liệu của một Topic lớn, Kafka chia nhỏ Topic thành nhiều Partition song song và phân bổ các Partition này cho các consumer trong cùng nhóm.",
-          "Điểm mấu chốt: Trong cùng một Consumer Group, mỗi Partition chỉ được xử lý bởi tối đa một Consumer tại một thời điểm. Điều này đảm bảo tính toàn vẹn thứ tự xử lý dữ liệu (strict ordering) trên từng Partition mà vẫn cho phép xử lý song song trên toàn Topic.",
+          "Apache Kafka achieves high-throughput horizontal consumption scalability via Consumer Groups. Instead of requiring a single consumer instance to process an entire high-volume Topic, Kafka shards the Topic into parallel Partitions and distributes these partitions across group members.",
+          "The core invariant: within a single Consumer Group, each Partition is consumed by at most one Consumer at any point in time. This guarantees strict in-order message processing per partition while enabling parallel throughput across the entire topic.",
         ],
         bulletPoints: [
-          "Nếu số Consumers < số Partitions: Một Consumer sẽ gánh nhiều Partitions.",
-          "Nếu số Consumers == số Partitions: Tỷ lệ 1-1 hoàn hảo, thông lượng tối ưu.",
-          "Nếu số Consumers > số Partitions: Các Consumers dư thừa sẽ rơi vào trạng thái rảnh rỗi (idle standby), không nhận được Partition nào.",
+          "Consumers < Partitions: A single Consumer is assigned multiple Partitions.",
+          "Consumers == Partitions: Optimal 1-to-1 mapping with balanced processing load.",
+          "Consumers > Partitions: Excess Consumers remain idle on standby, receiving zero partitions.",
         ],
       },
       why: {
-        heading: "2. Tại sao cần cơ chế Rebalance? (WHY)",
+        heading: "2. Why Rebalances Are Necessary (WHY)",
         paragraphs: [
-          "Trong môi trường microservices thực tế, các consumer instances có thể gặp sự cố bất ngờ (crash, Out-Of-Memory, mất mạng) hoặc được tự động tăng giảm quy mô (Auto-scaling / Kubernetes Pod rescheduling).",
-          "Khi tập hợp thành viên trong nhóm thay đổi, hệ thống bắt buộc phải kích hoạt một quá trình thương lượng lại gọi là Rebalance: thu hồi các Partition từ các node đã chết hoặc chia bớt tải cho các node mới gia nhập. Nếu không có Rebalance, dữ liệu trên các Partition mất kết nối sẽ bị ứ đọng vĩnh viễn (Consumer Lag tăng không kiểm soát).",
+          "In production microservices environments, consumer instances experience unexpected node crashes, Out-Of-Memory errors, network partitions, or autoscaling events (Kubernetes Pod scaling).",
+          "When group membership changes, the system must execute a Rebalance: revoking partitions from dead instances and redistributing load across active or newly joined members. Without rebalances, unassigned partitions would stall indefinitely, causing unbounded Consumer Lag.",
         ],
         callout: {
           tone: "warning",
-          title: "Vấn đề của Eager Rebalance cổ điển",
-          body: "Trong giao thức Eager Rebalance truyền thống (RangeAssignor / RoundRobinAssignor), mỗi khi 1 consumer rời hoặc vào nhóm, TẤT CẢ consumers đều phải từ bỏ mọi Partition đang giữ (Stop-The-World), dừng toàn bộ tiến trình xử lý trong hàng giây tới hàng phút, gây spike Consumer Lag nghiêm trọng.",
+          title: "The Problem with Classic Eager Rebalancing",
+          body: "Under the classic Eager Rebalance protocol (RangeAssignor / RoundRobinAssignor), whenever a consumer joins or leaves, ALL consumers must relinquish their assigned partitions (Stop-The-World), freezing consumption for seconds to minutes and generating severe Consumer Lag spikes.",
         },
       },
       how: {
-        heading: "3. Giao thức vận hành chi tiết (HOW)",
+        heading: "3. Protocol Execution Stages (HOW)",
         paragraphs: [
-          "Vòng đời của một Consumer Group được quản lý bởi một Broker đặc biệt đóng vai trò GroupCoordinator thông qua 4 pha chính:",
-          "1. FindCoordinator: Consumer mới gửi truy vấn tới bất kỳ Broker nào trong cụm để tìm ra Broker nào đang quản lý groupId của mình (dựa trên math hash của groupId tới partition của __consumer_offsets).",
-          "2. JoinGroup: Các Consumer gửi JoinGroupRequest. Coordinator chọn Consumer đầu tiên gửi request làm Group Leader và tăng generationId. Leader nhận danh sách toàn bộ thành viên.",
-          "3. SyncGroup: Group Leader thực thi thuật toán phân bổ (PartitionAssignor) trên máy client, sau đó gửi bảng phân bổ về Coordinator qua SyncGroupRequest. Coordinator gửi kết quả phân bổ riêng biệt cho từng Consumer.",
-          "4. Heartbeat: Các Consumer định kỳ gửi HeartbeatRequest trong nền (heartbeat.interval.ms) để Coordinator biết node vẫn sống. Nếu quá session.timeout.ms không có heartbeat, Coordinator tuyên bố consumer đã chết và kích hoạt Rebalance.",
+          "The lifecycle of a Kafka Consumer Group is coordinated by a designated Broker (GroupCoordinator) through four primary phases:",
+          "1. FindCoordinator: A consumer queries any bootstrap broker to discover which Broker manages its groupId (based on the hash of groupId modulo __consumer_offsets partitions).",
+          "2. JoinGroup: Consumers dispatch JoinGroupRequests. The Coordinator designates the first respondent as Group Leader and increments generationId. The Leader receives the full active member list.",
+          "3. SyncGroup: The Group Leader executes the client-side PartitionAssignor algorithm and returns the assignment plan via SyncGroupRequest. The Coordinator distributes customized assignments back to each consumer.",
+          "4. Heartbeat: Consumers periodically emit background HeartbeatRequests (heartbeat.interval.ms) to assert liveness. If no heartbeat arrives within session.timeout.ms, the Coordinator declares the consumer dead and triggers a rebalance.",
         ],
       },
       internals: {
-        heading: "4. Cơ chế nội tại & So sánh thuật toán Assignor (INTERNALS)",
+        heading: "4. Internals: Eager vs Cooperative Sticky Rebalancing (INTERNALS)",
         paragraphs: [
-          "Phép so sánh quan trọng nhất trong kỹ thuật Kafka hiện đại là giữa Eager Rebalance (Range/RoundRobin) và Incremental Cooperative Rebalance (KIP-429).",
-          "Dưới KIP-429 (CooperativeStickyAssignor), khi một consumer mới gia nhập, các consumer cũ KHÔNG thu hồi toàn bộ partition. Thay vào đó, chúng giữ nguyên phần lớn partition đang đọc và chỉ chuyển giao những partition cần thiết trong hai vòng lặp tái cân bằng ngắn gọn.",
+          "The most pivotal distinction in modern Kafka engineering is between Eager Rebalance (Range/RoundRobin) and Incremental Cooperative Rebalance (KIP-429).",
+          "Under KIP-429 (CooperativeStickyAssignor), when a consumer joins, active members DO NOT revoke their healthy partitions. Instead, they retain uninterrupted consumption of steady partitions, revoking only the migrating partitions across two short targeted assignment rounds.",
         ],
         codeSnippet: {
           language: "java",
-          caption: "Cấu hình Production khuyên dùng cho Kafka Consumer",
+          caption: "Production-ready Kafka Consumer configuration",
           code: `Properties props = new Properties();
 props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
 props.put(ConsumerConfig.GROUP_ID_CONFIG, "order-billing-cg");
-// Sử dụng CooperativeStickyAssignor để triệt tiêu Stop-The-World Rebalance
+// Use CooperativeStickyAssignor to eliminate Stop-The-World rebalance pauses
 props.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG,
     "org.apache.kafka.clients.consumer.CooperativeStickyAssignor");
-// Phân biệt rõ ràng giữa Heartbeat liveness và Processing loop
+// Separate heartbeat liveness from the application processing loop
 props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 45000);   // Heartbeat thread failure detection
-props.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 3000);  // Gửi heartbeat mỗi 3s
-props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300000); // 5 phút tối đa cho xử lý logic app`,
+props.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 3000);  // Send heartbeat every 3s
+props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300000); // 5 minutes max for app processing`,
         },
       },
       tradeOffs: {
-        heading: "5. Phân tích đánh đổi kỹ thuật (TRADE-OFFS)",
+        heading: "5. Technical Trade-Off Analysis (TRADE-OFFS)",
         paragraphs: [
-          "Mỗi chiến lược phân bổ mang lại sự đánh đổi rõ ràng giữa tính đơn giản và độ ổn định thông lượng:",
+          "Partition assignors balance algorithmic simplicity against throughput stability:",
         ],
         bulletPoints: [
-          "RangeAssignor: Rất đơn giản, giữ tính co-partitioning giữa các topic có cùng số partition. Nhược điểm: Gây lệch tải (imbalance) về các consumer đứng đầu danh sách nếu nhiều topic cùng được đăng ký.",
-          "RoundRobinAssignor: Phân bổ đều tuyệt đối giữa các thành viên. Nhược điểm: Vẫn là Eager Rebalance, dừng toàn bộ cụm khi có biến động.",
-          "CooperativeStickyAssignor: Tối ưu thông lượng P99, không dừng toàn cụm, giữ tối đa phân bổ cũ. Nhược điểm: Phức tạp hơn, cần hai vòng rebalance liên tiếp để hoàn tất việc di chuyển partition.",
+          "RangeAssignor: Simple; preserves co-partitioning across topics sharing partition counts. Drawback: Induces partition assignment imbalance favoring earlier members when subscribed to multiple topics.",
+          "RoundRobinAssignor: Uniformly distributes partitions across members. Drawback: Remains an Eager protocol that triggers cluster-wide Stop-The-World pauses.",
+          "CooperativeStickyAssignor: Preserves P99 throughput without global pauses; retains existing assignments. Drawback: Requires two successive rebalance rounds to complete partition migration.",
         ],
       },
       failureScenarios: {
-        heading: "6. Các kịch bản sự cố thực tế (FAILURE SCENARIOS)",
+        heading: "6. Real-World Kafka Failure Modes (FAILURE SCENARIOS)",
         paragraphs: [
-          "1. Heartbeat Timeout (session.timeout.ms): Luồng gửi heartbeat chạy nền bị treo do JVM Full GC pause kéo dài hoặc mất mạng tạm thời -> Coordinator loại consumer và rebalance.",
-          "2. Processing Hang (max.poll.interval.ms): Luồng ứng dụng gọi dịch vụ bên thứ ba bị timeout hoặc xử lý batch quá lâu, không kịp gọi poll() tiếp theo -> Coordinator ngắt kết nối vì nghi ngờ ứng dụng bị treo, gây Rebalance Loop tai hại.",
+          "1. Heartbeat Timeout (session.timeout.ms): Background heartbeat threads stall due to long JVM Full GC pauses or transient network partitions, causing the Coordinator to evict the consumer.",
+          "2. Processing Hang (max.poll.interval.ms): The application thread blocks on an external downstream call or slow batch computation and misses the poll() deadline, prompting the Coordinator to kick the consumer and trigger a destructive Rebalance Loop.",
         ],
         callout: {
           tone: "warning",
-          title: "Hiện tượng Rebalance Storm",
-          body: "Khi max.poll.interval.ms bị vi phạm, Coordinator kick consumer ra -> Rebalance -> Partition được chuyển sang consumer khác -> Consumer mới lại xử lý đúng batch đó và lại bị quá thời gian -> Vòng lặp Rebalance Storm liên tục khiến cụm ngưng trệ.",
+          title: "The Rebalance Storm Hazard",
+          body: "When max.poll.interval.ms is exceeded, the Coordinator evicts the consumer -> Rebalance occurs -> The partition migrates to another consumer -> The new consumer encounters the exact same poison pill batch and also times out -> A continuous Rebalance Storm paralyzes the consumer group.",
         },
       },
       productionEngineering: {
-        heading: "7. Kinh nghiệm vận hành Production (PRODUCTION ENGINEERING)",
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
         paragraphs: [
-          "Để vận hành Consumer Group ổn định trong môi trường thực tế, hãy tuân thủ các quy tắc chuẩn:",
-          "1. Luôn kích hoạt CooperativeStickyAssignor trên Kafka 2.4+.",
-          "2. Đặt heartbeat.interval.ms <= 1/3 của session.timeout.ms để chịu được việc mất 1-2 gói tin heartbeat.",
-          "3. Giảm max.poll.records (ví dụ: từ 500 xuống 50 hoặc 100) nếu mỗi bản ghi cần gọi I/O bên ngoài, đảm bảo thời gian xử lý luôn < max.poll.interval.ms.",
-          "4. Thiết lập cảnh báo (Alert) trên chỉ số Prometheus: kafka_consumergroup_lag > 0 trong 5 phút và kafka_server_GroupCoordinator_RebalanceRateAndTimeMs.",
+          "Follow these production standards for reliable Kafka consumer groups:",
+          "1. Always configure CooperativeStickyAssignor on Kafka 2.4+.",
+          "2. Set heartbeat.interval.ms <= 1/3 of session.timeout.ms to withstand dropped heartbeat packets.",
+          "3. Reduce max.poll.records (e.g., from 500 to 50 or 100) when records trigger slow I/O, ensuring processing completes well under max.poll.interval.ms.",
+          "4. Configure Prometheus alerts on kafka_consumergroup_lag > 0 and monitor kafka_server_GroupCoordinator_RebalanceRateAndTimeMs.",
         ],
       },
     },
@@ -700,7 +700,7 @@ props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300000); // 5 phút tối 
     domainId: "caching",
     title: "Redis — Cache-Aside, TTL Expiration & Cache Stampede Mitigation",
     subtitle:
-      "Nguyên nhân sập Connection Pool cơ sở dữ liệu khi Hot Key hết hạn và các giải pháp Mutex Lock (Singleflight) / Logical TTL",
+      "Database connection pool exhaustion on hot key expiration and mitigation via Mutex Locking (Singleflight) and Logical TTL",
     governanceStatus: "VERIFIED",
     estimatedMinutes: 20,
     difficulty: "Intermediate",
@@ -708,59 +708,59 @@ props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300000); // 5 phút tối 
     keyTerms: [
       {
         term: "Cache Stampede (Thundering Herd)",
-        definitionVi:
-          "Sự cố xảy ra khi một Hot Key có lưu lượng đọc lớn bị hết hạn TTL hoặc bị xóa, khiến hàng nghìn request đồng thời nhận Cache Miss và cùng lúc gửi câu query nặng xuống cơ sở dữ liệu.",
+        definition:
+          "Failure cascade occurring when a high-traffic Hot Key expires or is evicted, causing thousands of concurrent requests to experience Cache Misses and hammer the database simultaneously.",
       },
       {
         term: "Passive vs Active Expiration",
-        definitionVi:
-          "Cơ chế dọn dẹp key trong Redis: Passive (xóa lười khi có lệnh đọc chạm vào key đã quá hạn) kết hợp với Active (quét mẫu ngẫu nhiên định kỳ hz = 10 lần/giây trong nền).",
+        definition:
+          "Redis key eviction mechanics: Passive (lazy deletion when a read command hits an expired key) combined with Active (probabilistic background sampling at 10 Hz).",
       },
       {
         term: "Mutex Lock / Singleflight",
-        definitionVi:
-          "Mẫu thiết kế gộp truy vấn: Chỉ cho phép duy nhất một luồng giành được khóa phân tán (SET NX PX) truy vấn cơ sở dữ liệu để tái tạo cache, các luồng khác đợi kết quả mới.",
+        definition:
+          "Request coalescing pattern: Only the single thread that acquires a distributed lock (SET NX PX) is permitted to query the database and repopulate cache; other threads wait for the refreshed value.",
       },
       {
         term: "Logical TTL (Probabilistic / Early Refresh)",
-        definitionVi:
-          "Lưu timestamp hết hạn logic bên trong giá trị JSON; khi sắp hết hạn, trả ngay dữ liệu cũ (stale) trong 1ms và kích hoạt một luồng chạy ngầm làm mới dữ liệu từ Database.",
+        definition:
+          "Embedding a logical expiration timestamp within the cached JSON payload; near expiration, stale data is returned immediately in 1ms while an asynchronous background task recomputes fresh cache.",
       },
     ],
     stages: {
       what: {
-        heading: "1. Khái niệm cốt lõi (WHAT)",
+        heading: "1. Core Architectural Concepts (WHAT)",
         paragraphs: [
-          "Mô hình Cache-Aside (Lazy Loading) là mẫu kiến trúc phổ biến nhất trong các hệ thống backend: Ứng dụng luôn kiểm tra Cache (Redis) trước; nếu có (Cache Hit), trả về ngay trong ~1ms; nếu không có (Cache Miss), đọc từ PostgreSQL/MySQL, nạp vào Redis với thời gian sống (TTL), rồi mới trả kết quả.",
-          "Tuy nhiên, khi lưu lượng truy cập đạt hàng nghìn request/giây trên cùng một Hot Key (như trang chủ flash-sale, bảng giá chứng khoán), việc hết hạn TTL tự nhiên có thể gây ra hiện tượng sập đổ dây chuyền gọi là Cache Stampede (Thundering Herd).",
+          "The Cache-Aside (Lazy Loading) pattern is the predominant caching strategy in backend architectures: the application queries Redis first; on a Cache Hit, data returns in ~1ms; on a Cache Miss, the backend fetches data from PostgreSQL/MySQL, populates Redis with a Time-To-Live (TTL), and returns the payload.",
+          "However, when read traffic reaches thousands of requests per second on a single Hot Key (e.g., flash-sale homepages, trending news, financial pricing tables), natural TTL expiration can trigger a catastrophic failure cascade known as a Cache Stampede (Thundering Herd).",
         ],
       },
       why: {
-        heading: "2. Thảm họa sập Connection Pool (WHY)",
+        heading: "2. The Connection Pool Collapse Hazard (WHY)",
         paragraphs: [
-          "Khi một Hot Key hết hạn tại giây thứ $T$, trong cửa sổ 200ms tiếp theo trong lúc cơ sở dữ liệu đang thực thi câu truy vấn tổng hợp phức tạp, tất cả các request mới đến đều gặp Cache Miss.",
-          "Nếu có 500 request đồng thời, cả 500 luồng đều mở kết nối xuống PostgreSQL. Vì Connection Pool (ví dụ HikariCP) thường chỉ có kích thước 20-50 kết nối, toàn bộ pool sẽ bị nghẽn (Pool Exhaustion), các luồng bị treo chờ (Queue Timeout), đẩy độ trễ P99 từ 2ms lên 10,000ms+ và làm sập toàn bộ dịch vụ phụ thuộc.",
+          "When a Hot Key expires at time T, during the subsequent 200ms window while PostgreSQL is computing an expensive SQL aggregation, all incoming concurrent requests encounter Cache Misses.",
+          "If 500 requests arrive concurrently, all 500 threads request connections from PostgreSQL. Because connection pools (e.g., HikariCP) are typically sized to 20-50 connections, the pool exhausts instantly. Threads stall in connection queues, P99 latency spikes from 2ms to over 10,000ms, and cascading timeouts bring down downstream microservices.",
         ],
       },
       how: {
-        heading: "3. Các chiến lược phòng chống Stampede (HOW)",
+        heading: "3. Stampede Mitigation Strategies (HOW)",
         paragraphs: [
-          "Có hai giải pháp kiến trúc kinh điển để dập tắt hiện tượng Cache Stampede:",
-          "1. Mutex Lock / Singleflight (SET NX PX): Khi gặp Cache Miss, worker thread cố gắng chiếm một khóa nguyên tử trong Redis bằng lệnh SET lock:key unique_token NX PX 5000. Chỉ 1 worker giành được khóa được phép query DB; các worker khác chờ kết quả hoặc đọc lại cache.",
-          "2. Logical TTL (Phục vụ dữ liệu cũ + Nạp nền): Đặt TTL vật lý trong Redis dài hơn (ví dụ 1 ngày), nhưng nhúng trường logical_expire_at (ví dụ 5 phút) vào payload. Khi quá 5 phút, trả ngay dữ liệu cũ (vẫn đúng 99% trường hợp) cho người dùng trong 1ms, đồng thời khởi chạy 1 tác vụ bất đồng bộ để làm mới cache.",
+          "Two battle-tested architectural patterns eliminate Cache Stampede risks:",
+          "1. Mutex Lock / Singleflight (SET NX PX): Upon a Cache Miss, worker threads attempt to acquire an atomic distributed lock via SET lock:key token NX PX 5000. Exactly one worker acquires the lock to query the database, while remaining workers wait or retry against the newly populated cache.",
+          "2. Logical TTL (Serve Stale + Background Refresh): Set a long physical Redis TTL (e.g., 24 hours), but embed a logical_expire_at timestamp (e.g., 5 minutes) within the payload. Once 5 minutes pass, serve the existing (99% accurate) cached value in 1ms while initiating an asynchronous background job to recompute and update cache.",
         ],
       },
       internals: {
-        heading: "4. Cơ chế nội tại của Redis (INTERNALS)",
+        heading: "4. Redis Internals: Atomic Locking & Safe Release (INTERNALS)",
         paragraphs: [
-          "Lệnh khóa phân tán bắt buộc phải sử dụng dạng thức nguyên tử đơn lệnh:",
-          "SET resource_name my_random_value NX PX 30000",
-          "Nếu chia thành hai lệnh SETNX rồi EXPIRE, tiến trình có thể crash ở giữa hai lệnh, khiến khóa tồn tại vĩnh viễn không có TTL và gây Deadlock toàn hệ thống.",
+          "Distributed lock acquisition in Redis must use a single atomic command:",
+          "SET resource_name unique_random_token NX PX 30000",
+          "Splitting into separate SETNX and EXPIRE commands introduces a race condition: if the process crashes between commands, the key persists indefinitely without TTL, causing permanent deadlocks.",
         ],
         codeSnippet: {
           language: "lua",
-          caption: "Giải phóng khóa an toàn chống Lock Stealing bằng Lua script",
-          code: `-- Script kiểm tra đúng token sở hữu trước khi DEL
+          caption: "Safe lock release preventing Lock Stealing via Lua script",
+          code: `-- Atomic token verification before deletion
 if redis.call("get", KEYS[1]) == ARGV[1] then
     return redis.call("del", KEYS[1])
 else
@@ -769,28 +769,28 @@ end`,
         },
       },
       tradeOffs: {
-        heading: "5. Phân tích đánh đổi (TRADE-OFFS)",
+        heading: "5. Technical Trade-Off Analysis (TRADE-OFFS)",
         paragraphs: [
-          "So sánh ba chiến lược quản lý Cache khi tải cao:",
+          "Comparing caching strategies under heavy concurrent load:",
         ],
         bulletPoints: [
-          "Naive Cache-Aside: Rất đơn giản, dữ liệu luôn mới nhất khi có miss. Nhược điểm: Cực kỳ nguy hiểm khi gặp Hot Key hết hạn.",
-          "Mutex Lock (Singleflight): Bảo vệ DB 100%, chỉ 1 query duy nhất chạy. Nhược điểm: Các request khác phải chịu độ trễ chờ đợi trong lúc worker đầu tiên đang recompute.",
-          "Logical TTL / Background Refresh: Độ trễ P99 luôn đạt ~1ms, bảo vệ DB tuyệt đối. Nhược điểm: Chấp nhận tính nhất quán cuối cùng (Eventual Consistency) — người dùng có thể nhận dữ liệu trễ vài trăm mili-giây.",
+          "Naive Cache-Aside: Minimal complexity; cache is strictly updated on demand. Severe drawback: Highly vulnerable to database outages on Hot Key expiration.",
+          "Mutex Lock (Singleflight): Guarantees 100% database protection with exactly 1 query executed. Drawback: Concurrent requests incur waiting latency while the winning worker recomputes.",
+          "Logical TTL / Background Refresh: P99 latency stays constant at ~1ms; completely shields database. Drawback: Embraces Eventual Consistency—clients receive slightly stale data during refresh windows.",
         ],
       },
       failureScenarios: {
-        heading: "6. Kịch bản lỗi: Lock Stealing do GC Pause (FAILURE SCENARIOS)",
+        heading: "6. Failure Mode: Lock Stealing from GC Pauses (FAILURE SCENARIOS)",
         paragraphs: [
-          "Một lỗi rất tinh vi trong các ứng dụng Java/NodeJS: Worker 1 giành được khóa với TTL = 5 giây. Đột nhiên Worker 1 gặp một đợt Stop-the-world Full GC kéo dài 7 giây. Khóa trong Redis tự động hết hạn và Worker 2 giành được khóa. Khi Worker 1 tỉnh dậy, nó hoàn thành công việc và gọi lệnh DEL lock mà không kiểm tra token -> vô tình xóa khóa của Worker 2! Đó là lý do bắt buộc phải dùng Lua script so khớp token.",
+          "A subtle hazard in managed runtime applications: Worker 1 acquires a lock with a 5-second TTL. Suddenly, Worker 1 encounters a 7-second Stop-The-World Full GC pause. The lock expires in Redis, and Worker 2 acquires it. When Worker 1 recovers, it finishes its database query and calls DEL lock without verifying ownership, inadvertently deleting Worker 2's active lock! This is why atomic Lua script token verification is mandatory.",
         ],
       },
       productionEngineering: {
-        heading: "7. Khuyến nghị Vận hành Production (PRODUCTION ENGINEERING)",
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
         paragraphs: [
-          "1. Bổ sung Jitter ngẫu nhiên vào TTL: Thay vì đặt cứng TTL = 300s cho hàng loạt key, hãy đặt TTL = 300 + rand(-30, 30) giây để tránh hiện tượng Cache Avalanche (nhiều key cùng hết hạn một lúc).",
-          "2. Với các Hot Key quan trọng bậc nhất, hãy dùng pattern Singleflight (như golang.org/x/sync/singleflight hoặc Guava LoadingCache trong Java).",
-          "3. Giám sát chỉ số Redis: instantaneous_ops_per_sec, keyspace_hits vs keyspace_misses, và HikariCP ConnectionPool ActiveConnections.",
+          "1. Inject Randomized TTL Jitter: Instead of static 300s TTLs, apply TTL = 300 + rand(-30, 30) seconds to prevent Cache Avalanches where hundreds of keys expire simultaneously.",
+          "2. For Tier-1 Hot Keys, implement Singleflight request coalescing (such as golang.org/x/sync/singleflight or Guava LoadingCache in Java).",
+          "3. Monitor Redis metrics: instantaneous_ops_per_sec, keyspace_hits vs keyspace_misses, and HikariCP ActiveConnections.",
         ],
       },
     },
@@ -805,7 +805,7 @@ end`,
     domainId: "databases",
     title: "PostgreSQL — B-Tree Index Scan, Visibility Map & MVCC Tuple Visibility",
     subtitle:
-      "Khám phá trang 8 KB, con trỏ CTID, thuật toán nbtree, và sự khác biệt về Snapshot giữa READ COMMITTED và REPEATABLE READ",
+      "Explore 8 KB slotted pages, CTID pointers, nbtree traversal, and Snapshot differences between READ COMMITTED and REPEATABLE READ",
     governanceStatus: "VERIFIED",
     estimatedMinutes: 25,
     difficulty: "Senior / Staff",
@@ -813,65 +813,65 @@ end`,
     keyTerms: [
       {
         term: "Slotted Page (8 KB)",
-        definitionVi:
-          "Đơn vị lưu trữ cơ sở của PostgreSQL. Gồm PageHeaderData (24 bytes), mảng Line Pointers (ItemIdData) phát triển xuống dưới, và dữ liệu Tuple phát triển ngược lên trên.",
+        definition:
+          "The fundamental disk block unit in PostgreSQL. Contains PageHeaderData (24 bytes), an array of Line Pointers (ItemIdData) growing downwards, and Tuple data growing upwards from the bottom of the page.",
       },
       {
         term: "CTID (block_number, item_offset)",
-        definitionVi:
-          "Địa chỉ vật lý duy nhất của một phiên bản tuple trên đĩa, ví dụ (0, 1) là Block 0, Line Pointer số 1.",
+        definition:
+          "The physical tuple address on disk, such as (0, 1) indicating Block 0, Line Pointer 1.",
       },
       {
         term: "MVCC (t_xmin & t_xmax)",
-        definitionVi:
-          "Multi-Version Concurrency Control: Trường header trên mỗi tuple lưu ID giao dịch chèn (xmin) và ID giao dịch xóa/cập nhật (xmax). Lệnh UPDATE không ghi đè tại chỗ mà tạo ra tuple mới với CTID mới.",
+        definition:
+          "Multi-Version Concurrency Control: Tuple header fields storing the inserting transaction ID (xmin) and deleting/updating transaction ID (xmax). An UPDATE never overwrites in-place; it appends a new tuple version with a new CTID.",
       },
       {
         term: "Visibility Map (VM)",
-        definitionVi:
-          "Cấu trúc bitmap lưu trên đĩa, đánh dấu 1 bit all_visible cho mỗi trang 8 KB. Giúp Index-Only Scan bỏ qua việc đọc Heap Tuple (Heap Fetches = 0) nếu mọi tuple trên trang đều đã hiển thị với mọi giao dịch.",
+        definition:
+          "A disk bitmap tracking an all_visible bit for each 8 KB page. Enables Index-Only Scans to bypass heap fetches (Heap Fetches = 0) when all tuples on the page are visible to all running transactions.",
       },
     ],
     stages: {
       what: {
-        heading: "1. Khái niệm cốt lõi (WHAT)",
+        heading: "1. Core Architectural Concepts (WHAT)",
         paragraphs: [
-          "PostgreSQL là một trong những hệ quản trị cơ sở dữ liệu quan hệ mạnh mẽ nhất thế giới nhờ vào kiến trúc lưu trữ đa phiên bản (MVCC) và cấu trúc chỉ mục B-Tree (nbtree) hiệu năng cao.",
-          "Khác biệt căn bản giữa PostgreSQL và các RDBMS khác (như MySQL InnoDB hay Oracle): PostgreSQL không sử dụng Undo Log để tái tạo các phiên bản cũ của dòng dữ liệu. Thay vào đó, tất cả các phiên bản (cũ và mới) đều cùng nằm trực tiếp trên các trang bảng (Heap Pages 8 KB), và tính hiển thị được quyết định động thông qua so sánh t_xmin và t_xmax với Snapshot giao dịch.",
+          "PostgreSQL is recognized worldwide for robust multi-version concurrency control (MVCC) and high-performance B-Tree index structures (nbtree).",
+          "The foundational difference between PostgreSQL and engines like MySQL InnoDB or Oracle is that PostgreSQL does not use an Undo Log to reconstruct historical row versions. Instead, all row versions (past and present) reside directly on 8 KB Heap Pages, and tuple visibility is evaluated dynamically by comparing t_xmin and t_xmax against transaction Snapshots.",
         ],
       },
       why: {
-        heading: "2. Tại sao lệnh ghi không khóa lệnh đọc? (WHY)",
+        heading: "2. Why Writers Do Not Block Readers (WHY)",
         paragraphs: [
-          "Trong các hệ thống RDBMS truyền thống sử dụng khóa bi quan (2-Phase Locking như SQL Server mặc định), một giao dịch đang thực hiện UPDATE sẽ đặt khóa độc quyền (Exclusive Lock) chặn tất cả các giao dịch khác muốn SELECT dòng đó cho đến khi COMMIT.",
-          "Cơ chế MVCC của PostgreSQL giải phóng hoàn toàn sự xung đột này: Readers do not block Writers, and Writers do not block Readers. Người đọc luôn nhìn thấy một bức ảnh chụp nhất quán (Snapshot) của dữ liệu tại thời điểm quá khứ mà không bao giờ bị khóa chặn bởi giao dịch ghi.",
+          "In traditional databases using pessimistic locking (Two-Phase Locking like SQL Server default), a transaction executing an UPDATE acquires an Exclusive Lock that blocks concurrent SELECT queries on that row until COMMIT.",
+          "PostgreSQL's MVCC decouples these operations: Readers never block Writers, and Writers never block Readers. Concurrent readers observe a point-in-time Snapshot of committed data without ever stalling behind active write transactions.",
         ],
       },
       how: {
-        heading: "3. Cơ chế Index Scan và Snapshot Visibility (HOW)",
+        heading: "3. Index Scan & Snapshot Visibility Evaluation (HOW)",
         paragraphs: [
-          "Khi thực hiện một truy vấn SELECT thông qua B-Tree Index:",
-          "1. Engine duyệt từ Root Page -> Internal Page -> Leaf Page của chỉ mục để tìm khóa cần tra cứu.",
-          "2. Trang lá B-Tree trả về một danh sách các con trỏ vật lý CTID (ví dụ: (0, 1), (0, 3)).",
-          "3. Engine bắt buộc phải dùng CTID để nạp trang Heap 8 KB tương ứng vào shared_buffers và đọc header của từng tuple:",
-          "   - Nếu xmin chưa COMMIT hoặc xmin >= Snapshot xmax -> Ẩn (Invisible).",
-          "   - Nếu xmax đã COMMIT và xmax <= Snapshot -> Ẩn (Dead Tuple).",
-          "   - Chỉ khi tuple thỏa mãn điều kiện Snapshot thì nó mới được trả về cho câu lệnh SELECT.",
+          "When a SELECT query executes via a B-Tree Index:",
+          "1. The query engine traverses from the Index Root Page -> Internal Pages -> Leaf Pages to locate the target key.",
+          "2. The leaf index page returns physical CTID pointers (e.g., (0, 1), (0, 3)).",
+          "3. The engine uses each CTID to fetch the 8 KB Heap Page into shared_buffers and inspects each tuple header:",
+          "   - If xmin is uncommitted or xmin >= Snapshot xmax -> Invisible.",
+          "   - If xmax is committed and xmax <= Snapshot -> Invisible (Dead Tuple).",
+          "   - A tuple is returned to the client only when it satisfies all active Snapshot visibility rules.",
         ],
       },
       internals: {
-        heading: "4. So sánh Snapshot: READ COMMITTED vs REPEATABLE READ (INTERNALS)",
+        heading: "4. Snapshot Isolation: READ COMMITTED vs REPEATABLE READ (INTERNALS)",
         paragraphs: [
-          "Sự khác biệt cốt lõi giữa hai cấp độ cô lập trong PostgreSQL nằm ở thời điểm chụp Snapshot:",
-          "- READ COMMITTED: Chụp một Snapshot MỚI tại thời điểm bắt đầu của MỖI CÂU LỆNH SQL trong giao dịch. Do đó nếu giao dịch ghi Tx 202 COMMIT ở giữa hai câu SELECT, câu SELECT thứ hai sẽ nhìn thấy dữ liệu mới.",
-          "- REPEATABLE READ: Chỉ chụp DUY NHẤT MỘT Snapshot tại thời điểm bắt đầu câu lệnh đầu tiên của giao dịch và giữ nguyên Snapshot đó cho đến khi kết thúc. Mọi sửa đổi đã COMMIT của Tx 202 sau đó đều hoàn toàn vô hình!",
+          "The fundamental distinction between PostgreSQL transaction isolation levels is Snapshot creation timing:",
+          "- READ COMMITTED: Generates a NEW Snapshot at the start of EACH individual SQL statement. If an external transaction commits an update between two SELECT queries within the same transaction, the second SELECT sees the updated row.",
+          "- REPEATABLE READ: Captures a SINGLE Snapshot at the beginning of the transaction's first statement and retains it until commit/rollback. Concurrent modifications committed by other transactions remain invisible throughout.",
         ],
         codeSnippet: {
           language: "sql",
-          caption: "Xem chi tiết thông tin MVCC nội bộ bằng extension pageinspect",
+          caption: "Inspecting raw MVCC tuple headers using the pageinspect extension",
           code: `CREATE EXTENSION IF NOT EXISTS pageinspect;
 
--- Kiểm tra header MVCC thực tế của các dòng trong Heap Block 0
+-- Inspect raw MVCC header bytes for tuples in Heap Block 0
 SELECT lp, t_ctid, t_xmin, t_xmax,
        (t_infomask & 256)::bool AS xmin_committed,
        (t_infomask & 1024)::bool AS xmax_invalid
@@ -879,28 +879,28 @@ FROM heap_page_items(get_raw_page('accounts', 0));`,
         },
       },
       tradeOffs: {
-        heading: "5. Đánh đổi: Cái giá của việc không dùng Undo Log (TRADE-OFFS)",
+        heading: "5. Technical Trade-Offs of the Append-Only Model (TRADE-OFFS)",
         paragraphs: [
-          "Kiến trúc MVCC Append-only của PostgreSQL mang lại thông lượng đọc tuyệt vời nhưng cũng đi kèm các đánh đổi lớn:",
+          "PostgreSQL's append-only MVCC architecture delivers exceptional read concurrency with specific trade-offs:",
         ],
         bulletPoints: [
-          "Table Bloat (Phình to bảng): Lệnh UPDATE và DELETE để lại các Dead Tuples trên đĩa. Nếu không dọn dẹp, dung lượng bảng sẽ tăng vọt và làm chậm các truy vấn Seq Scan.",
-          "Index Pointer Bloat: Mỗi lần UPDATE không thỏa mãn HOT (Heap-Only Tuple) đều phải chèn con trỏ CTID mới vào toàn bộ các chỉ mục của bảng.",
-          "Cần tiến trình Autovacuum liên tục chạy nền để thu hồi dung lượng trống và cập nhật Visibility Map.",
+          "Table Bloat: UPDATE and DELETE operations leave dead tuples on disk. Without ongoing cleanup, table bloat inflates disk usage and degrades sequential scan performance.",
+          "Index Pointer Bloat: Updates that do not qualify for HOT (Heap-Only Tuples) require inserting new CTID pointers across every index on the table.",
+          "Requires continuous background Autovacuum daemon processes to prune dead tuples, reclaim space, and maintain Visibility Maps.",
         ],
       },
       failureScenarios: {
-        heading: "6. Kịch bản lỗi: Autovacuum không theo kịp tốc độ UPDATE (FAILURE SCENARIOS)",
+        heading: "6. Failure Mode: Autovacuum Lagging Under High Write Volume (FAILURE SCENARIOS)",
         paragraphs: [
-          "Khi một bảng có hàng chục triệu dòng và tần suất UPDATE liên tục, nếu autovacuum_vacuum_cost_limit quá thấp, tiến trình VACUUM sẽ không kịp dọn dẹp các Dead Tuples. Hậu quả là B-Tree Index phình to gấp 5 lần, Visibility Map bị vô hiệu hóa (all_visible = 0), khiến các câu lệnh Index-Only Scan suy thoái thành Index Scan và phải đọc hàng nghìn trang đĩa không cần thiết.",
+          "On tables with millions of rows subjected to rapid continuous UPDATEs, if autovacuum_vacuum_cost_limit is under-configured, VACUUM cannot keep pace with dead tuple accumulation. Table and index sizes expand 5x, Visibility Map all_visible bits clear to 0, and Index-Only Scans degrade into expensive heap fetches reading thousands of unnecessary disk blocks.",
         ],
       },
       productionEngineering: {
-        heading: "7. Kinh nghiệm vận hành Production (PRODUCTION ENGINEERING)",
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
         paragraphs: [
-          "1. Điều chỉnh Autovacuum cho các bảng ghi nhiều: Giảm autovacuum_vacuum_scale_factor từ mặc định 0.2 (20%) xuống 0.05 (5%) và tăng autovacuum_vacuum_cost_limit lên 1000-2000.",
-          "2. Đảm bảo các cột hay UPDATE không nằm trong các Index không cần thiết để tận dụng tối đa tính năng HOT (Heap-Only Tuple) — tái sử dụng trang hiện tại mà không sửa đổi B-Tree.",
-          "3. Giám sát chỉ số: n_dead_tup vs n_live_tup trong pg_stat_user_tables và độ tuổi transaction ID của pg_database để tránh XID Wraparound.",
+          "1. Optimize Autovacuum for Write-Heavy Tables: Lower autovacuum_vacuum_scale_factor from default 0.2 (20%) to 0.05 (5%) and increase autovacuum_vacuum_cost_limit to 1000-2000.",
+          "2. Ensure frequently updated columns are excluded from secondary indexes where possible to maximize HOT (Heap-Only Tuple) optimization, reusing pages without modifying B-Trees.",
+          "3. Monitor n_dead_tup vs n_live_tup in pg_stat_user_tables and track pg_database transaction age to prevent Transaction ID (XID) Wraparound outages.",
         ],
       },
     },

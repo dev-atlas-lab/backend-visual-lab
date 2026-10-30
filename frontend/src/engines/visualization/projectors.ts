@@ -195,7 +195,7 @@ export function projectPostgresFrameToLanes(
     tone: t.isVisibleToReader ? "healthy" : t.xmax !== null ? "warning" : "danger",
     details: [
       `Header: t_xmin = ${t.xmin} | t_xmax = ${t.xmax ?? "NULL"}`,
-      t.visibilityReasonVi,
+      t.visibilityReason,
     ],
   }));
 
@@ -284,11 +284,11 @@ export function projectJavaMemoryFrameToLanes(
       cards: edenCards.length > 0 ? edenCards : [
         {
           id: "eden-empty",
-          title: "Eden Space Trống",
-          subtitle: "Sẵn sàng cấp phát",
+          title: "Eden Space Empty",
+          subtitle: "Ready for allocation",
           badgeText: "0 OBJECTS",
           tone: "muted",
-          details: ["Chưa có đối tượng mới nào hoặc vừa hoàn tất Minor GC dọn sạch."],
+          details: ["No active objects allocated or recently swept clean by Minor GC."],
         },
       ],
     },
@@ -298,11 +298,11 @@ export function projectJavaMemoryFrameToLanes(
       cards: survivorCards.length > 0 ? survivorCards : [
         {
           id: "survivor-empty",
-          title: `Survivor S${state.activeSurvivor} Trống`,
-          subtitle: "Chưa có object sống sót qua Minor GC",
+          title: `Survivor S${state.activeSurvivor} Empty`,
+          subtitle: "No objects survived Minor GC yet",
           badgeText: "0 OBJECTS",
           tone: "muted",
-          details: ["Các đối tượng chết ngay trong Eden mà không cần sơ tán vào Survivor."],
+          details: ["Short-lived objects died in Eden without needing evacuation into Survivor."],
         },
       ],
     },
@@ -312,11 +312,11 @@ export function projectJavaMemoryFrameToLanes(
       cards: oldGenCards.length > 0 ? oldGenCards : [
         {
           id: "oldgen-empty",
-          title: "Old Generation Trống",
-          subtitle: "Chưa có đối tượng thăng hạng",
+          title: "Old Generation Empty",
+          subtitle: "No promoted objects",
           badgeText: "0 OBJECTS",
           tone: "muted",
-          details: ["Đối tượng cần sống sót qua 3 chu kỳ Minor GC để được thăng hạng."],
+          details: ["Objects must survive 3 Minor GC cycles to be promoted to Old Gen."],
         },
       ],
     },
@@ -345,44 +345,44 @@ export function projectJavaHashMapFrameToLanes(
   const opCards: VisualNodeCard[] = state.lastOperationDetails ? [
     {
       id: "last-op",
-      title: `Phép tính Băm: "${state.lastOperationDetails.key}"`,
+      title: `Hash Computation: "${state.lastOperationDetails.key}"`,
       subtitle: `hashCode() = ${state.lastOperationDetails.rawHashCode}`,
-      badgeText: state.lastOperationDetails.collisionOccurred ? "VA CHẠM (COLLISION)" : "SLOT MỚI",
+      badgeText: state.lastOperationDetails.collisionOccurred ? "COLLISION DETECTED" : "NEW SLOT",
       tone: state.lastOperationDetails.collisionOccurred ? "warning" : "healthy",
       details: [
         `Perturbation hash: (h ^ (h >>> 16)) = 0x${state.lastOperationDetails.spreadHash.toString(16)}`,
         `Index: (${state.capacity} - 1) & hash = ${state.lastOperationDetails.targetIndex}`,
-        `Treeified: ${state.lastOperationDetails.treeified ? "YES (Mô hình Cây)" : "NO"}`,
+        `Treeified: ${state.lastOperationDetails.treeified ? "YES (Red-Black Tree)" : "NO"}`,
       ],
     },
   ] : [
     {
       id: "no-op",
-      title: "Chưa có Thao tác Băm",
-      subtitle: "Nhấn Put Entry để bắt đầu",
+      title: "No Hash Operation Yet",
+      subtitle: "Click Put Entry to begin",
       badgeText: "IDLE",
       tone: "muted",
-      details: ["Thực hiện lệnh PUT để xem cách tính hash và vị trí bucket."],
+      details: ["Execute a PUT command to inspect hash perturbation and bucket index calculation."],
     },
   ];
 
   return [
     {
       laneId: "hashmap-calculation",
-      laneTitle: `Thao tác & Phép tính Phân tán Băm (Perturbation)`,
+      laneTitle: `Operation & Perturbation Spreading Calculation`,
       cards: opCards,
     },
     {
       laneId: "hashmap-active-buckets",
-      laneTitle: `Mảng Table Node<K,V>[] — Đang sử dụng ${bucketCards.length}/${state.capacity} slots (Threshold: ${state.threshold})`,
+      laneTitle: `Table Array Node<K,V>[] — Utilizing ${bucketCards.length}/${state.capacity} slots (Threshold: ${state.threshold})`,
       cards: bucketCards.length > 0 ? bucketCards : [
         {
           id: "all-empty",
-          title: "Toàn bộ Buckets đang Trống",
+          title: "All Buckets Currently Empty",
           subtitle: `Capacity: ${state.capacity}`,
           badgeText: "SIZE: 0",
           tone: "muted",
-          details: ["Chưa có phần tử nào được thêm vào HashMap."],
+          details: ["No key-value pairs added to HashMap yet."],
         },
       ],
     },
@@ -401,9 +401,9 @@ export function projectJavaVirtualThreadsFrameToLanes(
     badgeText: c.status === "PINNED" ? "CRITICAL: PINNED" : c.status === "BUSY" ? "BUSY (MOUNTED)" : "IDLE",
     tone: c.status === "PINNED" ? "danger" : c.status === "BUSY" ? "healthy" : "muted",
     details: [
-      `Trạng thái: ${c.status}`,
-      `Đang chạy: ${c.currentVirtualThreadId ?? "None (Rảnh rỗi)"}`,
-      c.status === "PINNED" ? "ĐANG BỊ KHÓA BỞI SYNCHRONIZED BLOCK!" : "Sẵn sàng nhận Virtual Thread tiếp theo",
+      `Status: ${c.status}`,
+      `Running Task: ${c.currentVirtualThreadId ?? "None (Idle)"}`,
+      c.status === "PINNED" ? "LOCKED BY SYNCHRONIZED BLOCK!" : "Ready to mount next Virtual Thread",
     ],
   }));
 
@@ -412,13 +412,13 @@ export function projectJavaVirtualThreadsFrameToLanes(
     .map((vt) => ({
       id: vt.id,
       title: vt.name,
-      subtitle: `Trạng thái: ${vt.status}`,
+      subtitle: `Status: ${vt.status}`,
       badgeText: vt.status === "PINNED_BLOCKED" ? "PINNED" : vt.status === "YIELDED_PARKED_IO" ? "PARKED (I/O YIELD)" : "MOUNTED",
       tone: vt.status === "PINNED_BLOCKED" ? "danger" : vt.status === "YIELDED_PARKED_IO" ? "warning" : "healthy",
       details: [
         `Mounted Carrier: ${vt.mountedCarrierId ?? "None (Continuation on Heap)"}`,
-        `Stack footprint: ~${vt.stackSizeKb} KB (co giãn động)`,
-        vt.pinningReason ? `Cảnh báo: ${vt.pinningReason}` : "I/O non-blocking yield",
+        `Stack footprint: ~${vt.stackSizeKb} KB (dynamic heap)`,
+        vt.pinningReason ? `Warning: ${vt.pinningReason}` : "I/O non-blocking yield",
       ],
     }));
 
@@ -428,10 +428,10 @@ export function projectJavaVirtualThreadsFrameToLanes(
     .map((vt) => ({
       id: vt.id,
       title: vt.name,
-      subtitle: "Hàng đợi Runnable Queue",
-      badgeText: "CHỜ CARRIER",
+      subtitle: "Runnable Queue",
+      badgeText: "AWAITING CARRIER",
       tone: "info",
-      details: ["Sẵn sàng mount vào Carrier Thread tiếp theo rảnh."],
+      details: ["Ready to mount onto the next idle Carrier Thread."],
     }));
 
   return [
@@ -442,29 +442,29 @@ export function projectJavaVirtualThreadsFrameToLanes(
     },
     {
       laneId: "vt-active-threads",
-      laneTitle: `Virtual Threads Đang Chạy hoặc Chờ I/O (${activeVtCards.length} active)`,
+      laneTitle: `Active or Parked Virtual Threads (${activeVtCards.length} active)`,
       cards: activeVtCards.length > 0 ? activeVtCards : [
         {
           id: "no-active-vt",
-          title: "Không có Virtual Thread nào đang chạy",
-          subtitle: "Nhấn Chạy bước (Step Execution) để mount tác vụ",
+          title: "No Virtual Threads Currently Running",
+          subtitle: "Click Step Execution to schedule tasks",
           badgeText: "IDLE",
           tone: "muted",
-          details: ["Tất cả Virtual Threads đang trong hàng đợi runnable hoặc đã hoàn tất."],
+          details: ["All Virtual Threads are in the runnable queue or have completed execution."],
         },
       ],
     },
     {
       laneId: "vt-run-queue",
-      laneTitle: `Hàng đợi Chờ Điều phối (${state.virtualThreads.filter((v) => v.status === "QUEUED_RUNNABLE").length} Tasks)`,
+      laneTitle: `Runnable Task Queue (${state.virtualThreads.filter((v) => v.status === "QUEUED_RUNNABLE").length} Tasks)`,
       cards: runnableQueueCards.length > 0 ? runnableQueueCards : [
         {
           id: "queue-empty",
-          title: "Hàng đợi Runnable Trống",
-          subtitle: "Mọi tác vụ đã được lên lịch",
+          title: "Runnable Queue Empty",
+          subtitle: "All tasks have been scheduled",
           badgeText: "0 QUEUED",
           tone: "muted",
-          details: ["Nhấn Spawn Virtual Threads để thêm tải công việc."],
+          details: ["Click Spawn Tasks to inject additional workload."],
         },
       ],
     },

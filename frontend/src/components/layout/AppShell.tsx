@@ -30,9 +30,9 @@ export function AppShell() {
     <div className="app-shell">
       <header className="topbar">
         <Link to="/" className="brand-lockup">
-          <Layers size={22} color="var(--accent-primary)" />
+          <Layers size={20} color="var(--accent)" />
           <span>Backend Visual Lab</span>
-          <span className="brand-badge">Antigravity Edition</span>
+          <span className="brand-badge">Dev Atlas</span>
         </Link>
 
         <nav className="nav-links">
@@ -43,19 +43,25 @@ export function AppShell() {
             to="/domains/messaging/kafka-consumer-groups-rebalance"
             className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
           >
-            Kafka Lab
+            Kafka
           </NavLink>
           <NavLink
             to="/domains/caching/redis-cache-stampede-ttl"
             className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
           >
-            Redis Lab
+            Redis
           </NavLink>
           <NavLink
             to="/domains/databases/postgres-btree-mvcc-visibility"
             className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
           >
-            PostgreSQL Lab
+            PostgreSQL
+          </NavLink>
+          <NavLink
+            to="/domains/java/java-memory-heap-stack-gc"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+          >
+            Java Core
           </NavLink>
           <NavLink
             to="/progress"

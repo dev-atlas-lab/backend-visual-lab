@@ -35,7 +35,7 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
     await expect(page.locator("text=Generation ID:")).toBeVisible();
 
     // Click Step Forward via explicit aria-label
-    await page.getByRole("button", { name: "Tiến lên 1 bước" }).click();
+    await page.getByRole("button", { name: "Step Forward" }).click();
     await expect(page.locator("text=Tick 2 /")).toBeVisible();
 
     // Verify theme toggle
@@ -47,7 +47,7 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
     await page.goto("/domains/messaging/kafka-consumer-groups-rebalance");
 
     // Scroll to assessment section
-    const submitBtn = page.locator("button:has-text('Nộp bài & Xem lời giải')");
+    const submitBtn = page.getByRole("button", { name: /Submit & View Explanations/i });
     await submitBtn.scrollIntoViewIfNeeded();
 
     // Select choices for Q1 and Q2
@@ -56,7 +56,7 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
 
     // Submit
     await submitBtn.click();
-    await expect(page.locator("text=Độ chính xác:")).toBeVisible();
-    await expect(page.locator("button:has-text('Làm lại bài kiểm tra')")).toBeVisible();
+    await expect(page.locator("text=Accuracy Score:")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Retake Knowledge Check/i })).toBeVisible();
   });
 });
