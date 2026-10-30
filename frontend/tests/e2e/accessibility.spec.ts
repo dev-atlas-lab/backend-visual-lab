@@ -5,12 +5,12 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
   test("renders Catalog page and passes accessibility checks", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/Backend Visual Lab/i);
-    await expect(page.locator("h1")).toContainText("Backend Engineering Interactive Laboratory");
+    await expect(page.locator("h1")).toContainText("Master Backend Internals");
 
-    // Check all 6 domains exist in the catalog
-    await expect(page.locator("text=Messaging & Event Streaming")).toBeVisible();
-    await expect(page.locator("text=Caching & Redis")).toBeVisible();
-    await expect(page.locator("text=Databases (PostgreSQL Internals)")).toBeVisible();
+    // Check key domains exist in the catalog
+    await expect(page.locator("text=Messaging & Event Streaming").first()).toBeVisible();
+    await expect(page.locator("text=Caching & Redis").first()).toBeVisible();
+    await expect(page.locator("text=Databases & Storage Internals").first()).toBeVisible();
 
     // In-page axe injection (excluding color-contrast & link-in-text-block which vary across headless renderers)
     await page.evaluate(axe.source);
@@ -47,7 +47,7 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
     await page.goto("/domains/messaging/kafka-consumer-groups-rebalance");
 
     // Scroll to assessment section
-    const submitBtn = page.getByRole("button", { name: /Submit & View Explanations/i });
+    const submitBtn = page.getByRole("button", { name: /Submit Answers for Evaluation/i });
     await submitBtn.scrollIntoViewIfNeeded();
 
     // Select choices for Q1 and Q2
@@ -57,6 +57,6 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
     // Submit
     await submitBtn.click();
     await expect(page.locator("text=Accuracy Score:")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Retake Knowledge Check/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Retake Assessment/i })).toBeVisible();
   });
 });
