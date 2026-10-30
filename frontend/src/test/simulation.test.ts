@@ -74,20 +74,21 @@ describe("Redis Stampede & TTL Simulation Engine", () => {
       strategy: "naive-cache-aside",
       concurrentWorkers: 8,
       initialTtlMs: 5000,
+      dbQueryCostMs: 180,
       dbMaxPoolSize: 5,
     });
 
     expect(initial.state.dbActiveConnections).toBe(0);
 
     // Expire TTL
-    const expired = engine.applyCommand(initial, { type: "ADVANCE_TTL_TO_EXPIRY" });
+    const expired = engine.applyCommand(initial, { type: "EXPIRE_TTL_IMMEDIATELY" });
     expect(expired.state.ttlRemainingMs).toBe(0);
 
     // Burst read requests
-    const burst = engine.applyCommand(expired, { type: "BURST_READ_REQUESTS" });
+    const burst = engine.applyCommand(expired, { type: "BURST_CONCURRENT_READS" });
     expect(burst.state.dbActiveConnections).toBe(8);
     // Violates DB pool safety invariant!
-    const poolInvariant = burst.invariants.find((i) => i.id === "db-connection-pool-safety");
+    const poolInvariant = burst.invariants.find((i) => i.id === "postgres-connection-pool-safety");
     expect(poolInvariant?.passed).toBe(false);
   });
 
@@ -98,11 +99,12 @@ describe("Redis Stampede & TTL Simulation Engine", () => {
       strategy: "mutex-singleflight-lock",
       concurrentWorkers: 8,
       initialTtlMs: 5000,
+      dbQueryCostMs: 180,
       dbMaxPoolSize: 5,
     });
 
-    const expired = engine.applyCommand(initial, { type: "ADVANCE_TTL_TO_EXPIRY" });
-    const burst = engine.applyCommand(expired, { type: "BURST_READ_REQUESTS" });
+    const expired = engine.applyCommand(initial, { type: "EXPIRE_TTL_IMMEDIATELY" });
+    const burst = engine.applyCommand(expired, { type: "BURST_CONCURRENT_READS" });
 
     // Exactly 1 worker querying DB, pool safe!
     expect(burst.state.dbActiveConnections).toBe(1);
@@ -175,7 +177,7 @@ describe("JVM Memory & Generational GC Simulation Engine", () => {
     expect(initial.state.threadStack.length).toBe(1);
 
     // Call method & allocate objects
-    const called = engine.applyCommand(initial, { type: "CALL_METHOD", methodName: "orderService.checkout()" });
+    const called = engine.applyCommand(initial, { type: "PUSH_STACK_FRAME", methodName: "orderService.checkout()" });
     expect(called.state.threadStack.length).toBe(2);
 
     const alloc1 = engine.applyCommand(called, { type: "ALLOCATE_OBJECT", className: "Order", varName: "o1" });
@@ -184,7 +186,7 @@ describe("JVM Memory & Generational GC Simulation Engine", () => {
     expect(alloc2.state.youngEden.every((o) => o.isRootReachable)).toBe(true);
 
     // Return method -> stack frame popped, references invalidated
-    const returned = engine.applyCommand(alloc2, { type: "RETURN_METHOD" });
+    const returned = engine.applyCommand(alloc2, { type: "POP_STACK_FRAME" });
     expect(returned.state.threadStack.length).toBe(1);
     expect(returned.state.youngEden.every((o) => !o.isRootReachable)).toBe(true);
 
@@ -223,7 +225,7 @@ describe("JVM Memory & Generational GC Simulation Engine", () => {
     frame = engine.applyCommand(frame, { type: "TRIGGER_MINOR_GC" });
     expect(frame.state.oldGen.length).toBe(1);
     expect(frame.state.oldGen[0].className).toBe("GlobalConfig");
-    expect(frame.state.oldGen[0].generation).toBe("OLD_GEN");
+    expect(frame.state.oldGen[0].tenuringAge).toBe(3);
     expect(frame.invariants.every((i) => i.passed)).toBe(true);
   });
 });

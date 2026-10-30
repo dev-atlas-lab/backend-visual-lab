@@ -18,6 +18,13 @@ export interface HashMapBucket {
   nodes: HashMapNode[];
 }
 
+export interface JavaHashMapConfig {
+  initialCapacity: number; // must be power of 2
+  loadFactor: number; // default 0.75
+  treeifyThreshold: number; // default 8
+  minTreeifyCapacity: number; // default 64 (or 32 for lab simulation)
+}
+
 export interface JavaHashMapState {
   capacity: number;
   size: number;
@@ -38,13 +45,6 @@ export interface JavaHashMapState {
   } | null;
 }
 
-export interface JavaHashMapConfig {
-  initialCapacity: number;
-  loadFactor: number;
-  treeifyThreshold: number;
-  minTreeifyCapacity: number;
-}
-
 export type JavaHashMapCommand =
   | { type: "PUT"; key: string; value: string; customHashCode?: number }
   | { type: "BURST_COLLIDING_KEYS"; count: number; targetBucketIndex: number }
@@ -55,39 +55,37 @@ const defaultConfig: JavaHashMapConfig = {
   initialCapacity: 16,
   loadFactor: 0.75,
   treeifyThreshold: 8,
-  minTreeifyCapacity: 32, // educational threshold for interactive workbench (real Java is 64)
+  minTreeifyCapacity: 32, // educational scaling
 };
 
-export function computeJavaHash(key: string, customCode?: number): { raw: number; spread: number } {
+/**
+ * OpenJDK perturbation spread function: (h ^ (h >>> 16))
+ */
+export function computeJavaHash(key: string, customRaw?: number): { raw: number; spread: number } {
   let h = 0;
-  if (customCode !== undefined) {
-    h = customCode;
+  if (customRaw !== undefined) {
+    h = customRaw;
   } else {
     for (let i = 0; i < key.length; i++) {
       h = (Math.imul(31, h) + key.charCodeAt(i)) | 0;
     }
   }
-  // Perturbation function: (h ^ (h >>> 16))
-  const spread = (h ^ (h >>> 16)) | 0;
+  const spread = (h ^ (h >>> 16)) >>> 0;
   return { raw: h, spread };
 }
 
+/**
+ * OpenJDK bitwise index calculation: (capacity - 1) & hash
+ */
 export function computeBucketIndex(spreadHash: number, capacity: number): number {
   return (capacity - 1) & spreadHash;
 }
 
 function evaluateInvariants(state: JavaHashMapState): SimulationInvariantCheck[] {
-  const isPowerOfTwo = (state.capacity & (state.capacity - 1)) === 0;
-
-  let allKeysInCorrectSlot = true;
-  for (const b of state.buckets) {
-    for (const node of b.nodes) {
-      const expectedSlot = computeBucketIndex(node.spreadHash, state.capacity);
-      if (expectedSlot !== b.index) {
-        allKeysInCorrectSlot = false;
-      }
-    }
-  }
+  const isPowerOfTwo = (state.capacity & (state.capacity - 1)) === 0 && state.capacity > 0;
+  const loadInvariant = state.threshold === Math.floor(state.capacity * state.loadFactor);
+  const actualCount = state.buckets.reduce((acc, b) => acc + b.nodes.length, 0);
+  const sizeMatches = actualCount === state.size;
 
   const treeCheck = state.buckets.every((b) => {
     if (b.nodes.length > state.treeifyThreshold && state.capacity >= state.minTreeifyCapacity) {
@@ -99,27 +97,33 @@ function evaluateInvariants(state: JavaHashMapState): SimulationInvariantCheck[]
   return [
     {
       id: "power-of-two-capacity",
-      label: "Power-of-Two Table Capacity ((n & (n - 1)) == 0)",
+      label: "Power-of-Two Capacity Invariant",
       passed: isPowerOfTwo,
       detail: isPowerOfTwo
-        ? `Capacity = ${state.capacity} là lũy thừa của 2, cho phép thay thế phép chia % bằng phép bitwise AND ((n - 1) & hash) với tốc độ nano giây.`
-        : "Vi phạm: Dung lượng bảng không phải lũy thừa của 2!",
+        ? `Table capacity (${state.capacity}) is strictly a power of two, enabling bitwise (n - 1) & hash indexing.`
+        : `VIOLATION: Capacity ${state.capacity} is not a power of two!`,
     },
     {
-      id: "bucket-indexing-correctness",
-      label: "Slot Indexing Integrity ((capacity - 1) & spreadHash)",
-      passed: allKeysInCorrectSlot,
-      detail: allKeysInCorrectSlot
-        ? "Mọi Node trong tất cả các bucket đều nằm chính xác tại vị trí băm tính toán."
-        : "Lỗi bất biến: Phát hiện phần tử nằm sai slot trong mảng table!",
+      id: "hashmap-size-accounting",
+      label: "Node Count & Size Field Consistency",
+      passed: sizeMatches,
+      detail: sizeMatches
+        ? `HashMap size field (${state.size}) exactly matches total nodes across all buckets (${actualCount}).`
+        : `MISMATCH: Size field is ${state.size} but actual nodes sum to ${actualCount}!`,
+    },
+    {
+      id: "hashmap-threshold-boundary",
+      label: "Load Factor Threshold (capacity * 0.75)",
+      passed: loadInvariant,
+      detail: `Resize threshold set to ${state.threshold} (${state.capacity} * ${state.loadFactor}).`,
     },
     {
       id: "treeification-integrity",
-      label: "Treeification Threshold Guarantee (KIP/JEP Treeify >= 8)",
+      label: "Red-Black Treeification Threshold Bounding (O(log n))",
       passed: treeCheck,
       detail: treeCheck
-        ? `Các bucket có độ sâu va chạm > ${state.treeifyThreshold} đã được chuyển đổi thành Red-Black Tree (O(log n) lookup).`
-        : "Cảnh báo: Bucket vượt ngưỡng 8 phần tử nhưng chưa được treeify!",
+        ? `All buckets exceeding collision depth ${state.treeifyThreshold} converted to Red-Black Tree (O(log n) lookup).`
+        : "Warning: Bucket exceeded 8 entries without treeification!",
     },
   ];
 }
@@ -144,48 +148,48 @@ export const javaHashMapSimulation: SimulationEngineSpec<
     realWorldReference:
       "OpenJDK java.util.HashMap Source Code (Java 8 to 21) — Hash Spreading, Treeification & Bitwise Resizing",
     accurateBehaviors: [
-      "Hàm băm perturbation (h ^ (h >>> 16)) phân tán các bit bậc cao xuống bậc thấp.",
-      "Vị trí bucket được tính bằng phép bitwise AND: (n - 1) & hash thay vì phép chia modulo % đắt đỏ.",
-      "Va chạm băm giải quyết bằng Singly-Linked List node nối đuôi (tail-insertion trong Java 8+).",
-      "Khi một bucket vượt quá TREEIFY_THRESHOLD (8 nodes) và dung lượng bảng >= MIN_TREEIFY_CAPACITY, bucket chuyển hóa thành Red-Black Tree (TreeNode).",
-      "Khi size > threshold (capacity * loadFactor), mảng table tăng gấp đôi (n << 1) và phân bổ lại node theo bit kiểm tra (hash & oldCap).",
+      "Perturbation function (h ^ (h >>> 16)) spreads high-order bits down to lower bits.",
+      "Bucket index computed via bitwise AND: (n - 1) & hash rather than expensive modulo arithmetic.",
+      "Hash collisions chained via Singly-Linked List tail-insertion (Java 8+).",
+      "When a bucket exceeds TREEIFY_THRESHOLD (8 nodes) and capacity >= MIN_TREEIFY_CAPACITY, it transforms into a Red-Black Tree (TreeNode).",
+      "When size > threshold (capacity * loadFactor), table capacity doubles (n << 1) and redistributes nodes via high-bit masking (hash & oldCap).",
     ],
     simplifications: [
-      "Ngưỡng MIN_TREEIFY_CAPACITY được đặt thành 32 cho mô hình tương tác trực quan (trong HotSpot thực tế là 64).",
-      "Các thao tác xoay cây Red-Black (left/right rotate, recoloring) được trừu tượng hóa thành cấu trúc cây cân bằng O(log n).",
+      "MIN_TREEIFY_CAPACITY is set to 32 for visual interactivity (HotSpot uses 64).",
+      "Red-Black Tree rotation and recoloring details are abstracted to balanced tree O(log n) semantics.",
     ],
     assumptions: [
-      "Các key là chuỗi String có hashCode() xác định hoặc được cấp mã hash tùy biến để kiểm thử va chạm.",
-      "Môi trường đơn luồng (không có race condition như HashMap trong multi-threaded context).",
+      "Keys are standard Strings or supplied with custom test hash codes to demonstrate collision behavior.",
+      "Single-threaded execution (no concurrency race condition modeled for standard non-thread-safe HashMap).",
     ],
     unsupportedEdgeCases: [
-      "Keys không implement Comparable interface khi chuyển đổi sang TreeNode.",
-      "Untreeify khi số lượng phần tử giảm xuống dưới UNTREEIFY_THRESHOLD (6) do thao tác xóa hàng loạt.",
+      "Keys that do not implement Comparable when converting to TreeNode.",
+      "Untreeify threshold triggers (reverting tree to linked list when entries drop <= 6).",
     ],
   },
   presets: [
     {
       id: "uniform-hash-distribution",
-      title: "Phân bổ Băm Đồng đều & Phép Bitwise Indexing",
+      title: "1. Uniform Hash Distribution & Bitwise Indexing",
       badge: "Bitwise Indexing",
-      descriptionVi:
-        "Quan sát các key khác nhau được băm phân tán ngẫu nhiên vào các slot 0..15 thông qua (capacity - 1) & hash.",
+      description:
+        "Observe distinct keys hashed and distributed into slots 0..15 via (capacity - 1) & hash.",
       config: defaultConfig,
       scriptedCommands: [
         { type: "PUT", key: "userId", value: "1001" },
         { type: "PUT", key: "orderId", value: "98765" },
-        { type: "PUT", key: "tenantCode", value: "VN_CORP" },
-        { type: "PUT", key: "region", value: "ap-southeast-1" },
-        { type: "PUT", key: "currency", value: "VND" },
+        { type: "PUT", key: "tenantCode", value: "US_EAST" },
+        { type: "PUT", key: "region", value: "us-east-1" },
+        { type: "PUT", key: "currency", value: "USD" },
         { type: "PUT", key: "status", value: "PAID" },
       ],
     },
     {
       id: "hash-collision-treeification",
-      title: "Bão Va chạm Băm & Chuyển hóa Red-Black Tree",
+      title: "2. Collision Burst & Red-Black Treeification",
       badge: "Treeify Threshold 8",
-      descriptionVi:
-        "Tập hợp 9 keys cùng băm về slot #3. Khi chuỗi Node đạt độ sâu 8, HashMap tự động biến đổi danh sách liên kết thành Red-Black Tree O(log n).",
+      description:
+        "Burst 9 keys hashing to the same slot #3. When chain depth reaches 8, HashMap converts the linked list to a Red-Black Tree.",
       config: { ...defaultConfig, minTreeifyCapacity: 16 },
       scriptedCommands: [
         { type: "BURST_COLLIDING_KEYS", count: 9, targetBucketIndex: 3 },
@@ -193,10 +197,10 @@ export const javaHashMapSimulation: SimulationEngineSpec<
     },
     {
       id: "load-factor-resize-doubling",
-      title: "Vượt Ngưỡng Tải (Load Factor 0.75) & Nhân Đôi Bảng",
+      title: "3. Load Factor Exceeded (0.75) & Table Doubling",
       badge: "Resize x2",
-      descriptionVi:
-        "Khi số lượng phần tử vượt quá threshold = 16 * 0.75 = 12, bảng table tăng gấp đôi lên 32 slots và chia đôi các chuỗi node.",
+      description:
+        "When entry count exceeds threshold = 16 * 0.75 = 12, the table doubles to 32 slots and splits node chains.",
       config: defaultConfig,
       scriptedCommands: [
         { type: "PUT", key: "k1", value: "v1" },
@@ -233,23 +237,23 @@ export const javaHashMapSimulation: SimulationEngineSpec<
     return {
       tick: 0,
       phase: "INITIALIZED",
-      title: "Java HashMap Khởi tạo Mảng Table",
+      title: "Java HashMap Initialized Table Array",
       state: initialState,
       events: [
         {
           tick: 0,
           actor: "HashMap",
           action: "INIT_TABLE",
-          detail: `Khởi tạo table Node<K,V>[] với capacity = ${config.initialCapacity}, threshold = ${initialState.threshold} (loadFactor = ${config.loadFactor}).`,
+          detail: `Initialized Node<K,V>[] table with capacity = ${config.initialCapacity}, threshold = ${initialState.threshold} (loadFactor = ${config.loadFactor}).`,
           tone: "info",
         },
       ],
       invariants: evaluateInvariants(initialState),
       narration: {
-        summaryVi:
-          "HashMap khởi tạo mảng table với 16 buckets. Ngưỡng tái định kích thước (threshold) được thiết lập là 12 phần tử (16 * 0.75).",
-        internalsNoteVi:
-          "Trong Java 8+, việc khởi tạo bảng diễn ra theo cơ chế lazy allocation: mảng Node<K,V>[] chỉ thực sự được cấp phát bộ nhớ khi thao tác put() đầu tiên được gọi.",
+        summary:
+          "HashMap initialized table array with 16 buckets. Resize threshold established at 12 elements (16 * 0.75).",
+        internalsNote:
+          "In Java 8+, table initialization uses lazy allocation: Node<K,V>[] is instantiated in memory only upon the first put() invocation.",
       },
       metrics: {
         Capacity: config.initialCapacity,
@@ -268,9 +272,9 @@ export const javaHashMapSimulation: SimulationEngineSpec<
     const events = [...currentFrame.events];
     let phase = "MUTATING";
     let title = "";
-    let summaryVi = "";
-    let internalsNoteVi = "";
-    let productionWarningVi: string | undefined;
+    let summary = "";
+    let internalsNote = "";
+    let productionWarning: string | undefined;
 
     switch (command.type) {
       case "PUT": {
@@ -307,7 +311,7 @@ export const javaHashMapSimulation: SimulationEngineSpec<
               tick: nextTick,
               actor: "HashMap",
               action: "TREEIFY_BIN",
-              detail: `Bucket #${index} đạt ${bucket.nodes.length} nodes (ngưỡng ${state.treeifyThreshold}) -> chuyển hóa thành Red-Black Tree (TreeNode)!`,
+              detail: `Bucket #${index} reached ${bucket.nodes.length} nodes (threshold ${state.treeifyThreshold}) -> converted to Red-Black Tree (TreeNode)!`,
               tone: "warn",
             });
           }
@@ -328,29 +332,29 @@ export const javaHashMapSimulation: SimulationEngineSpec<
           tick: nextTick,
           actor: "HashMap",
           action: "PUT_VAL",
-          detail: `put("${command.key}", "${command.value}") -> hash: ${spread.toString(16)}, slot: [${index}] ${isCollision ? "(COLLISION)" : ""}`,
+          detail: `put("${command.key}", "${command.value}") -> hash: 0x${spread.toString(16)}, slot: [${index}] ${isCollision ? "(COLLISION)" : ""}`,
           tone: isCollision ? "warn" : "ok",
         });
 
-        // Kiểm tra Resize
+        // Check Resize
         if (state.size > state.threshold) {
           events.push({
             tick: nextTick,
             actor: "HashMap",
             action: "THRESHOLD_EXCEEDED",
-            detail: `Size (${state.size}) vượt quá threshold (${state.threshold}). Kích hoạt resize x2!`,
+            detail: `Size (${state.size}) exceeded threshold (${state.threshold}). Triggering 2x table resize!`,
             tone: "info",
           });
           resizeHashMap(state, events, nextTick);
-          productionWarningVi =
-            "Table vừa resize gấp đôi dung lượng. Trong môi trường tải cao, việc khởi tạo HashMap không có initialCapacity phù hợp sẽ gây spike CPU do rehash liên tục.";
+          productionWarning =
+            "Table doubled capacity. In high-throughput systems, instantiating HashMap without sufficient initialCapacity causes CPU latency spikes due to repeated rehash iterations.";
         }
 
         phase = isCollision ? "COLLISION_RESOLVED" : "KEY_INSERTED";
-        title = `Chèn phần tử: put("${command.key}", "${command.value}")`;
-        summaryVi = `Tính vị trí băm: hashCode() = ${raw} -> bitwise perturbation -> index = (${state.capacity} - 1) & hash = ${index}. ${isCollision ? `Phát hiện va chạm tại slot ${index}, node được nối vào chuỗi.` : `Slot ${index} trống, node trở thành head của bucket.`}`;
-        internalsNoteVi =
-          "Hàm perturbation (h ^ (h >>> 16)) XOR 16 bit bậc cao xuống 16 bit bậc thấp để giảm thiểu va chạm khi dung lượng mảng n còn nhỏ (các bit bậc cao không bị lãng phí).";
+        title = `Inserted Entry: put("${command.key}", "${command.value}")`;
+        summary = `Calculated hash: hashCode() = ${raw} -> bitwise perturbation -> index = (${state.capacity} - 1) & hash = ${index}. ${isCollision ? `Collision detected at slot ${index}; node appended to chain.` : `Slot ${index} empty; node set as bucket head.`}`;
+        internalsNote =
+          "The perturbation function (h ^ (h >>> 16)) XORs the top 16 bits down to the lower 16 bits to reduce collisions when table capacity n is small.";
         break;
       }
 
@@ -360,9 +364,8 @@ export const javaHashMapSimulation: SimulationEngineSpec<
 
         for (let i = 1; i <= command.count; i++) {
           const fakeKey = `collidingKey_${i}_slot${targetSlot}`;
-          // Ép mã băm để (spread & (capacity - 1)) đúng bằng targetSlot
           const fakeRaw = targetSlot + i * state.capacity * 4;
-          const fakeSpread = fakeRaw; // simplified
+          const fakeSpread = fakeRaw;
 
           const newNode: HashMapNode = {
             key: fakeKey,
@@ -393,7 +396,7 @@ export const javaHashMapSimulation: SimulationEngineSpec<
             tick: nextTick,
             actor: "HashMap",
             action: "TREEIFY_BIN",
-            detail: `Bão va chạm tại Bucket #${targetSlot} (${bucket.nodes.length} nodes) -> Đã chuyển sang Red-Black Tree để duy trì O(log n) thay vì thoái hóa O(n).`,
+            detail: `Collision burst at Bucket #${targetSlot} (${bucket.nodes.length} nodes) -> converted to Red-Black Tree to preserve O(log n) lookup.`,
             tone: "danger",
           });
         }
@@ -408,20 +411,20 @@ export const javaHashMapSimulation: SimulationEngineSpec<
         };
 
         phase = "TREEIFICATION_TRIGGERED";
-        title = `Bão va chạm ${command.count} keys tại Slot #${targetSlot}`;
-        summaryVi = `Bơm ${command.count} keys có cùng vị trí băm vào Bucket #${targetSlot}. Độ sâu va chạm đạt ${bucket.nodes.length}.`;
-        internalsNoteVi =
-          "Trước Java 8, tấn công Hash Collision DoS (khi kẻ tấn công gửi hàng ngàn HTTP params cùng mã băm) sẽ biến HashMap thành danh sách liên kết O(n), làm tê liệt CPU 100%. Từ Java 8, treeification giới hạn độ phức tạp tìm kiếm tối đa ở O(log n).";
+        title = `Collision Burst of ${command.count} Keys at Slot #${targetSlot}`;
+        summary = `Injected ${command.count} keys sharing the same bucket index into Bucket #${targetSlot}. Collision depth reached ${bucket.nodes.length}.`;
+        internalsNote =
+          "Prior to Java 8, Hash Collision DoS attacks degraded HashMap lookups into linked list O(n) traversals, causing 100% CPU lockups. Treeification caps worst-case search latency to O(log n).";
         break;
       }
 
       case "TRIGGER_RESIZE_DOUBLING": {
         resizeHashMap(state, events, nextTick);
         phase = "RESIZE_COMPLETED";
-        title = `Tái cấu trúc Resize x2 (Capacity: ${state.capacity})`;
-        summaryVi = `Bảng table được nhân đôi kích thước lên ${state.capacity} slots. Các phần tử được phân bổ lại theo bit kiểm tra (hash & oldCap).`;
-        internalsNoteVi =
-          "Trong Java 8+, không cần tính lại hashCode() khi resize. Node hoặc giữ nguyên vị trí cũ (nếu bit tại oldCap bằng 0) hoặc dịch chuyển sang vị trí (cũ + oldCap) (nếu bit bằng 1).";
+        title = `Table Resized 2x (Capacity: ${state.capacity})`;
+        summary = `Table doubled to ${state.capacity} slots. Elements redistributed based on high-bit test (hash & oldCap).`;
+        internalsNote =
+          "In Java 8+, resize does not recompute hashCode(). Nodes either remain at their existing index (if bit at oldCap is 0) or move to (oldIndex + oldCap) (if bit is 1).";
         break;
       }
 
@@ -445,10 +448,10 @@ export const javaHashMapSimulation: SimulationEngineSpec<
           }
         }
         phase = "KEY_REMOVED";
-        title = `Xóa phần tử: "${command.key}"`;
-        summaryVi = `Phần tử "${command.key}" đã được tìm thấy và loại bỏ khỏi bảng băm.`;
-        internalsNoteVi =
-          "Khi một Node bị xóa, con trỏ next được cập nhật để nối tắt qua node kế tiếp. Nếu bucket đang ở chế độ Red-Black Tree, cấu trúc cây sẽ tự cân bằng lại.";
+        title = `Removed Entry: "${command.key}"`;
+        summary = `Key "${command.key}" was located and removed from the hash table.`;
+        internalsNote =
+          "Upon node deletion, next pointers are updated. If the bucket is in Red-Black Tree mode, the tree self-balances.";
         break;
       }
     }
@@ -463,9 +466,9 @@ export const javaHashMapSimulation: SimulationEngineSpec<
       events,
       invariants,
       narration: {
-        summaryVi,
-        internalsNoteVi,
-        productionWarningVi,
+        summary,
+        internalsNote,
+        productionWarning,
       },
       metrics: {
         Capacity: state.capacity,
@@ -491,7 +494,7 @@ function resizeHashMap(
 
   const newBuckets = createEmptyBuckets(newCap);
 
-  // Thuật toán tách chuỗi (High-Bit split) chuẩn Java 8+
+  // High-bit chain split algorithm (Java 8+)
   let splitCount = 0;
   for (const oldBucket of state.buckets) {
     for (const node of oldBucket.nodes) {
@@ -504,7 +507,6 @@ function resizeHashMap(
     }
   }
 
-  // Cập nhật mode cho các bucket mới
   for (const b of newBuckets) {
     if (b.nodes.length === 0) {
       b.mode = "EMPTY";
@@ -522,7 +524,7 @@ function resizeHashMap(
     tick,
     actor: "HashMap",
     action: "RESIZE_TABLE",
-    detail: `Capacity nhân đôi: ${oldCap} -> ${newCap}. Di chuyển ${splitCount} nodes sang nửa trên của bảng (oldIndex + ${oldCap}).`,
+    detail: `Capacity doubled: ${oldCap} -> ${newCap}. Moved ${splitCount} nodes to upper half of the table (oldIndex + ${oldCap}).`,
     tone: "ok",
   });
 }

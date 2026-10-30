@@ -4,16 +4,16 @@ import type {
   SimulationStepFrame,
 } from "./types";
 
-export type KafkaAssignorStrategy =
+export type KafkaAssignorType =
   | "RangeAssignor"
   | "RoundRobinAssignor"
   | "CooperativeStickyAssignor";
 
-export type KafkaGroupState =
-  | "Empty"
+export type KafkaGroupProtocolState =
+  | "Stable"
   | "PreparingRebalance"
   | "CompletingRebalance"
-  | "Stable";
+  | "Dead";
 
 export interface KafkaPartitionState {
   id: number;
@@ -32,141 +32,124 @@ export interface KafkaConsumerMember {
   lastHeartbeatTick: number;
 }
 
-export interface KafkaConsumerGroupState {
-  topicName: string;
-  groupId: string;
-  assignor: KafkaAssignorStrategy;
-  groupState: KafkaGroupState;
-  generationId: number;
-  leaderConsumerId: string | null;
-  partitions: KafkaPartitionState[];
-  consumers: KafkaConsumerMember[];
-  stopTheWorldActive: boolean;
-}
-
 export interface KafkaSimulationConfig {
   topicName: string;
   groupId: string;
   partitionCount: number;
   initialConsumerCount: number;
-  assignor: KafkaAssignorStrategy;
+  assignor: KafkaAssignorType;
+}
+
+export interface KafkaConsumerGroupState {
+  topicName: string;
+  groupId: string;
+  groupState: KafkaGroupProtocolState;
+  generationId: number;
+  leaderConsumerId: string | null;
+  assignor: KafkaAssignorType;
+  partitions: KafkaPartitionState[];
+  consumers: KafkaConsumerMember[];
+  stopTheWorldActive: boolean;
 }
 
 export type KafkaSimulationCommand =
   | { type: "PRODUCE_AND_POLL"; messagesPerPartition: number }
-  | { type: "KILL_CONSUMER"; consumerId: string; reason: "heartbeat_timeout" | "graceful_leave" }
+  | { type: "KILL_CONSUMER"; consumerId: string; reason: "heartbeat_timeout" | "voluntary_leave" }
   | { type: "ADD_CONSUMER"; consumerId?: string }
   | { type: "COORDINATOR_COMPLETE_JOIN_SYNC" }
   | { type: "COOPERATIVE_INCREMENTAL_REASSIGN" }
-  | { type: "SWITCH_ASSIGNOR"; assignor: KafkaAssignorStrategy };
+  | { type: "SWITCH_ASSIGNOR"; assignor: KafkaAssignorType };
 
+/**
+ * Pure Partition Assignor implementations
+ */
 export function computePartitionAssignment(
   partitionCount: number,
-  activeConsumerIds: string[],
-  assignor: KafkaAssignorStrategy,
-  previousAssignment?: Map<string, number[]>,
+  consumerIds: string[],
+  assignor: KafkaAssignorType,
+  previousAssignments: Map<string, number[]> = new Map(),
 ): Map<string, number[]> {
   const result = new Map<string, number[]>();
-  for (const cid of activeConsumerIds) {
-    result.set(cid, []);
-  }
-  if (activeConsumerIds.length === 0) {
+  consumerIds.forEach((id) => result.set(id, []));
+
+  if (consumerIds.length === 0) {
     return result;
   }
 
-  const n = partitionCount;
-  const m = activeConsumerIds.length;
+  const sortedConsumers = [...consumerIds].sort();
 
   if (assignor === "RangeAssignor") {
-    const minPerConsumer = Math.floor(n / m);
-    const consumersWithExtra = n % m;
-    let cursor = 0;
-    activeConsumerIds.forEach((cid, idx) => {
-      const count = minPerConsumer + (idx < consumersWithExtra ? 1 : 0);
-      const owned: number[] = [];
-      for (let i = 0; i < count; i++) {
-        owned.push(cursor++);
+    const numPartitions = partitionCount;
+    const numConsumers = sortedConsumers.length;
+    const basePartitionsPerConsumer = Math.floor(numPartitions / numConsumers);
+    const extraPartitions = numPartitions % numConsumers;
+
+    let currentStart = 0;
+    for (let i = 0; i < sortedConsumers.length; i++) {
+      const consumer = sortedConsumers[i];
+      const count = basePartitionsPerConsumer + (i < extraPartitions ? 1 : 0);
+      const partitions: number[] = [];
+      for (let p = 0; p < count; p++) {
+        partitions.push(currentStart + p);
       }
-      result.set(cid, owned);
-    });
+      currentStart += count;
+      result.set(consumer, partitions);
+    }
     return result;
   }
 
-  if (assignor === "RoundRobinAssignor" || !previousAssignment) {
-    for (let p = 0; p < n; p++) {
-      const targetConsumer = activeConsumerIds[p % m];
-      result.get(targetConsumer)?.push(p);
+  if (assignor === "RoundRobinAssignor") {
+    for (let p = 0; p < partitionCount; p++) {
+      const assignedConsumer = sortedConsumers[p % sortedConsumers.length];
+      result.get(assignedConsumer)!.push(p);
     }
     return result;
   }
 
-  // CooperativeStickyAssignor: preserve existing assignments up to target quota (ceil(n/m))
-  const maxQuota = Math.ceil(n / m);
-  const minQuota = Math.floor(n / m);
-  const extraSlotsAllowed = n % m === 0 ? m : n % m;
-  let consumersAtMaxQuota = 0;
+  if (assignor === "CooperativeStickyAssignor") {
+    // Retain existing partitions where valid, balance remainder
+    const targetQuota = Math.floor(partitionCount / sortedConsumers.length);
+    const remainder = partitionCount % sortedConsumers.length;
 
-  const assignedSet = new Set<number>();
+    const assignedPartitions = new Set<number>();
 
-  for (const cid of activeConsumerIds) {
-    const prev = previousAssignment.get(cid) ?? [];
-    const kept: number[] = [];
-    for (const p of prev) {
-      if (p < n && !assignedSet.has(p)) {
-        const limit = consumersAtMaxQuota < extraSlotsAllowed ? maxQuota : minQuota;
-        if (kept.length < limit) {
-          kept.push(p);
-          assignedSet.add(p);
-        }
+    // Step 1: Retain valid sticky partitions up to quota
+    for (let i = 0; i < sortedConsumers.length; i++) {
+      const cid = sortedConsumers[i];
+      const prev = previousAssignments.get(cid) ?? [];
+      const quota = targetQuota + (i < remainder ? 1 : 0);
+      const kept = prev.filter((p) => p < partitionCount).slice(0, quota);
+      kept.forEach((p) => assignedPartitions.add(p));
+      result.set(cid, kept);
+    }
+
+    // Step 2: Assign unassigned partitions to members with available capacity
+    const unassigned: number[] = [];
+    for (let p = 0; p < partitionCount; p++) {
+      if (!assignedPartitions.has(p)) {
+        unassigned.push(p);
       }
     }
-    if (kept.length === maxQuota) {
-      consumersAtMaxQuota++;
-    }
-    result.set(cid, kept);
-  }
 
-  // Assign remaining unassigned partitions to consumers with lowest partition counts
-  for (let p = 0; p < n; p++) {
-    if (!assignedSet.has(p)) {
-      let bestCid = activeConsumerIds[0];
-      let bestLen = result.get(bestCid)?.length ?? 0;
-      for (const cid of activeConsumerIds) {
-        const len = result.get(cid)?.length ?? 0;
-        if (len < bestLen) {
-          bestCid = cid;
-          bestLen = len;
-        }
+    for (let i = 0; i < sortedConsumers.length && unassigned.length > 0; i++) {
+      const cid = sortedConsumers[i];
+      const quota = targetQuota + (i < remainder ? 1 : 0);
+      const currentList = result.get(cid)!;
+      while (currentList.length < quota && unassigned.length > 0) {
+        currentList.push(unassigned.shift()!);
       }
-      result.get(bestCid)?.push(p);
-      assignedSet.add(p);
     }
+    return result;
   }
 
-  for (const cid of activeConsumerIds) {
-    result.get(cid)?.sort((a, b) => a - b);
-  }
   return result;
 }
 
 function evaluateInvariants(state: KafkaConsumerGroupState): SimulationInvariantCheck[] {
-  const ownerCountPerPartition = new Map<number, number>();
-  for (const c of state.consumers) {
-    if (c.status === "ACTIVE") {
-      for (const p of c.assignedPartitions) {
-        ownerCountPerPartition.set(p, (ownerCountPerPartition.get(p) ?? 0) + 1);
-      }
-    }
-  }
-
-  let exclusiveOwnership = true;
-  for (const count of ownerCountPerPartition.values()) {
-    if (count > 1) {
-      exclusiveOwnership = false;
-    }
-  }
-
   const activeConsumers = state.consumers.filter((c) => c.status === "ACTIVE");
+  const assignedPartitionIds = activeConsumers.flatMap((c) => c.assignedPartitions);
+  const exclusiveOwnership = new Set(assignedPartitionIds).size === assignedPartitionIds.length;
+
   const unassignedCount = state.partitions.filter((p) => p.ownerConsumerId === null).length;
   const fullCoverageWhenStable =
     state.groupState !== "Stable" || activeConsumers.length === 0 || unassignedCount === 0;
@@ -177,24 +160,24 @@ function evaluateInvariants(state: KafkaConsumerGroupState): SimulationInvariant
       label: "Exclusive Partition Ownership per Group",
       passed: exclusiveOwnership,
       detail: exclusiveOwnership
-        ? "Mỗi Partition chỉ được gán cho tối đa 1 Consumer đang ACTIVE trong cùng Consumer Group."
-        : "VI PHẠM: Có nhiều hơn 1 Consumer cùng đọc 1 Partition!",
+        ? "Each Partition is assigned to at most 1 ACTIVE Consumer within the Consumer Group."
+        : "VIOLATION: Multiple Consumers are consuming from the same Partition simultaneously!",
     },
     {
       id: "stable-partition-coverage",
       label: "Complete Partition Coverage in Stable State",
       passed: fullCoverageWhenStable,
       detail: fullCoverageWhenStable
-        ? `Tất cả ${state.partitions.length} Partitions đều có owner khi nhóm ở trạng thái Stable.`
-        : `Đang có ${unassignedCount} Partitions chờ gán lại trong quá trình Rebalance.`,
+        ? `All ${state.partitions.length} Partitions are mapped to active owners in Stable state.`
+        : `${unassignedCount} Partition(s) unassigned pending rebalance completion.`,
     },
     {
       id: "cooperative-pause-check",
       label: "Zero Stop-The-World Pause (Cooperative Mode)",
       passed: !state.stopTheWorldActive,
       detail: state.stopTheWorldActive
-        ? "Eager Rebalance đang thu hồi toàn bộ Partitions (Stop-The-World pause)."
-        : "Các Partitions không bị ảnh hưởng vẫn tiếp tục xử lý bình thường.",
+        ? "Eager Rebalance in progress: all partitions revoked (Stop-The-World pause)."
+        : "Unaffected steady partitions continue uninterrupted message consumption.",
     },
   ];
 }
@@ -250,10 +233,10 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
   presets: [
     {
       id: "eager-rebalance-on-crash",
-      title: "1. Eager Rebalance (RangeAssignor) khi Consumer C3 Crash",
+      title: "1. Eager Rebalance (RangeAssignor) on Consumer C3 Crash",
       badge: "Stop-The-World Rebalance",
-      descriptionVi:
-        "Khởi đầu với 3 Consumers và 6 Partitions. Khi C3 bị mất kết nối (Heartbeat Timeout), Eager Rebalance thu hồi toàn bộ 6 Partitions (Stop-The-World) trước khi gán lại cho C1 và C2.",
+      description:
+        "Starts with 3 Consumers and 6 Partitions. When C3 disconnects (Heartbeat Timeout), Eager Rebalance revokes all 6 Partitions (Stop-The-World) before reassigning to C1 and C2.",
       config: {
         topicName: "orders.v1",
         groupId: "order-billing-cg",
@@ -270,10 +253,10 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
     },
     {
       id: "cooperative-sticky-rebalance",
-      title: "2. Cooperative Sticky (KIP-429) — Không dừng toàn cục",
+      title: "2. Cooperative Sticky (KIP-429) — Zero Global Pause",
       badge: "Production Recommended",
-      descriptionVi:
-        "Sử dụng CooperativeStickyAssignor: Khi C3 rời nhóm, C1 (P0, P1) và C2 (P2, P3) KHÔNG bị thu hồi các Partition đang giữ và tiếp tục đọc dữ liệu; chỉ P4 và P5 được phân bổ lại.",
+      description:
+        "Using CooperativeStickyAssignor: When C3 departs, C1 (P0, P1) and C2 (P2, P3) retain their assigned partitions without pausing; only P4 and P5 are migrated.",
       config: {
         topicName: "orders.v1",
         groupId: "order-billing-cg",
@@ -293,52 +276,51 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
   ],
 
   createInitialFrame(config: KafkaSimulationConfig): SimulationStepFrame<KafkaConsumerGroupState> {
-    const consumerIds = Array.from(
-      { length: config.initialConsumerCount },
-      (_, idx) => `consumer-${idx + 1}`,
-    );
-    const assignmentMap = computePartitionAssignment(
+    const consumerIds: string[] = [];
+    for (let i = 1; i <= config.initialConsumerCount; i++) {
+      consumerIds.push(`consumer-${i}`);
+    }
+
+    const assignment = computePartitionAssignment(
       config.partitionCount,
       consumerIds,
       config.assignor,
     );
 
-    const partitions: KafkaPartitionState[] = Array.from(
-      { length: config.partitionCount },
-      (_, pIdx) => {
-        let owner: string | null = null;
-        for (const [cid, pList] of assignmentMap.entries()) {
-          if (pList.includes(pIdx)) {
-            owner = cid;
-            break;
-          }
+    const partitions: KafkaPartitionState[] = [];
+    for (let p = 0; p < config.partitionCount; p++) {
+      let owner: string | null = null;
+      for (const [cid, parts] of assignment.entries()) {
+        if (parts.includes(p)) {
+          owner = cid;
+          break;
         }
-        return {
-          id: pIdx,
-          leaderBrokerId: (pIdx % 3) + 1,
-          logEndOffset: 10,
-          highWatermark: 10,
-          committedOffset: 10,
-          ownerConsumerId: owner,
-          revokingFromConsumerId: null,
-        };
-      },
-    );
+      }
+      partitions.push({
+        id: p,
+        leaderBrokerId: 101 + (p % 3),
+        logEndOffset: 10,
+        highWatermark: 10,
+        committedOffset: 10,
+        ownerConsumerId: owner,
+        revokingFromConsumerId: null,
+      });
+    }
 
-    const consumers: KafkaConsumerMember[] = consumerIds.map((cid) => ({
-      id: cid,
+    const consumers: KafkaConsumerMember[] = consumerIds.map((id) => ({
+      id,
       status: "ACTIVE",
-      assignedPartitions: assignmentMap.get(cid) ?? [],
+      assignedPartitions: assignment.get(id) ?? [],
       lastHeartbeatTick: 0,
     }));
 
     const state: KafkaConsumerGroupState = {
       topicName: config.topicName,
       groupId: config.groupId,
-      assignor: config.assignor,
       groupState: "Stable",
       generationId: 1,
       leaderConsumerId: consumerIds[0] ?? null,
+      assignor: config.assignor,
       partitions,
       consumers,
       stopTheWorldActive: false,
@@ -347,21 +329,21 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
     return {
       tick: 0,
       phase: "Stable (Gen 1)",
-      title: `Khởi tạo Consumer Group "${config.groupId}" ở trạng thái Stable`,
+      title: `Initialized Consumer Group "${config.groupId}" in Stable State`,
       state,
       events: [
         {
           tick: 0,
           actor: "GroupCoordinator",
           action: "SYNC_GROUP_COMPLETE",
-          detail: `Generation 1 thiết lập thành công với ${config.initialConsumerCount} Consumers và ${config.partitionCount} Partitions (${config.assignor}).`,
+          detail: `Generation 1 established with ${config.initialConsumerCount} Consumers and ${config.partitionCount} Partitions (${config.assignor}).`,
           tone: "ok",
         },
       ],
       invariants: evaluateInvariants(state),
       narration: {
-        summaryVi: `Consumer Group "${config.groupId}" đang ở trạng thái Stable (generationId = 1). ${config.partitionCount} Partitions của topic "${config.topicName}" được chia đều cho ${config.initialConsumerCount} Consumers theo chiến lược ${config.assignor}.`,
-        internalsNoteVi: `Trong giao thức Classic Consumer Group, Broker đóng vai trò GroupCoordinator bầu "${consumerIds[0]}" làm Group Leader trong pha JoinGroup. Consumer Leader thực thi thuật toán ${config.assignor} và gửi bảng phân bổ thông qua SyncGroupRequest.`,
+        summary: `Consumer Group "${config.groupId}" is in Stable state (generationId = 1). ${config.partitionCount} Partitions of topic "${config.topicName}" are distributed across ${config.initialConsumerCount} Consumers via ${config.assignor}.`,
+        internalsNote: `Under the Classic Consumer Group protocol, the broker GroupCoordinator elected "${consumerIds[0]}" as Group Leader during JoinGroup. The Consumer Leader executed the ${config.assignor} algorithm client-side and returned the plan via SyncGroupRequest.`,
       },
       metrics: computeMetrics(state),
     };
@@ -403,7 +385,7 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
       return {
         tick: nextTick,
         phase: `${nextState.groupState} (Gen ${nextState.generationId})`,
-        title: `Producer gửi +${delta} msg/partition & Active Consumers poll()`,
+        title: `Producer sent +${delta} msg/partition & Active Consumers poll()`,
         state: nextState,
         events: [
           ...currentFrame.events,
@@ -411,14 +393,14 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
             tick: nextTick,
             actor: "Producer / Consumers",
             action: "FETCH_AND_COMMIT_OFFSET",
-            detail: `Mỗi Partition nhận thêm ${delta} records. Các Partition có owner xử lý và commit offset lên __consumer_offsets.`,
+            detail: `Each partition received +${delta} records. Active partition owners committed updated offsets to __consumer_offsets.`,
             tone: "info",
           },
         ],
         invariants: evaluateInvariants(nextState),
         narration: {
-          summaryVi: `Producer ghi thêm ${delta} bản ghi vào mỗi Partition (High Watermark tăng). Các Consumer đang giữ Partition thực hiện poll() và commit offset mới.`,
-          internalsNoteVi: `Consumer chỉ được phép đọc các message có offset < High Watermark (đã được sao chép đầy đủ tới toàn bộ In-Sync Replicas - ISR).`,
+          summary: `Producer appended ${delta} records to each Partition (High Watermark incremented). Active partition owners polled and committed fresh offsets.`,
+          internalsNote: `Consumers may only read records with offsets < High Watermark (replicated to all In-Sync Replicas - ISR).`,
         },
         metrics: computeMetrics(nextState),
       };
@@ -436,7 +418,6 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
       const isEager = prev.assignor !== "CooperativeStickyAssignor";
 
       if (isEager) {
-        // Eager rebalance revokes ALL partitions across ALL consumers immediately
         for (const c of clonedConsumers) {
           c.assignedPartitions = [];
         }
@@ -445,12 +426,10 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
           p.ownerConsumerId = null;
         }
       } else {
-        // CooperativeSticky only leaves the crashed consumer's partitions unassigned while survivors keep working!
         for (const p of clonedPartitions) {
           if (orphanedPartitions.includes(p.id)) {
             p.revokingFromConsumerId = command.consumerId;
             p.ownerConsumerId = null;
-            // New messages arriving on orphaned partitions accumulate lag during rebalance
             p.logEndOffset += 3;
             p.highWatermark += 3;
           }
@@ -470,7 +449,7 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
       return {
         tick: nextTick,
         phase: "PreparingRebalance",
-        title: `Consumer "${command.consumerId}" rời nhóm (${command.reason}) -> PreparingRebalance`,
+        title: `Consumer "${command.consumerId}" Departed (${command.reason}) -> PreparingRebalance`,
         state: nextState,
         events: [
           ...currentFrame.events,
@@ -479,19 +458,19 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
             actor: "GroupCoordinator",
             action: "PREPARING_REBALANCE",
             detail: isEager
-              ? `${command.consumerId} hết hạn session.timeout.ms. Eager Protocol thu hồi TOÀN BỘ Partitions (Stop-The-World)!`
-              : `${command.consumerId} mất kết nối. Cooperative Protocol giữ nguyên các Partition của Consumer còn sống, chỉ đánh dấu Partition [${orphanedPartitions.join(", ")}] cần gán lại.`,
+              ? `${command.consumerId} timed out on session.timeout.ms. Eager Protocol revoked ALL Partitions (Stop-The-World)!`
+              : `${command.consumerId} disconnected. Cooperative Protocol retained healthy consumer partitions, revoking only [${orphanedPartitions.join(", ")}].`,
             tone: "warn",
           },
         ],
         invariants: evaluateInvariants(nextState),
         narration: {
-          summaryVi: isEager
-            ? `GroupCoordinator phát hiện "${command.consumerId}" không gửi Heartbeat trong khoảng session.timeout.ms và chuyển nhóm sang PreparingRebalance. Vì dùng Eager (${prev.assignor}), TẤT CẢ Consumers phải gọi onPartitionsRevoked() và dừng đọc toàn bộ 6 Partitions!`
-            : `GroupCoordinator phát hiện "${command.consumerId}" rời nhóm và kích hoạt PreparingRebalance. Nhờ CooperativeStickyAssignor (KIP-429), các Consumer còn sống vẫn giữ nguyên Partition của mình và tiếp tục xử lý, chỉ giải phóng [${orphanedPartitions.join(", ")}].`,
-          internalsNoteVi: `Các Consumer còn sống nhận mã lỗi REBALANCE_IN_PROGRESS trong phản hồi HeartbeatResponse tiếp theo và gửi JoinGroupRequest để bước vào thế hệ (generationId) mới.`,
-          productionWarningVi: isEager
-            ? `CẢNH BÁO PRODUCTION: Trong Eager Rebalance, toàn bộ Consumer Group ngừng tiêu thụ dữ liệu (Stop-The-World) cho đến khi JoinGroup + SyncGroup hoàn tất, gây spike Consumer Lag trên mọi Partition!`
+          summary: isEager
+            ? `GroupCoordinator detected "${command.consumerId}" missed Heartbeat within session.timeout.ms and transitioned to PreparingRebalance. Under Eager (${prev.assignor}), ALL Consumers invoked onPartitionsRevoked() and stopped reading all 6 Partitions!`
+            : `GroupCoordinator detected "${command.consumerId}" departed and initiated PreparingRebalance. Under CooperativeStickyAssignor (KIP-429), surviving consumers continue consuming steady partitions; only [${orphanedPartitions.join(", ")}] are queued for reassignment.`,
+          internalsNote: `Surviving consumers receive REBALANCE_IN_PROGRESS in their next HeartbeatResponse and dispatch JoinGroupRequest to enter the new generationId.`,
+          productionWarning: isEager
+            ? "PRODUCTION HAZARD: In Eager Rebalance, the entire Consumer Group halts consumption (Stop-The-World) until JoinGroup + SyncGroup complete, spiking Consumer Lag across all partitions!"
             : undefined,
         },
         metrics: computeMetrics(nextState),
@@ -558,7 +537,7 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
       return {
         tick: nextTick,
         phase: `Stable (Gen ${newGen})`,
-        title: `Hoàn tất JoinGroup & SyncGroup -> Stable (Generation ${newGen})`,
+        title: `Completed JoinGroup & SyncGroup -> Stable (Generation ${newGen})`,
         state: nextState,
         events: [
           ...currentFrame.events,
@@ -566,14 +545,14 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
             tick: nextTick,
             actor: "GroupCoordinator",
             action: "COMPLETING_TO_STABLE",
-            detail: `Generation ${newGen} hoàn tất phân bổ (${prev.assignor}): ${assignmentSummary}`,
+            detail: `Generation ${newGen} finalized assignment (${prev.assignor}): ${assignmentSummary}`,
             tone: "ok",
           },
         ],
         invariants: evaluateInvariants(nextState),
         narration: {
-          summaryVi: `GroupCoordinator hoàn tất pha CompletingRebalance -> Stable với generationId = ${newGen}. Phân bổ Partition mới: ${assignmentSummary}.`,
-          internalsNoteVi: `Mọi OffsetCommitRequest từ thế hệ cũ (generationId < ${newGen}) nếu bị trễ mạng gửi đến Broker lúc này sẽ bị GroupCoordinator từ chối ngay lập tức với lỗi ILLEGAL_GENERATION để bảo vệ tính nhất quán.`,
+          summary: `GroupCoordinator transitioned from CompletingRebalance -> Stable with generationId = ${newGen}. Partition assignment: ${assignmentSummary}.`,
+          internalsNote: `Any delayed OffsetCommitRequest carrying older generationIds (< ${newGen}) arriving at the Broker will be rejected immediately with ILLEGAL_GENERATION to maintain consistency.`,
         },
         metrics: computeMetrics(nextState),
       };
@@ -617,7 +596,7 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
       return {
         tick: nextTick,
         phase: "PreparingRebalance",
-        title: `Consumer mới "${newId}" gửi JoinGroupRequest -> PreparingRebalance`,
+        title: `New Consumer "${newId}" Sent JoinGroupRequest -> PreparingRebalance`,
         state: nextState,
         events: [
           ...currentFrame.events,
@@ -625,14 +604,14 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
             tick: nextTick,
             actor: newId,
             action: "JOIN_GROUP_REQUEST",
-            detail: `${newId} gia nhập nhóm "${prev.groupId}". GroupCoordinator kích hoạt Rebalance để chia lại tải.`,
+            detail: `${newId} joined group "${prev.groupId}". GroupCoordinator triggered rebalance to rebalance workload.`,
             tone: "info",
           },
         ],
         invariants: evaluateInvariants(nextState),
         narration: {
-          summaryVi: `Consumer "${newId}" gửi JoinGroupRequest tới GroupCoordinator. Nhóm chuyển sang PreparingRebalance để tính toán lại bảng phân bổ Partition.`,
-          internalsNoteVi: `Khi mở rộng quy mô (Scale-out) với CooperativeStickyAssignor, chỉ những Partition dư trên các Consumer cũ mới bị thu hồi (Incremental Revocation) để chuyển sang "${newId}".`,
+          summary: `Consumer "${newId}" submitted JoinGroupRequest to GroupCoordinator. Group entered PreparingRebalance to recompute partition assignments.`,
+          internalsNote: `During scale-out with CooperativeStickyAssignor, only excess partitions on existing consumers are revoked (Incremental Revocation) to shift to "${newId}".`,
         },
         metrics: computeMetrics(nextState),
       };
@@ -678,7 +657,7 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
       return {
         tick: nextTick,
         phase: `Stable (Gen ${nextGen})`,
-        title: `Chuyển chiến lược phân bổ sang ${command.assignor} (Gen ${nextGen})`,
+        title: `Switched Partition Assignor to ${command.assignor} (Gen ${nextGen})`,
         state: nextState,
         events: [
           ...currentFrame.events,
@@ -686,14 +665,14 @@ export const kafkaConsumerGroupSimulation: SimulationEngineSpec<
             tick: nextTick,
             actor: "GroupLeader",
             action: "SWITCH_PARTITION_ASSIGNOR",
-            detail: `Áp dụng ${command.assignor} ở Generation ${nextGen}.`,
+            detail: `Applied ${command.assignor} in Generation ${nextGen}.`,
             tone: "info",
           },
         ],
         invariants: evaluateInvariants(nextState),
         narration: {
-          summaryVi: `Consumer Group đã chuyển sang thuật toán ${command.assignor} ở Generation ${nextGen}.`,
-          internalsNoteVi: `RangeAssignor chia các Partition liên tiếp cho từng Consumer, trong khi RoundRobinAssignor xoay vòng từng Partition qua danh sách Consumers đã sắp xếp theo thứ tự từ điển.`,
+          summary: `Consumer Group switched assignment algorithm to ${command.assignor} in Generation ${nextGen}.`,
+          internalsNote: `RangeAssignor allocates contiguous partition slices per consumer; RoundRobinAssignor rotates partitions across lexicographically sorted consumers.`,
         },
         metrics: computeMetrics(nextState),
       };

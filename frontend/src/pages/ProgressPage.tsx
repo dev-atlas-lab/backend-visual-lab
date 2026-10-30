@@ -12,7 +12,7 @@ export function ProgressPage() {
   const { modules } = validatedContentPack;
 
   const handleReset = () => {
-    if (window.confirm("Bạn có chắc chắn muốn đặt lại toàn bộ tiến độ học tập và kết quả bài kiểm tra?")) {
+    if (window.confirm("Are you sure you want to reset all learning progress and quiz scores?")) {
       const cleared = resetAllProgress();
       setEnvelope(cleared);
     }
@@ -28,14 +28,14 @@ export function ProgressPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-6)" }}>
         <div>
           <h1 style={{ fontSize: "26px", fontWeight: "800", marginBottom: "var(--space-1)" }}>
-            Bảng Theo Dõi Tiến Độ Thực Chiến
+            Learning &amp; Simulation Progress Dashboard
           </h1>
           <p style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
-            Tiến độ tương tác phòng thí nghiệm và độ chính xác kiểm tra kiến thức được lưu trữ an toàn trong trình duyệt (<code>bvl.progress.v1</code>).
+            Interactive lab exploration and scenario assessment accuracy persisted securely in your local browser storage (<code>bvl.progress.v1</code>).
           </p>
         </div>
         <button onClick={handleReset} className="btn btn-danger" style={{ fontSize: "12px" }}>
-          <RotateCcw size={14} /> Reset Tiến Độ
+          <RotateCcw size={14} /> Reset All Progress
         </button>
       </div>
 
@@ -43,7 +43,7 @@ export function ProgressPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--space-4)", marginBottom: "var(--space-6)" }}>
         <div style={{ padding: "var(--space-4)", background: "var(--surface-1)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)" }}>
           <div style={{ fontSize: "11px", fontWeight: "700", color: "var(--text-secondary)", textTransform: "uppercase" }}>
-            Labs Đã Thực Hành
+            Labs Explored
           </div>
           <div style={{ fontSize: "24px", fontWeight: "800", color: "var(--accent-primary)", marginTop: "4px" }}>
             {exploredModulesCount} / {totalModules}
@@ -52,10 +52,10 @@ export function ProgressPage() {
 
         <div style={{ padding: "var(--space-4)", background: "var(--surface-1)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)" }}>
           <div style={{ fontSize: "11px", fontWeight: "700", color: "var(--text-secondary)", textTransform: "uppercase" }}>
-            Tổng Số Bước Simulation Đã Khám Phá
+            Total Simulation Steps Executed
           </div>
           <div style={{ fontSize: "24px", fontWeight: "800", color: "var(--status-ok)", marginTop: "4px" }}>
-            {Object.values(envelope.modules).reduce((acc, m) => acc + m.simulationStepsExplored, 0)} bước
+            {Object.values(envelope.modules).reduce((acc, m) => acc + m.simulationStepsExplored, 0)} steps
           </div>
         </div>
       </div>
@@ -101,17 +101,17 @@ export function ProgressPage() {
                 <div style={{ display: "flex", gap: "16px", marginTop: "6px", fontSize: "12px", color: "var(--text-secondary)" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
                     <Zap size={14} color={hasExplored ? "var(--status-ok)" : "var(--text-tertiary)"} />
-                    Mô phỏng: {entry?.simulationStepsExplored ?? 0} bước
+                    Simulation: {entry?.simulationStepsExplored ?? 0} steps
                   </span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
                     <Award size={14} color={score !== null ? "var(--accent-primary)" : "var(--text-tertiary)"} />
-                    Điểm Quiz cao nhất: {score !== null ? `${score}%` : "Chưa làm"}
+                    Best Quiz Score: {score !== null ? `${score}%` : "Not attempted"}
                   </span>
                 </div>
               </div>
 
               <Link to={`/domains/${m.domainId}/${m.slug}`} className="btn">
-                Mở Lab <ArrowRight size={14} />
+                Open Lab <ArrowRight size={14} />
               </Link>
             </div>
           );

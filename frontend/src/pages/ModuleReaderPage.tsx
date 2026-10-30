@@ -32,12 +32,12 @@ export function ModuleReaderPage() {
   if (!moduleData) {
     return (
       <div style={{ padding: "var(--space-8)", textAlign: "center" }}>
-        <h2>Không tìm thấy Learning Module</h2>
+        <h2>Learning Module Not Found</h2>
         <p style={{ color: "var(--text-secondary)", margin: "var(--space-4) 0" }}>
-          Module với slug "{moduleSlug}" không tồn tại hoặc chưa được xuất bản.
+          The requested module with slug "{moduleSlug}" was not found or has not been published yet.
         </p>
         <Link to="/" className="btn btn-primary">
-          <ArrowLeft size={16} /> Quay lại Danh mục Catalog
+          <ArrowLeft size={16} /> Return to Catalog
         </Link>
       </div>
     );
@@ -64,7 +64,7 @@ export function ModuleReaderPage() {
             marginBottom: "var(--space-3)",
           }}
         >
-          <ArrowLeft size={14} /> Danh mục Modules
+          <ArrowLeft size={14} /> Back to Catalog
         </Link>
 
         <h1 style={{ fontSize: "28px", fontWeight: "800", lineHeight: "1.3", marginBottom: "var(--space-2)" }}>
@@ -98,7 +98,7 @@ export function ModuleReaderPage() {
               color: "var(--text-secondary)",
             }}
           >
-            Độ khó: {moduleData.difficulty}
+            Difficulty: {moduleData.difficulty}
           </span>
           <span
             style={{
@@ -113,7 +113,7 @@ export function ModuleReaderPage() {
               gap: "4px",
             }}
           >
-            <Clock size={12} /> {moduleData.estimatedMinutes} phút
+            <Clock size={12} /> {moduleData.estimatedMinutes} mins
           </span>
         </div>
       </div>
@@ -129,13 +129,15 @@ export function ModuleReaderPage() {
         }}
       >
         <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-tertiary)" }}>
-          Thuật ngữ chuyên ngành cốt lõi:
+          Essential Domain Terminology:
         </span>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "var(--space-3)", marginTop: "var(--space-2)" }}>
           {moduleData.keyTerms.map((term, tIdx) => (
             <div key={tIdx} style={{ fontSize: "12px" }}>
               <strong style={{ color: "var(--accent-primary)" }}>{term.term}</strong>:{" "}
-              <span style={{ color: "var(--text-secondary)" }}>{term.definitionVi}</span>
+              <span style={{ color: "var(--text-secondary)" }}>
+                {term.definitionEn || term.definition || term.definitionVi}
+              </span>
             </div>
           ))}
         </div>
@@ -198,11 +200,11 @@ export function ModuleReaderPage() {
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "var(--space-2)" }}>
             <Zap size={18} color="var(--accent-primary)" />
             <h2 style={{ fontSize: "18px", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Phòng Thí nghiệm Tương tác (Interactive Workbench)
+              Interactive Simulation Workbench
             </h2>
           </div>
           <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "var(--space-3)" }}>
-            Thực thi máy trạng thái thuần (Pure TypeScript State Machine). Nhấn Play hoặc từng bước Step Back/Forward để quan sát biến động state và các bất biến giao thức.
+            Pure deterministic TypeScript state machine. Step forward/back or auto-play to inspect state mutations, wire-protocol frames, and invariant assertions.
           </p>
 
           {moduleData.simulationId === "kafka-consumer-group" ? (
@@ -216,7 +218,7 @@ export function ModuleReaderPage() {
                     onClick={() => dispatch({ type: "PRODUCE_AND_POLL", messagesPerPartition: 5 })}
                     className="btn"
                   >
-                    Gửi +5 Msg &amp; Poll
+                    Produce +5 Msgs &amp; Poll
                   </button>
                   <button
                     onClick={() =>
@@ -229,7 +231,7 @@ export function ModuleReaderPage() {
                     className="btn btn-danger"
                     disabled={!state.consumers.some((c) => c.id === "consumer-3" && c.status === "ACTIVE")}
                   >
-                    Kill Consumer C3
+                    Crash Consumer C3
                   </button>
                   <button
                     onClick={() => dispatch({ type: "ADD_CONSUMER" })}
@@ -243,7 +245,7 @@ export function ModuleReaderPage() {
                     className="btn btn-primary"
                     disabled={state.groupState !== "PreparingRebalance"}
                   >
-                    Hoàn tất Join/Sync
+                    Complete Join/Sync
                   </button>
                 </>
               )}
@@ -258,24 +260,24 @@ export function ModuleReaderPage() {
               renderCustomControls={(dispatch, state) => (
                 <>
                   <button
-                    onClick={() => dispatch({ type: "BURST_READ_REQUESTS" })}
+                    onClick={() => dispatch({ type: "BURST_CONCURRENT_READS" })}
                     className="btn btn-primary"
                   >
                     Burst 8 Concurrent Reads
                   </button>
                   <button
-                    onClick={() => dispatch({ type: "ADVANCE_TTL_TO_EXPIRY" })}
+                    onClick={() => dispatch({ type: "EXPIRE_TTL_IMMEDIATELY" })}
                     className="btn btn-danger"
                     disabled={state.ttlRemainingMs === 0}
                   >
                     Expire TTL (0ms)
                   </button>
                   <button
-                    onClick={() => dispatch({ type: "COMPLETE_DB_RECOMPUTE_AND_SET" })}
+                    onClick={() => dispatch({ type: "COMPLETE_DB_RECOMPUTE_AND_SET_CACHE" })}
                     className="btn"
                     disabled={state.dbActiveConnections === 0}
                   >
-                    Refill Cache từ DB
+                    Recompute &amp; Refill Cache
                   </button>
                   <button
                     onClick={() =>
@@ -291,7 +293,7 @@ export function ModuleReaderPage() {
                     }
                     className="btn"
                   >
-                    Đổi Chiến Lược ({state.strategy})
+                    Toggle Strategy ({state.strategy})
                   </button>
                 </>
               )}
@@ -345,7 +347,7 @@ export function ModuleReaderPage() {
                     }
                     className="btn"
                   >
-                    Đổi Level ({state.isolationLevel})
+                    Toggle Isolation ({state.isolationLevel})
                   </button>
                 </>
               )}
@@ -368,39 +370,39 @@ export function ModuleReaderPage() {
                       })
                     }
                     className="btn btn-primary"
-                    disabled={state.oomTriggered}
+                    disabled={state.isOutOfMemory}
                   >
-                    + Cấp phát new Order()
+                    + Allocate new Order()
                   </button>
                   <button
                     onClick={() =>
                       dispatch({
-                        type: "CALL_METHOD",
+                        type: "PUSH_STACK_FRAME",
                         methodName: "orderService.process()",
                       })
                     }
                     className="btn"
                   >
-                    Push Frame (Gọi hàm)
+                    Push Frame (Method Call)
                   </button>
                   <button
-                    onClick={() => dispatch({ type: "RETURN_METHOD" })}
+                    onClick={() => dispatch({ type: "POP_STACK_FRAME" })}
                     className="btn"
                     disabled={state.threadStack.length <= 1}
                   >
-                    Pop Frame (Return)
+                    Pop Frame (Method Return)
                   </button>
                   <button
                     onClick={() => dispatch({ type: "TRIGGER_MINOR_GC" })}
                     className="btn"
-                    disabled={state.oomTriggered}
+                    disabled={state.isOutOfMemory}
                   >
-                    Kích hoạt Minor GC
+                    Trigger Minor GC
                   </button>
                   <button
                     onClick={() => dispatch({ type: "TRIGGER_MAJOR_GC" })}
                     className="btn btn-danger"
-                    disabled={state.oomTriggered}
+                    disabled={state.isOutOfMemory}
                   >
                     Major / Full GC
                   </button>
@@ -438,13 +440,13 @@ export function ModuleReaderPage() {
                     }
                     className="btn btn-danger"
                   >
-                    Va chạm +5 Keys (Slot #3)
+                    Collide +5 Keys (Bucket #3)
                   </button>
                   <button
                     onClick={() => dispatch({ type: "TRIGGER_RESIZE_DOUBLING" })}
                     className="btn"
                   >
-                    Resize Nhân đôi x2
+                    Resize Doubling x2
                   </button>
                 </>
               )}
@@ -468,13 +470,13 @@ export function ModuleReaderPage() {
                     onClick={() => dispatch({ type: "STEP_EXECUTION" })}
                     className="btn btn-primary"
                   >
-                    Chạy bước (Mount Carrier)
+                    Step Execution (Mount Carrier)
                   </button>
                   <button
                     onClick={() => dispatch({ type: "TRIGGER_BLOCKING_IO" })}
                     className="btn"
                   >
-                    Blocking I/O (Unmount Yield)
+                    Blocking I/O (Unmount &amp; Yield)
                   </button>
                   <button
                     onClick={() => dispatch({ type: "TRIGGER_SYNCHRONIZED_PINNING" })}
@@ -486,7 +488,7 @@ export function ModuleReaderPage() {
                     onClick={() => dispatch({ type: "RESOLVE_IO_COMPLETION" })}
                     className="btn"
                   >
-                    I/O Hoàn tất (Callback)
+                    Resolve I/O Completion
                   </button>
                 </>
               )}
@@ -620,7 +622,7 @@ export function ModuleReaderPage() {
         }}
       >
         <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-tertiary)" }}>
-          Tài liệu &amp; Đặc tả Kỹ thuật Tham chiếu (Authoritative Sources):
+          Authoritative Specifications &amp; Architecture References:
         </span>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "var(--space-2)" }}>
           {moduleData.sourceIds.map((sid) => {

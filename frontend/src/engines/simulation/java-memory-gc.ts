@@ -4,124 +4,120 @@ import type {
   SimulationStepFrame,
 } from "./types";
 
-export interface HeapObject {
-  id: string;
-  className: string;
-  sizeBytes: number;
-  generation: "EDEN" | "SURVIVOR_0" | "SURVIVOR_1" | "OLD_GEN";
-  tenuringAge: number;
-  isRootReachable: boolean;
-  variableName?: string;
+export interface StackVariable {
+  varName: string;
+  isPrimitive: boolean;
+  primitiveValue?: string | number;
+  targetHeapId?: string; // pointer to heap object
 }
 
-export interface StackFrame {
+export interface JavaStackFrame {
   id: string;
   methodName: string;
-  localReferences: {
-    varName: string;
-    targetHeapId: string | null;
-    isPrimitive: boolean;
-    primitiveValue?: string;
-  }[];
+  localReferences: StackVariable[];
 }
 
-export interface JavaMemoryGcState {
-  threadStack: StackFrame[];
-  youngEden: HeapObject[];
-  youngS0: HeapObject[];
-  youngS1: HeapObject[];
-  activeSurvivor: 0 | 1;
-  oldGen: HeapObject[];
-  edenCapacity: number;
-  survivorCapacity: number;
-  oldGenCapacity: number;
-  tenuringThreshold: number;
-  minorGcCount: number;
-  majorGcCount: number;
-  totalGcPauseMs: number;
-  oomTriggered: boolean;
+export interface JavaHeapObject {
+  id: string;
+  className: string;
+  variableName?: string;
+  tenuringAge: number;
+  isRootReachable: boolean;
+  sizeBytes: number;
 }
 
 export interface JavaMemoryGcConfig {
+  edenCapacity: number; // slots in Eden
+  survivorCapacity: number; // slots in S0/S1
+  oldGenCapacity: number; // slots in Old Gen
+  tenuringThreshold: number; // promotions after N minor GCs (default 3 for visual)
+}
+
+export interface JavaMemoryGcState {
+  threadStack: JavaStackFrame[];
+  youngEden: JavaHeapObject[];
+  youngS0: JavaHeapObject[];
+  youngS1: JavaHeapObject[];
+  activeSurvivor: 0 | 1; // 0 means S0 is From-Space, S1 is To-Space
+  oldGen: JavaHeapObject[];
   edenCapacity: number;
   survivorCapacity: number;
   oldGenCapacity: number;
   tenuringThreshold: number;
+  totalAllocationsCount: number;
+  minorGcCount: number;
+  majorGcCount: number;
+  lastMinorGcReclaimedBytes: number;
+  isOutOfMemory: boolean;
 }
 
-export type JavaMemoryGcCommand =
-  | { type: "ALLOCATE_OBJECT"; className: string; varName: string; sizeBytes?: number }
-  | { type: "CALL_METHOD"; methodName: string }
-  | { type: "RETURN_METHOD" }
+export type JavaMemoryCommand =
+  | { type: "PUSH_STACK_FRAME"; methodName: string }
+  | { type: "POP_STACK_FRAME" }
+  | { type: "ALLOCATE_PRIMITIVE"; varName: string; value: string | number }
+  | { type: "ALLOCATE_OBJECT"; className: string; varName: string }
   | { type: "TRIGGER_MINOR_GC" }
   | { type: "TRIGGER_MAJOR_GC" };
 
 const defaultConfig: JavaMemoryGcConfig = {
-  edenCapacity: 5,
-  survivorCapacity: 3,
-  oldGenCapacity: 6,
+  edenCapacity: 4,
+  survivorCapacity: 2,
+  oldGenCapacity: 4,
   tenuringThreshold: 3,
 };
 
-function recomputeReachability(state: JavaMemoryGcState): void {
-  const rootIds = new Set<string>();
+function evaluateInvariants(state: JavaMemoryGcState): SimulationInvariantCheck[] {
+  // S0 and S1 mutually exclusive (one is always empty To-Space)
+  const s0HasItems = state.youngS0.length > 0;
+  const s1HasItems = state.youngS1.length > 0;
+  const survivorSeparation = !(s0HasItems && s1HasItems);
+
+  // Old Gen capacity not exceeded
+  const oldGenOverflow = state.oldGen.length > state.oldGenCapacity;
+
+  // Reachability integrity: all live objects must be reachable from stack frames
+  const allReachableIds = new Set<string>();
   for (const frame of state.threadStack) {
     for (const ref of frame.localReferences) {
       if (!ref.isPrimitive && ref.targetHeapId) {
-        rootIds.add(ref.targetHeapId);
+        allReachableIds.add(ref.targetHeapId);
       }
     }
   }
 
-  const update = (obj: HeapObject) => {
-    obj.isRootReachable = rootIds.has(obj.id);
-  };
+  const allHeapObjects = [...state.youngEden, ...state.youngS0, ...state.youngS1, ...state.oldGen];
+  const reachabilityHonored = allHeapObjects.every((o) => {
+    const isReachable = allReachableIds.has(o.id);
+    return o.isRootReachable === isReachable;
+  });
 
-  state.youngEden.forEach(update);
-  state.youngS0.forEach(update);
-  state.youngS1.forEach(update);
-  state.oldGen.forEach(update);
-}
-
-function evaluateInvariants(state: JavaMemoryGcState): SimulationInvariantCheck[] {
-  const totalHeapAllocated =
-    state.youngEden.length +
-    state.youngS0.length +
-    state.youngS1.length +
-    state.oldGen.length;
+  const totalHeapAllocated = allHeapObjects.length;
   const maxHeap = state.edenCapacity + state.survivorCapacity + state.oldGenCapacity;
-
-  const survivorExclusivity =
-    state.youngS0.length === 0 || state.youngS1.length === 0;
-
-  const rootCheck = !state.youngEden.some(
-    (o) => o.isRootReachable && !state.threadStack.some((f) => f.localReferences.some((r) => r.targetHeapId === o.id)),
-  );
 
   return [
     {
-      id: "survivor-space-exclusivity",
-      label: "Survivor Space Exclusivity (From-Space vs To-Space)",
-      passed: survivorExclusivity,
-      detail: survivorExclusivity
-        ? `S${state.activeSurvivor} đang hoạt động, Survivor còn lại để trống làm To-Space chuẩn bị sao chép.`
-        : "Vi phạm: Cả 2 vùng S0 và S1 đều đang chứa đối tượng!",
+      id: "jvm-survivor-to-space-empty",
+      label: "Survivor Space Role Invariant (To-Space Empty)",
+      passed: survivorSeparation,
+      detail: survivorSeparation
+        ? `S${state.activeSurvivor} active as From-Space; counterpart remains empty as To-Space ready for evacuation.`
+        : "VIOLATION: Both S0 and S1 survivor spaces contain objects simultaneously!",
     },
     {
-      id: "heap-capacity-boundary",
-      label: "Heap Allocation Boundary",
-      passed: !state.oomTriggered && totalHeapAllocated <= maxHeap,
-      detail: state.oomTriggered
-        ? "Cảnh báo OOM: Old Generation đã đầy và không thể thu gom thêm đối tượng!"
-        : `Dung lượng Heap: ${totalHeapAllocated}/${maxHeap} đối tượng (${Math.round((totalHeapAllocated / maxHeap) * 100)}%).`,
+      id: "jvm-old-gen-boundary",
+      label: "Old Generation Memory Ceiling (Heap OOM Protection)",
+      passed: !oldGenOverflow && !state.isOutOfMemory,
+      detail: state.isOutOfMemory
+        ? "OOM ALERT: Old Generation exhausted and cannot reclaim memory!"
+        : `Heap Occupancy: ${totalHeapAllocated}/${maxHeap} objects (${Math.round((totalHeapAllocated / maxHeap) * 100)}%).`,
     },
     {
-      id: "gc-root-reachability",
-      label: "GC Root Pointer Consistency",
-      passed: rootCheck,
-      detail: rootCheck
-        ? "Mọi đối tượng đánh dấu Reachable đều có con trỏ hợp lệ từ Stack Frame."
-        : "Lỗi bất biến: Tìm thấy con trỏ rác không thể truy vết từ Stack Frame Root.",
+      id: "jvm-reachability-gc-roots",
+      label: "GC Roots Reachability Invariant (Stack Pointer Tracing)",
+      passed: reachabilityHonored,
+      detail: reachabilityHonored
+        ? "All objects marked Reachable trace to active Stack Frame references."
+        : "Invariant error: Unreachable object marked as live root.",
     },
   ];
 }
@@ -129,111 +125,110 @@ function evaluateInvariants(state: JavaMemoryGcState): SimulationInvariantCheck[
 export const javaMemoryGcSimulation: SimulationEngineSpec<
   JavaMemoryGcConfig,
   JavaMemoryGcState,
-  JavaMemoryGcCommand
+  JavaMemoryCommand
 > = {
   id: "java-memory-gc",
-  title: "JVM Memory Management & Generational GC Simulator",
+  title: "Java Memory Management & Generational GC Simulator",
   fidelity: {
     mode: "deterministic-educational-model",
     realWorldReference:
-      "The Java Virtual Machine Specification (Java SE 21) — Section 2.5 (Runtime Data Areas) & OpenJDK HotSpot Generational Garbage Collection",
+      "JVM SE 21 Runtime Data Areas (JLS Chap 2) & HotSpot Generational Garbage Collection (Eden/Survivor/Tenured)",
     accurateBehaviors: [
-      "Stack Frame push/pop khi gọi và kết thúc hàm; các biến cục bộ trong frame đóng vai trò GC Roots.",
-      "Đối tượng mới khởi tạo (new) luôn được cấp phát trên Young Gen (Eden Space).",
-      "Minor GC thực hiện cơ chế Evacuation Copy: chuyển các object còn sống từ Eden & active Survivor sang Survivor đối diện và tăng tenuringAge.",
-      "Đối tượng vượt ngưỡng tenuringThreshold được thăng hạng (promoted) sang Old Gen (Tenured).",
-      "Khi Old Gen đầy và không thể dọn dẹp, JVM ném ngoại lệ java.lang.OutOfMemoryError: Java heap space.",
+      "Stack Frames push/pop upon method entry and return; local variables serve as active GC Roots.",
+      "New object allocations (new) target Young Generation (Eden Space).",
+      "Minor GC executes Evacuation Copying: surviving objects in Eden & active Survivor evacuate to opposite Survivor with tenuringAge incremented.",
+      "Objects surviving past the tenuringThreshold are promoted to the Old Generation (Tenured).",
+      "When Old Gen is exhausted and cannot be reclaimed by Full GC, the JVM throws java.lang.OutOfMemoryError: Java heap space.",
     ],
     simplifications: [
-      "Bộ nhớ Heap được định lượng bằng số lượng slot đối tượng thay vì byte offset vật lý.",
-      "Thời gian Stop-The-World (STW) pause được giả lập theo số lượng object sao chép thay vì jitter xung nhịp CPU thực tế.",
-      "Chưa mô phỏng TLAB (Thread-Local Allocation Buffer) và Card Table / Remembered Set.",
+      "Heap capacity is modeled in discrete object slots rather than continuous byte offsets.",
+      "Stop-The-World pause durations are modeled via object copy counts rather than CPU wall-clock jitter.",
+      "TLAB (Thread-Local Allocation Buffer) and Card Table write barriers are omitted from visual rendering.",
     ],
     assumptions: [
-      "Một Single Thread call stack đại diện cho luồng chính của ứng dụng.",
-      "Thuật toán GC sử dụng mô hình Generational Copying kinh điển tương đương ParallelGC / CMS Young Gen.",
+      "Single-threaded call stack representing the primary application thread.",
+      "Generational Copying algorithm modeled after ParallelGC / CMS Young Gen evacuation mechanics.",
     ],
     unsupportedEdgeCases: [
-      "Humongous allocation trực tiếp vào Old Gen khi kích thước vượt quá 50% G1 Region.",
-      "Metaspace OutOfMemoryError do ClassLoader memory leak.",
+      "Humongous object allocations directly into Old Gen when size exceeds 50% G1 Region size.",
     ],
   },
   presets: [
     {
-      id: "eden-allocation-and-minor-gc",
-      title: "Cấp phát Eden & Dọn dẹp Rác Cục bộ (Minor GC)",
-      badge: "Eden Evacuation",
-      descriptionVi:
-        "Quan sát luồng cấp phát đối tượng trên Eden Space, khi hàm return làm mất tham chiếu cục bộ, Minor GC quét GC Roots và dọn dẹp bộ nhớ.",
+      id: "eden-minor-gc-cycle",
+      title: "1. Eden Allocation & Local Garbage Collection (Minor GC)",
+      badge: "Minor GC Mark-Copy",
+      description:
+        "Observe object allocation on Eden. When a method returns and drops its local references, Minor GC scans GC Roots and evacuates live objects.",
       config: defaultConfig,
       scriptedCommands: [
-        { type: "CALL_METHOD", methodName: "orderService.checkoutOrder()" },
-        { type: "ALLOCATE_OBJECT", className: "OrderHeader", varName: "order" },
-        { type: "ALLOCATE_OBJECT", className: "PaymentRequest", varName: "req" },
-        { type: "ALLOCATE_OBJECT", className: "ByteBuf", varName: "buffer" },
-        { type: "ALLOCATE_OBJECT", className: "AuditLog", varName: "audit" },
-        { type: "RETURN_METHOD" },
+        { type: "PUSH_STACK_FRAME", methodName: "calculateOrderTotal()" },
+        { type: "ALLOCATE_PRIMITIVE", varName: "taxRate", value: "0.08" },
+        { type: "ALLOCATE_OBJECT", className: "Order", varName: "currentOrder" },
+        { type: "ALLOCATE_OBJECT", className: "Discount", varName: "promoDiscount" },
+        { type: "POP_STACK_FRAME" },
         { type: "TRIGGER_MINOR_GC" },
       ],
     },
     {
-      id: "tenuring-age-promotion-old-gen",
-      title: "Thăng hạng Thế hệ sang Old Gen (Tenuring Promotion)",
-      badge: "Tenuring Age 3",
-      descriptionVi:
-        "Một đối tượng sống sót qua 3 chu kỳ Minor GC liên tiếp (giữ tham chiếu ở main frame) sẽ được HotSpot GC thăng hạng sang Old Gen.",
+      id: "tenuring-promotion-to-old-gen",
+      title: "2. Generational Promotion to Old Gen (Tenuring Age)",
+      badge: "Tenuring Promotion",
+      description:
+        "An object surviving 3 consecutive Minor GC cycles (retained by main stack frame) is promoted by HotSpot GC to Old Gen.",
       config: defaultConfig,
       scriptedCommands: [
-        { type: "ALLOCATE_OBJECT", className: "GlobalUserSession", varName: "userSession" },
-        { type: "CALL_METHOD", methodName: "batchJob.tick1()" },
-        { type: "ALLOCATE_OBJECT", className: "TempPayload1", varName: "t1" },
-        { type: "RETURN_METHOD" },
-        { type: "TRIGGER_MINOR_GC" },
-        { type: "CALL_METHOD", methodName: "batchJob.tick2()" },
-        { type: "ALLOCATE_OBJECT", className: "TempPayload2", varName: "t2" },
-        { type: "RETURN_METHOD" },
-        { type: "TRIGGER_MINOR_GC" },
-        { type: "CALL_METHOD", methodName: "batchJob.tick3()" },
-        { type: "ALLOCATE_OBJECT", className: "TempPayload3", varName: "t3" },
-        { type: "RETURN_METHOD" },
-        { type: "TRIGGER_MINOR_GC" },
+        { type: "ALLOCATE_OBJECT", className: "LongLivedCache", varName: "appCache" },
+        { type: "ALLOCATE_OBJECT", className: "Temp1", varName: "t1" },
+        { type: "ALLOCATE_OBJECT", className: "Temp2", varName: "t2" },
+        { type: "ALLOCATE_OBJECT", className: "Temp3", varName: "t3" }, // Eden Full -> Auto Minor GC #1 (appCache age=1)
+        { type: "ALLOCATE_OBJECT", className: "Temp4", varName: "t4" },
+        { type: "ALLOCATE_OBJECT", className: "Temp5", varName: "t5" },
+        { type: "ALLOCATE_OBJECT", className: "Temp6", varName: "t6" }, // Eden Full -> Auto Minor GC #2 (appCache age=2)
+        { type: "ALLOCATE_OBJECT", className: "Temp7", varName: "t7" },
+        { type: "ALLOCATE_OBJECT", className: "Temp8", varName: "t8" },
+        { type: "ALLOCATE_OBJECT", className: "Temp9", varName: "t9" }, // Eden Full -> Auto Minor GC #3 (appCache PROMOTED to Old Gen!)
       ],
     },
     {
-      id: "heap-exhaustion-oom",
-      title: "Rò rỉ Bộ nhớ & Tràn Heap (OutOfMemoryError)",
+      id: "old-gen-oom-hazard",
+      title: "3. Memory Leak & Heap Exhaustion (OutOfMemoryError)",
       badge: "Heap OOM",
-      descriptionVi:
-        "Tích lũy các đối tượng sống lâu trong Old Gen không giải phóng khiến Heap kiệt quệ, kích hoạt Major GC bất thành và ném OOM.",
-      config: { ...defaultConfig, oldGenCapacity: 3 },
+      description:
+        "Accumulating long-lived objects in Old Gen without release exhausts heap memory, causing Major GC failure and throwing OOM.",
+      config: { ...defaultConfig, oldGenCapacity: 2, edenCapacity: 2, survivorCapacity: 1 },
       scriptedCommands: [
-        { type: "ALLOCATE_OBJECT", className: "CacheItemA", varName: "c1" },
-        { type: "ALLOCATE_OBJECT", className: "CacheItemB", varName: "c2" },
-        { type: "ALLOCATE_OBJECT", className: "CacheItemC", varName: "c3" },
+        { type: "ALLOCATE_OBJECT", className: "StaticLeak1", varName: "leak1" },
         { type: "TRIGGER_MINOR_GC" },
         { type: "TRIGGER_MINOR_GC" },
+        { type: "TRIGGER_MINOR_GC" }, // Promoted 1
+        { type: "ALLOCATE_OBJECT", className: "StaticLeak2", varName: "leak2" },
         { type: "TRIGGER_MINOR_GC" },
-        { type: "ALLOCATE_OBJECT", className: "CacheItemD", varName: "c4" },
+        { type: "TRIGGER_MINOR_GC" },
+        { type: "TRIGGER_MINOR_GC" }, // Promoted 2 (Old Gen full!)
+        { type: "ALLOCATE_OBJECT", className: "StaticLeak3", varName: "leak3" },
         { type: "TRIGGER_MINOR_GC" },
         { type: "TRIGGER_MINOR_GC" },
-        { type: "TRIGGER_MINOR_GC" },
-        { type: "TRIGGER_MAJOR_GC" },
+        { type: "TRIGGER_MINOR_GC" }, // Attempt promotion -> OOM!
       ],
     },
   ],
 
   createInitialFrame(config = defaultConfig): SimulationStepFrame<JavaMemoryGcState> {
-    const initialState: JavaMemoryGcState = {
-      threadStack: [
+    const mainFrame: JavaStackFrame = {
+      id: "frame-main",
+      methodName: "main(String[] args)",
+      localReferences: [
         {
-          id: "frame-main",
-          methodName: "Application.main(String[] args)",
-          localReferences: [
-            { varName: "args", targetHeapId: null, isPrimitive: false },
-            { varName: "port", targetHeapId: null, isPrimitive: true, primitiveValue: "8080" },
-          ],
+          varName: "serverPort",
+          isPrimitive: true,
+          primitiveValue: 8080,
         },
       ],
+    };
+
+    const initialState: JavaMemoryGcState = {
+      threadStack: [mainFrame],
       youngEden: [],
       youngS0: [],
       youngS1: [],
@@ -243,39 +238,42 @@ export const javaMemoryGcSimulation: SimulationEngineSpec<
       survivorCapacity: config.survivorCapacity,
       oldGenCapacity: config.oldGenCapacity,
       tenuringThreshold: config.tenuringThreshold,
+      totalAllocationsCount: 0,
       minorGcCount: 0,
       majorGcCount: 0,
-      totalGcPauseMs: 0,
-      oomTriggered: false,
+      lastMinorGcReclaimedBytes: 0,
+      isOutOfMemory: false,
     };
 
     return {
       tick: 0,
       phase: "INITIALIZED",
-      title: "JVM Runtime Data Areas Khởi tạo",
+      title: "JVM Runtime Data Areas Initialized",
       state: initialState,
       events: [
         {
           tick: 0,
-          actor: "JVM",
+          actor: "HotSpotJVM",
           action: "BOOTSTRAP",
-          detail: "Khởi tạo Main Thread Stack, Young Gen (Eden, S0, S1) và Tenured Generation.",
+          detail: "Initialized Main Thread Stack, Young Gen (Eden, S0, S1), and Tenured Generation.",
           tone: "info",
         },
       ],
       invariants: evaluateInvariants(initialState),
       narration: {
-        summaryVi:
-          "JVM khởi tạo Stack Frame cho phương thức main(). Eden Space, Survivor Spaces và Old Gen đang sẵn sàng cấp phát bộ nhớ.",
-        internalsNoteVi:
-          "Các biến nguyên thủy (primitives) như int port = 8080 được lưu trực tiếp trong Stack Frame. Đối tượng (Objects) sẽ được cấp phát trên Heap và Stack Frame chỉ giữ con trỏ tham chiếu (4-byte hoặc 8-byte pointer).",
+        summary:
+          "JVM initialized Stack Frame for method main(). Eden Space, Survivor Spaces, and Old Gen are ready for allocations.",
+        internalsNote:
+          "Primitive variables like 'int serverPort = 8080' reside directly in the Stack Frame. Heap Objects are allocated dynamically in Eden, with the Stack holding 4-byte or 8-byte reference pointers.",
       },
       metrics: {
-        "Eden Used": `0/${config.edenCapacity}`,
-        "Survivor Active": "S0 (Empty)",
-        "Old Gen Used": `0/${config.oldGenCapacity}`,
-        "Minor GC": 0,
-        "Total GC Pause": "0 ms",
+        "Stack Frames": 1,
+        "Eden Used": "0 / " + config.edenCapacity,
+        "Survivor S0": 0,
+        "Survivor S1": 0,
+        "Old Gen Used": "0 / " + config.oldGenCapacity,
+        "Minor GCs": 0,
+        "Tenuring Threshold": config.tenuringThreshold,
       },
     };
   },
@@ -286,166 +284,188 @@ export const javaMemoryGcSimulation: SimulationEngineSpec<
     const events = [...currentFrame.events];
     let phase = "MUTATING";
     let title = "";
-    let summaryVi = "";
-    let internalsNoteVi = "";
-    let productionWarningVi: string | undefined;
+    let summary = "";
+    let internalsNote = "";
+    let productionWarning: string | undefined;
 
     switch (command.type) {
-      case "CALL_METHOD": {
-        const frameId = `frame-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      case "PUSH_STACK_FRAME": {
+        const frameId = `frame-${state.threadStack.length + 1}`;
         state.threadStack.push({
           id: frameId,
           methodName: command.methodName,
           localReferences: [],
         });
-        phase = "METHOD_INVOCATION";
-        title = `Đẩy Stack Frame: ${command.methodName}`;
-        summaryVi = `Luồng thực thi gọi phương thức ${command.methodName}. Một Stack Frame mới được cấp phát trên Thread Stack.`;
-        internalsNoteVi =
-          "Mỗi Thread sở hữu một JVM Stack riêng biệt. Stack Frame chứa Local Variable Table, Operand Stack, và Frame Data (Return Address). Không có chi phí dọn rác GC cho Stack, frame tự giải phóng khi kết thúc hàm.";
+        phase = "STACK_FRAME_PUSHED";
+        title = `Pushed Stack Frame: ${command.methodName}`;
+        summary = `Execution thread invoked method ${command.methodName}. A new Stack Frame was allocated on the Thread Stack.`;
+        internalsNote =
+          "Each Thread owns a dedicated JVM Stack. Stack Frames contain Local Variable Tables, Operand Stacks, and Frame Data. Stack memory deallocates with zero GC overhead upon method return.";
         events.push({
           tick: nextTick,
           actor: "ThreadStack",
           action: "PUSH_FRAME",
-          detail: `Pushed frame for ${command.methodName}`,
+          detail: `Pushed new frame ${command.methodName} to thread stack`,
           tone: "info",
         });
         break;
       }
 
-      case "RETURN_METHOD": {
+      case "POP_STACK_FRAME": {
         if (state.threadStack.length <= 1) {
-          summaryVi = "Không thể pop Stack Frame gốc main().";
-          internalsNoteVi = "Phương thức main là điểm neo của tiến trình.";
+          summary = "Cannot pop the root main() Stack Frame.";
+          internalsNote = "The main method anchors application execution.";
           break;
         }
         const popped = state.threadStack.pop();
-        recomputeReachability(state);
-        phase = "METHOD_RETURN";
-        title = `Hoàn tất & Pop Stack Frame: ${popped?.methodName}`;
-        summaryVi = `Phương thức ${popped?.methodName} kết thúc, Stack Frame bị giải phóng khỏi Call Stack.`;
-        internalsNoteVi =
-          "Khi Stack Frame bị pop, các biến cục bộ trong frame bị hủy. Bất kỳ Heap Object nào từng được tham chiếu bởi frame này (nếu không được trả về hoặc gán vào GC root khác) sẽ trở thành rác không thể truy vết (Unreachable Garbage).";
+        recalculateReachability(state);
+
+        phase = "STACK_FRAME_POPPED";
+        title = `Completed & Popped Stack Frame: ${popped?.methodName}`;
+        summary = `Method ${popped?.methodName} returned; its Stack Frame was deallocated from the Call Stack.`;
+        internalsNote =
+          "When a Stack Frame is popped, local variables are destroyed. Any Heap objects previously referenced solely by this frame become unreachable garbage eligible for GC reclamation.";
         events.push({
           tick: nextTick,
           actor: "ThreadStack",
           action: "POP_FRAME",
-          detail: `Popped frame ${popped?.methodName}; local variable references invalidated`,
+          detail: `Popped frame ${popped?.methodName}; local variable pointers destroyed`,
           tone: "warn",
         });
         break;
       }
 
       case "ALLOCATE_OBJECT": {
-        if (state.oomTriggered) {
-          summaryVi = "JVM đã rơi vào OutOfMemoryError, không thể cấp phát thêm đối tượng.";
-          productionWarningVi = "Cần tăng heap (-Xmx) hoặc khắc phục memory leak.";
+        if (state.isOutOfMemory) {
+          summary = "JVM is in OutOfMemoryError state; cannot allocate additional objects.";
+          productionWarning = "Increase heap size (-Xmx) or eliminate the memory leak.";
           break;
         }
 
-        const objId = `obj-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-        const newObj: HeapObject = {
+        const objId = `obj_${state.totalAllocationsCount + 1}`;
+        const newObj: JavaHeapObject = {
           id: objId,
           className: command.className,
-          sizeBytes: command.sizeBytes ?? 64,
-          generation: "EDEN",
+          variableName: command.varName,
           tenuringAge: 0,
           isRootReachable: true,
-          variableName: command.varName,
+          sizeBytes: 64, // simplified 64 bytes
         };
 
-        // Gán tham chiếu vào frame hiện tại
-        const currentStackFrame = state.threadStack[state.threadStack.length - 1];
-        if (currentStackFrame) {
-          currentStackFrame.localReferences.push({
+        // Attach reference to current stack frame
+        const topFrame = state.threadStack[state.threadStack.length - 1];
+        if (topFrame) {
+          topFrame.localReferences.push({
             varName: command.varName,
-            targetHeapId: objId,
             isPrimitive: false,
+            targetHeapId: objId,
           });
         }
 
+        // If Eden is full -> trigger automatic Minor GC before allocation
         if (state.youngEden.length >= state.edenCapacity) {
-          // Eden đầy -> tự động kích hoạt Minor GC trước khi cấp phát
           events.push({
             tick: nextTick,
-            actor: "JVM Allocator",
+            actor: "HotSpotGC",
             action: "EDEN_FULL",
-            detail: "Eden Space đầy! Kích hoạt tự động Minor GC (Stop-The-World Evacuation).",
+            detail: "Eden Space full! Triggered automated Minor GC (Stop-The-World Evacuation).",
             tone: "warn",
           });
-          // Thực hiện Minor GC inline
-          performMinorGc(state, events, nextTick);
+          executeMinorGc(state, events, nextTick);
         }
 
         state.youngEden.push(newObj);
-        recomputeReachability(state);
+        state.totalAllocationsCount += 1;
+        recalculateReachability(state);
 
         phase = "OBJECT_ALLOCATED";
-        title = `Cấp phát Heap: new ${command.className}()`;
-        summaryVi = `Đối tượng ${command.className} được cấp phát trên Eden Space. Stack Frame lưu con trỏ biến ${command.varName} trỏ tới địa chỉ heap ${objId}.`;
-        internalsNoteVi =
-          "Trong HotSpot, object allocation trên Eden diễn ra cực nhanh nhờ con trỏ Bump-the-pointer kết hợp TLAB (Thread-Local Allocation Buffer) nhằm tránh tranh chấp khóa đa luồng.";
+        title = `Heap Allocation: new ${command.className}()`;
+        summary = `Object ${command.className} allocated in Eden Space. Stack Frame holds reference pointer ${command.varName} pointing to heap address ${objId}.`;
+        internalsNote =
+          "In HotSpot, Eden allocation is fast via Bump-the-pointer paired with Thread-Local Allocation Buffers (TLAB) to prevent multithreaded lock contention.";
         events.push({
           tick: nextTick,
-          actor: "HotSpot GC",
-          action: "ALLOCATE",
-          detail: `new ${command.className}() allocated in Eden [id=${objId}]`,
+          actor: "EdenSpace",
+          action: "ALLOCATE_HEAP",
+          detail: `Allocated ${command.className} (${objId}) on Eden; reference stored in ${topFrame?.methodName}`,
           tone: "ok",
         });
         break;
       }
 
       case "TRIGGER_MINOR_GC": {
-        performMinorGc(state, events, nextTick);
+        executeMinorGc(state, events, nextTick);
         phase = "MINOR_GC_COMPLETED";
-        title = "Hoàn tất Minor GC (Evacuation Copying)";
-        summaryVi = `Minor GC quét rác từ GC Roots. Các đối tượng còn sống sót được sơ tán sang Survivor Space (S${state.activeSurvivor}), đối tượng chết bị thu hồi.`;
-        internalsNoteVi =
-          "Minor GC chỉ tạm dừng (Stop-The-World) trong thời gian ngắn vì nó chỉ sao chép các đối tượng còn sống (Mark-Copy). Theo Giả thuyết Thế hệ (Weak Generational Hypothesis), 98% đối tượng Java chết ngay sau khi sinh ra.";
+        title = "Completed Minor GC (Evacuation Copying)";
+        summary = `Minor GC scanned reachability from GC Roots. Live objects evacuated to Survivor Space (S${state.activeSurvivor}); dead objects reclaimed.`;
+        internalsNote =
+          "Minor GC pause durations are short because the Mark-Copy algorithm copies only live objects. By the Weak Generational Hypothesis, 98% of Java objects die young.";
         break;
       }
 
       case "TRIGGER_MAJOR_GC": {
+        const initialOldCount = state.oldGen.length;
+        recalculateReachability(state);
+        state.oldGen = state.oldGen.filter((o) => o.isRootReachable);
+        const reclaimed = initialOldCount - state.oldGen.length;
         state.majorGcCount += 1;
-        state.totalGcPauseMs += 45;
-        recomputeReachability(state);
-
-        const beforeCount = state.oldGen.length;
-        state.oldGen = state.oldGen.filter((obj) => obj.isRootReachable);
-        const reclaimed = beforeCount - state.oldGen.length;
 
         if (state.oldGen.length >= state.oldGenCapacity) {
-          state.oomTriggered = true;
-          productionWarningVi =
-            "CRITICAL: Old Generation không còn chỗ trống ngay cả sau Major GC! java.lang.OutOfMemoryError: Java heap space.";
+          state.isOutOfMemory = true;
+          productionWarning =
+            "CRITICAL: Old Generation exhausted even after Major GC! java.lang.OutOfMemoryError: Java heap space.";
           events.push({
             tick: nextTick,
-            actor: "JVM",
-            action: "OUT_OF_MEMORY",
-            detail: "Major GC failed to reclaim sufficient memory. OOM triggered!",
+            actor: "HotSpotGC",
+            action: "OOM_CRASH",
+            detail: "Major GC failed to reclaim sufficient Old Gen space. Heap exhausted!",
             tone: "danger",
           });
         } else {
           events.push({
             tick: nextTick,
-            actor: "HotSpot GC",
+            actor: "HotSpotGC",
             action: "MAJOR_GC",
-            detail: `Full GC executed (Mark-Sweep-Compact). Reclaimed ${reclaimed} stale objects from Old Gen.`,
-            tone: "warn",
+            detail: `Major GC reclaimed ${reclaimed} unreachable objects from Old Generation`,
+            tone: "ok",
           });
         }
 
         phase = "MAJOR_GC_COMPLETED";
-        title = "Hoàn tất Major / Full GC";
-        summaryVi = `Major GC dọn dẹp Old Generation. Đã thu hồi ${reclaimed} đối tượng rác trong Old Gen.`;
-        internalsNoteVi =
-          "Major GC sử dụng thuật toán Mark-Sweep-Compact để gom các object sống lại sát nhau, tránh phân mảnh bộ nhớ (Memory Fragmentation). STW pause của Major GC thường cao hơn Minor GC gấp nhiều lần.";
+        title = "Completed Major / Full GC";
+        summary = `Major GC swept Old Generation, reclaiming ${reclaimed} dead objects.`;
+        internalsNote =
+          "Major GC employs Mark-Sweep-Compact to coalesce live objects and eliminate memory fragmentation. Major GC STW pauses are substantially longer than Minor GCs.";
+        break;
+      }
+
+      case "ALLOCATE_PRIMITIVE": {
+        const topFrame = state.threadStack[state.threadStack.length - 1];
+        if (topFrame) {
+          topFrame.localReferences.push({
+            varName: command.varName,
+            isPrimitive: true,
+            primitiveValue: command.value,
+          });
+        }
+        phase = "PRIMITIVE_ALLOCATED";
+        title = `Allocated Primitive: ${command.varName} = ${command.value}`;
+        summary = `Primitive stored directly in Stack Frame local variable table (Zero heap allocation).`;
+        internalsNote =
+          "Primitives (int, long, double, boolean) occupy stack slots directly without heap pointers or GC overhead.";
+        events.push({
+          tick: nextTick,
+          actor: "ThreadStack",
+          action: "LOCAL_VAR",
+          detail: `Stored primitive ${command.varName} = ${command.value} on stack`,
+          tone: "info",
+        });
         break;
       }
     }
 
-    recomputeReachability(state);
     const invariants = evaluateInvariants(state);
+    const activeSurvivorList = state.activeSurvivor === 0 ? state.youngS0 : state.youngS1;
 
     return {
       tick: nextTick,
@@ -455,86 +475,109 @@ export const javaMemoryGcSimulation: SimulationEngineSpec<
       events,
       invariants,
       narration: {
-        summaryVi,
-        internalsNoteVi,
-        productionWarningVi,
+        summary,
+        internalsNote,
+        productionWarning,
       },
       metrics: {
-        "Eden Used": `${state.youngEden.length}/${state.edenCapacity}`,
-        "Survivor Active": `S${state.activeSurvivor} (${(state.activeSurvivor === 0 ? state.youngS0 : state.youngS1).length}/${state.survivorCapacity})`,
-        "Old Gen Used": `${state.oldGen.length}/${state.oldGenCapacity}`,
-        "Minor GC": state.minorGcCount,
-        "Major GC": state.majorGcCount,
-        "Total GC Pause": `${state.totalGcPauseMs} ms`,
-        "OOM Status": state.oomTriggered ? "CRITICAL (OOM)" : "NORMAL",
+        "Stack Frames": state.threadStack.length,
+        "Eden Used": `${state.youngEden.length} / ${state.edenCapacity}`,
+        "Survivor Active": `S${state.activeSurvivor} (${activeSurvivorList.length} / ${state.survivorCapacity})`,
+        "Old Gen Used": `${state.oldGen.length} / ${state.oldGenCapacity}`,
+        "Minor GCs": state.minorGcCount,
+        "Major GCs": state.majorGcCount,
       },
     };
   },
 };
 
-function performMinorGc(
+function executeMinorGc(
   state: JavaMemoryGcState,
   events: SimulationStepFrame<JavaMemoryGcState>["events"],
   tick: number,
 ): void {
-  state.minorGcCount += 1;
-  state.totalGcPauseMs += 5; // 5ms simulated STW pause
+  recalculateReachability(state);
 
-  recomputeReachability(state);
+  const fromSurvivor = state.activeSurvivor === 0 ? state.youngS0 : state.youngS1;
+  const toSurvivorIndex = (1 - state.activeSurvivor) as 0 | 1;
+  const toSurvivor: JavaHeapObject[] = [];
 
-  const currentSurvivor = state.activeSurvivor === 0 ? state.youngS0 : state.youngS1;
-  const targetSurvivorIdx = state.activeSurvivor === 0 ? 1 : 0;
-  const targetSurvivor = targetSurvivorIdx === 0 ? state.youngS0 : state.youngS1;
-  targetSurvivor.length = 0; // Clear To-Space
+  // Gather live objects from Eden and From-Survivor
+  const candidates = [...state.youngEden, ...fromSurvivor].filter((o) => o.isRootReachable);
 
-  // Gom tất cả các object còn sống từ Eden và From-Survivor
-  const liveFromEden = state.youngEden.filter((o) => o.isRootReachable);
-  const liveFromSurvivor = currentSurvivor.filter((o) => o.isRootReachable);
+  let promotedCount = 0;
+  let evacuatedCount = 0;
 
-  const allSurviving = [...liveFromEden, ...liveFromSurvivor];
-
-  for (const obj of allSurviving) {
+  for (const obj of candidates) {
     obj.tenuringAge += 1;
     if (obj.tenuringAge >= state.tenuringThreshold) {
-      // Thăng hạng sang Old Gen
+      // Promote to Old Gen
       if (state.oldGen.length < state.oldGenCapacity) {
-        obj.generation = "OLD_GEN";
         state.oldGen.push(obj);
+        promotedCount += 1;
         events.push({
           tick,
-          actor: "HotSpot GC",
-          action: "TENURING_PROMOTION",
-          detail: `Object ${obj.className} (age ${obj.tenuringAge}) promoted to Old Gen`,
-          tone: "info",
+          actor: "HotSpotGC",
+          action: "PROMOTION",
+          detail: `Promoted ${obj.className} (${obj.id}) to Old Gen (Age: ${obj.tenuringAge})`,
+          tone: "warn",
         });
       } else {
-        // Old Gen đầy
-        state.oomTriggered = true;
+        // Old Gen Full
+        state.isOutOfMemory = true;
         events.push({
           tick,
-          actor: "HotSpot GC",
-          action: "PROMOTION_FAILURE_OOM",
-          detail: `Promotion failure for ${obj.className}: Old Gen is completely full!`,
+          actor: "HotSpotGC",
+          action: "PROMOTION_FAILED_OOM",
+          detail: `Failed to promote ${obj.className}: Old Gen Full! Triggering OutOfMemoryError.`,
           tone: "danger",
         });
       }
     } else {
-      // Sao chép sang To-Survivor
-      obj.generation = targetSurvivorIdx === 0 ? "SURVIVOR_0" : "SURVIVOR_1";
-      targetSurvivor.push(obj);
+      // Evacuate to To-Survivor
+      toSurvivor.push(obj);
+      evacuatedCount += 1;
     }
   }
 
-  // Dọn sạch Eden và From-Survivor
+  // Clear Eden and From-Survivor
   state.youngEden = [];
-  currentSurvivor.length = 0;
-  state.activeSurvivor = targetSurvivorIdx as 0 | 1;
+  if (state.activeSurvivor === 0) {
+    state.youngS0 = [];
+    state.youngS1 = toSurvivor;
+  } else {
+    state.youngS1 = [];
+    state.youngS0 = toSurvivor;
+  }
+
+  state.activeSurvivor = toSurvivorIndex;
+  state.minorGcCount += 1;
 
   events.push({
     tick,
-    actor: "HotSpot GC",
-    action: "MINOR_GC_EVACUATION",
-    detail: `Minor GC # ${state.minorGcCount}: Evacuated ${targetSurvivor.length} live objects to S${state.activeSurvivor}, swept dead objects.`,
+    actor: "HotSpotGC",
+    action: "MINOR_GC_DONE",
+    detail: `Minor GC completed: evacuated ${evacuatedCount} objects to S${toSurvivorIndex}, promoted ${promotedCount} to Old Gen`,
     tone: "ok",
   });
+}
+
+function recalculateReachability(state: JavaMemoryGcState): void {
+  const reachableIds = new Set<string>();
+  for (const frame of state.threadStack) {
+    for (const ref of frame.localReferences) {
+      if (!ref.isPrimitive && ref.targetHeapId) {
+        reachableIds.add(ref.targetHeapId);
+      }
+    }
+  }
+
+  const update = (obj: JavaHeapObject) => {
+    obj.isRootReachable = reachableIds.has(obj.id);
+  };
+
+  state.youngEden.forEach(update);
+  state.youngS0.forEach(update);
+  state.youngS1.forEach(update);
+  state.oldGen.forEach(update);
 }

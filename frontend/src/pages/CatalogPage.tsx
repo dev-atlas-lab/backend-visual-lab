@@ -5,7 +5,8 @@ import { loadProgressEnvelope } from "../engines/progress/progress-store";
 import { Database, Server, Cpu, Network, ShieldCheck, Zap, ArrowRight, CheckCircle2 } from "lucide-react";
 
 const domainIcons: Record<string, React.ReactNode> = {
-  messaging: <Network size={22} color="var(--accent-primary)" />,
+  java: <Cpu size={22} color="var(--accent)" />,
+  messaging: <Network size={22} color="var(--accent)" />,
   caching: <Zap size={22} color="var(--status-warn)" />,
   databases: <Database size={22} color="var(--status-ok)" />,
   "distributed-systems": <Server size={22} color="var(--status-info)" />,
@@ -24,8 +25,8 @@ export function CatalogPage() {
           Backend Engineering Interactive Laboratory
         </h1>
         <p style={{ color: "var(--text-secondary)", fontSize: "16px", maxWidth: "800px" }}>
-          Nền tảng học tập tương tác mô phỏng sâu cơ chế nội tại (Internals) của các hệ thống Backend phân tán
-          theo triết lý 7 giai đoạn: <code>WHAT</code> &rarr; <code>WHY</code> &rarr; <code>HOW</code> &rarr;{" "}
+          Interactive platform simulating the deep internals and runtime mechanics of distributed backend systems
+          following the 7-stage pedagogy: <code>WHAT</code> &rarr; <code>WHY</code> &rarr; <code>HOW</code> &rarr;{" "}
           <code>INTERNALS</code> &rarr; <code>TRADE-OFFS</code> &rarr; <code>FAILURE SCENARIOS</code> &rarr;{" "}
           <code>PRODUCTION ENGINEERING</code>.
         </p>
@@ -70,12 +71,12 @@ export function CatalogPage() {
                 </div>
 
                 <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "var(--space-4)" }}>
-                  {domain.descriptionVi}
+                  {domain.descriptionEn || domain.description || domain.descriptionVi}
                 </p>
 
                 <div style={{ marginBottom: "var(--space-4)" }}>
                   <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-tertiary)" }}>
-                    Các chủ đề nghiên cứu:
+                    Core Curriculum Topics:
                   </span>
                   <ul style={{ paddingLeft: "var(--space-4)", marginTop: "var(--space-2)", fontSize: "12px", color: "var(--text-secondary)" }}>
                     {domain.topics.map((t, idx) => (
@@ -91,7 +92,7 @@ export function CatalogPage() {
                 {domainModules.length > 0 ? (
                   <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: "var(--space-4)" }}>
                     <span style={{ fontSize: "11px", fontWeight: "700", color: "var(--accent-primary)", textTransform: "uppercase" }}>
-                      Interactive Labs khả dụng:
+                      Available Interactive Labs:
                     </span>
                     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
                       {domainModules.map((m) => {
@@ -106,7 +107,7 @@ export function CatalogPage() {
                             <span style={{ textAlign: "left", fontSize: "13px" }}>{m.title.split("—")[1] || m.title}</span>
                             <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px" }}>
                               {userProgress?.simulationStepsExplored ? <CheckCircle2 size={14} /> : null}
-                              Khám phá <ArrowRight size={14} />
+                              Explore <ArrowRight size={14} />
                             </span>
                           </Link>
                         );
@@ -115,7 +116,7 @@ export function CatalogPage() {
                   </div>
                 ) : (
                   <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: "var(--space-3)", color: "var(--text-tertiary)", fontSize: "12px" }}>
-                    Chủ đề đang nằm trong kế hoạch mở rộng (Phase 6 - Phase 7).
+                    Curriculum module under active expansion.
                   </div>
                 )}
               </div>

@@ -5,8 +5,8 @@ export const domainCatalog: DomainCatalogEntry[] = [
     id: "java",
     title: "Java Core & JVM Internals",
     tagline: "Memory Layout, Garbage Collection, Collections, Stream API & Virtual Threads",
-    descriptionVi:
-      "Làm chủ toàn diện hệ sinh thái Java: Từ kiến trúc JVM Runtime (Stack vs Heap, Metaspace), giải thuật Garbage Collection thế hệ, cấu trúc dữ liệu cốt lõi (HashMap treeification), đến Stream API lười biếng (lazy evaluation) và đột phá Virtual Threads (Project Loom) trong Java 21.",
+    description:
+      "Master the Java runtime ecosystem: from JVM runtime layout (Stack Frames, Heap, Metaspace), generational Garbage Collection mechanics, and core collections (HashMap treeification), to Stream API lazy evaluation and Java 21 Virtual Threads (Project Loom).",
     status: "Active Interactive Labs",
     topics: [
       "JVM Runtime Memory (Stack Frames, Heap, Metaspace & GC Roots)",
@@ -27,8 +27,8 @@ export const domainCatalog: DomainCatalogEntry[] = [
     id: "messaging",
     title: "Messaging & Event Streaming",
     tagline: "Apache Kafka, Event Logs, Consumer Groups & Exactly-Once Semantics",
-    descriptionVi:
-      "Làm chủ kiến trúc Log-centric, cơ chế phân bổ Partition, giao thức Rebalance (Eager vs Cooperative Sticky KIP-429), ISR Replication, và mẫu thiết kế Transactional Outbox trong Apache Kafka.",
+    description:
+      "Deep-dive into log-centric distributed commit logs, dynamic partition assignment, consumer group rebalancing protocols (Eager vs Cooperative Sticky KIP-429), ISR replication, and Transactional Outbox architectures.",
     status: "Active Interactive Labs",
     topics: [
       "Apache Kafka Architecture & Broker Internals",
@@ -44,8 +44,8 @@ export const domainCatalog: DomainCatalogEntry[] = [
     id: "caching",
     title: "Caching & Redis",
     tagline: "In-Memory Encodings, Eviction Mechanics, TTL & Stampede Mitigation",
-    descriptionVi:
-      "Khám phá kiến trúc Single-threaded Event Loop của Redis, cơ chế Passive/Active Expiration, thuật toán xấp xỉ LRU/LFU, các chiến lược dập tắt bão truy vấn (Cache Stampede) và khóa phân tán an toàn.",
+    description:
+      "Explore Redis single-threaded event loop architecture, passive and active key expiration, approximate LRU/LFU eviction algorithms, cache stampede mitigation (Mutex vs Probabilistic Early Refresh), and distributed locks.",
     status: "Active Interactive Labs",
     topics: [
       "Redis Object Encodings (SDS, listpack, dict, skiplist)",
@@ -61,8 +61,8 @@ export const domainCatalog: DomainCatalogEntry[] = [
     id: "databases",
     title: "Databases (PostgreSQL Internals)",
     tagline: "8 KB Slotted Pages, B-Tree Indexes, MVCC Snapshots & Isolation Anomalies",
-    descriptionVi:
-      "Mổ xẻ tầng lưu trữ vật lý của PostgreSQL: Cấu trúc trang đĩa 8 KB, địa chỉ con trỏ CTID, thuật toán duyệt cây B-Tree (nbtree), cơ chế đa phiên bản MVCC (xmin/xmax), và các cấp độ cô lập giao dịch.",
+    description:
+      "Dissect PostgreSQL physical storage engine: 8 KB slotted disk pages, CTID tuple pointers, B-Tree (nbtree) index traversal, Multi-Version Concurrency Control (xmin/xmax), and ANSI SQL transaction isolation anomalies.",
     status: "Active Interactive Labs",
     topics: [
       "8 KB Slotted Page Layout & Heap Tuples (CTID)",
@@ -78,8 +78,8 @@ export const domainCatalog: DomainCatalogEntry[] = [
     id: "distributed-systems",
     title: "Distributed Systems & Microservices",
     tagline: "Resilience Patterns, Consensus, Consistency Models & Distributed Transactions",
-    descriptionVi:
-      "Mô phỏng trực quan các mẫu thiết kế cốt lõi trong hệ thống phân tán: Circuit Breaker, Exponential Backoff có Jitter, Bulkhead, Saga Choreography/Orchestration, và định lý CAP/PACELC.",
+    description:
+      "Simulate core distributed design patterns: Circuit Breaker, Exponential Backoff with Jitter, Bulkhead Isolation, Saga Choreography/Orchestration, and CAP/PACELC trade-offs.",
     status: "Planned Expansion",
     topics: [
       "Circuit Breaker, Retry with Jitter & Bulkhead Isolation",
@@ -95,8 +95,8 @@ export const domainCatalog: DomainCatalogEntry[] = [
     id: "design-patterns",
     title: "Backend Design Patterns",
     tagline: "Enterprise Patterns, Decoupling & Clean Domain Modeling",
-    descriptionVi:
-      "Áp dụng các mẫu thiết kế kinh điển vào tầng dịch vụ Backend: CQRS, Unit of Work, Specification, Outbox Pattern, Mediator, và Strategy Pattern giải quyết bài toán nghiệp vụ phức tạp.",
+    description:
+      "Apply classic enterprise design patterns to backend domain architecture: CQRS, Unit of Work, Specification, Outbox Pattern, Mediator, and Strategy engines.",
     status: "Planned Expansion",
     topics: [
       "Command Query Responsibility Segregation (CQRS)",
@@ -112,8 +112,8 @@ export const domainCatalog: DomainCatalogEntry[] = [
     id: "system-design",
     title: "Production System Design",
     tagline: "Capacity Estimation, High Availability, Scalability & Failure Modes",
-    descriptionVi:
-      "Phân tích yêu cầu, ước lượng dung lượng định lượng (Back-of-the-envelope), kiến trúc cân bằng tải L4/L7, Sharding cơ sở dữ liệu và thiết kế kiến trúc chịu lỗi cho hệ thống hàng triệu người dùng.",
+    description:
+      "Quantitative back-of-the-envelope capacity planning, L4/L7 load balancing, database sharding strategies, and fault-tolerant multi-region architecture design.",
     status: "Planned Expansion",
     topics: [
       "Quantitative Back-of-the-Envelope Capacity Estimator",

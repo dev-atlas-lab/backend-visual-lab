@@ -52,13 +52,13 @@ export function AssessmentRunner({ moduleSlug, questions }: AssessmentRunnerProp
         padding: "var(--space-6)",
         marginTop: "var(--space-8)",
       }}
-      aria-label="Kiểm tra kiến thức kịch bản thực chiến"
+      aria-label="Hands-on Scenario Knowledge Check"
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-4)" }}>
         <div>
-          <h3 style={{ fontSize: "20px", fontWeight: "700" }}>Kiểm tra Kiến thức Thực chiến</h3>
+          <h3 style={{ fontSize: "20px", fontWeight: "700" }}>Production Scenario Knowledge Check</h3>
           <p style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
-            Câu hỏi tình huống kỹ thuật chuẩn quốc tế (tiếng Anh) kết hợp giải thích chi tiết từng lựa chọn (tiếng Việt).
+            Challenging architectural scenarios testing failure resilience, protocol semantics, and internal trade-offs.
           </p>
         </div>
         {submitted && summary ? (
@@ -72,7 +72,7 @@ export function AssessmentRunner({ moduleSlug, questions }: AssessmentRunnerProp
               color: summary.accuracyPercent >= 80 ? "var(--status-ok)" : "var(--status-warn)",
             }}
           >
-            Độ chính xác: {summary.correctCount} / {summary.totalQuestions} ({summary.accuracyPercent}%)
+            Accuracy Score: {summary.correctCount} / {summary.totalQuestions} ({summary.accuracyPercent}%)
           </div>
         ) : null}
       </div>
@@ -166,7 +166,7 @@ export function AssessmentRunner({ moduleSlug, questions }: AssessmentRunnerProp
                             color: q.correctChoiceIds.includes(choice.id) ? "var(--status-ok)" : "var(--text-secondary)",
                           }}
                         >
-                          &bull; {choice.explanationVi}
+                          &bull; {choice.explanationEn || choice.explanation || choice.explanationVi}
                         </div>
                       ) : null}
                     </div>
@@ -186,9 +186,11 @@ export function AssessmentRunner({ moduleSlug, questions }: AssessmentRunnerProp
                   }}
                 >
                   <strong style={{ color: evalResult.isCorrect ? "var(--status-ok)" : "var(--status-warn)" }}>
-                    {evalResult.isCorrect ? "CHÍNH XÁC: " : "GIẢI THÍCH CHUYÊN SÂU: "}
+                    {evalResult.isCorrect ? "CORRECT: " : "ARCHITECTURAL EXPLANATION: "}
                   </strong>
-                  <span style={{ color: "var(--text-primary)" }}>{q.correctExplanationVi}</span>
+                  <span style={{ color: "var(--text-primary)" }}>
+                    {q.correctExplanationEn || q.correctExplanation || q.correctExplanationVi}
+                  </span>
                 </div>
               ) : null}
             </div>
@@ -200,11 +202,11 @@ export function AssessmentRunner({ moduleSlug, questions }: AssessmentRunnerProp
       <div style={{ marginTop: "var(--space-6)", display: "flex", gap: "var(--space-3)" }}>
         {!submitted ? (
           <button onClick={handleSubmit} className="btn btn-primary" style={{ padding: "8px 20px" }}>
-            Nộp bài &amp; Xem lời giải
+            Submit &amp; View Explanations
           </button>
         ) : (
           <button onClick={handleRetry} className="btn" style={{ padding: "8px 20px" }}>
-            Làm lại bài kiểm tra
+            Retake Knowledge Check
           </button>
         )}
       </div>

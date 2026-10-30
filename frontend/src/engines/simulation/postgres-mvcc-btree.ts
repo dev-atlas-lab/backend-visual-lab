@@ -4,51 +4,53 @@ import type {
   SimulationStepFrame,
 } from "./types";
 
-export type PostgresScanType = "IndexScan" | "IndexOnlyScan" | "SeqScan";
 export type PostgresIsolationLevel = "READ COMMITTED" | "REPEATABLE READ";
+export type PostgresScanType = "IndexScan" | "IndexOnlyScan" | "SeqScan";
 
 export interface PostgresHeapTuple {
-  ctid: string;
-  blockNumber: number;
-  offsetNumber: number;
+  ctid: string; // e.g., "(0, 1)" -> block 0, line pointer 1
   accountId: number;
   balanceUsd: number;
-  xmin: number;
-  xmax: number | null;
+  xmin: number; // inserting transaction id
+  xmax: number | null; // deleting/updating transaction id
   xmaxCommitted: boolean;
   isVisibleToReader: boolean;
-  visibilityReasonVi: string;
+  visibilityReason: string;
+}
+
+export interface PostgresBtreeEntry {
+  key: number;
+  targetCtid: string;
 }
 
 export interface PostgresBtreeNode {
   pageNumber: number;
-  level: "ROOT" | "LEAF";
+  level: "Root" | "Internal" | "Leaf";
+  entries: PostgresBtreeEntry[];
   keyRangeLabel: string;
-  entries: { key: number; targetCtid: string }[];
   visitedInCurrentScan: boolean;
-}
-
-export interface PostgresMvccBtreeState {
-  isolationLevel: PostgresIsolationLevel;
-  scanType: PostgresScanType;
-  readerTxId: number;
-  readerSnapshotMinTx: number;
-  readerSnapshotMaxTx: number;
-  concurrentWriterTxId: number;
-  writerCommitted: boolean;
-  visibilityMapAllVisible: boolean;
-  targetAccountId: number;
-  btreeNodes: PostgresBtreeNode[];
-  heapTuples: PostgresHeapTuple[];
-  sharedBuffersHit: number;
-  heapFetchesCount: number;
-  returnedBalanceUsd: number | null;
 }
 
 export interface PostgresSimulationConfig {
   isolationLevel: PostgresIsolationLevel;
   scanType: PostgresScanType;
   targetAccountId: number;
+}
+
+export interface PostgresMvccBtreeState {
+  isolationLevel: PostgresIsolationLevel;
+  scanType: PostgresScanType;
+  targetAccountId: number;
+  readerTxId: number;
+  readerSnapshotMaxTx: number; // for Repeatable Read, snapshots tx id ceiling
+  writerTxId: number;
+  writerCommitted: boolean;
+  visibilityMapAllVisible: boolean; // VM bit for block 0
+  btreeNodes: PostgresBtreeNode[];
+  heapTuples: PostgresHeapTuple[];
+  sharedBuffersHit: number;
+  heapFetchesCount: number;
+  returnedBalanceUsd: number | null;
 }
 
 export type PostgresSimulationCommand =
@@ -59,16 +61,16 @@ export type PostgresSimulationCommand =
   | { type: "SWITCH_ISOLATION_OR_SCAN"; isolationLevel: PostgresIsolationLevel; scanType: PostgresScanType };
 
 function evaluateTupleVisibility(
-  tuple: Omit<PostgresHeapTuple, "isVisibleToReader" | "visibilityReasonVi">,
+  tuple: Omit<PostgresHeapTuple, "isVisibleToReader" | "visibilityReason">,
   isolationLevel: PostgresIsolationLevel,
   writerCommitted: boolean,
   readerSnapshotMaxTx: number,
-): { visible: boolean; reasonVi: string } {
+): { visible: boolean; reason: string } {
   // Tuple created by uncommitted concurrent writer (tx 202)
   if (tuple.xmin === 202 && !writerCommitted) {
     return {
       visible: false,
-      reasonVi: "VÔ HÌNH (Dirty Write): xmin=202 chưa COMMIT nên không giao dịch nào khác được phép đọc.",
+      reason: "INVISIBLE (Dirty Write): xmin=202 is uncommitted; concurrent transactions cannot read it.",
     };
   }
 
@@ -77,15 +79,15 @@ function evaluateTupleVisibility(
     if (isolationLevel === "READ COMMITTED") {
       return {
         visible: true,
-        reasonVi:
-          "HIỂN THỊ (READ COMMITTED): Câu lệnh SELECT mới chụp Snapshot mới sau khi Tx 202 đã COMMIT.",
+        reason:
+          "VISIBLE (READ COMMITTED): Query captured a fresh statement Snapshot after Tx 202 committed.",
       };
     }
     if (tuple.xmin >= readerSnapshotMaxTx) {
       return {
         visible: false,
-        reasonVi:
-          "VÔ HÌNH (REPEATABLE READ Snapshot): Dù Tx 202 đã COMMIT, xmin=202 >= xmax của Snapshot đầu giao dịch (201) nên bị ẩn để chống Non-Repeatable Read.",
+        reason:
+          "INVISIBLE (REPEATABLE READ): Tx 202 committed, but xmin=202 >= transaction snapshot xmax (201); hidden to prevent Non-Repeatable Reads.",
       };
     }
   }
@@ -95,27 +97,27 @@ function evaluateTupleVisibility(
     if (!writerCommitted) {
       return {
         visible: true,
-        reasonVi:
-          "HIỂN THỊ: Dù xmax=202 đang cập nhật dòng này, Tx 202 chưa COMMIT nên bản ghi gốc (xmin=100) vẫn hiển thị.",
+        reason:
+          "VISIBLE: Although xmax=202 is updating this row, Tx 202 is uncommitted. The original tuple (xmin=100) remains visible.",
       };
     }
     if (isolationLevel === "READ COMMITTED") {
       return {
         visible: false,
-        reasonVi:
-          "VÔ HÌNH (Dead Tuple): Tx 202 đã COMMIT việc xóa/cập nhật dòng này (xmax=202 committed) trước Snapshot của câu lệnh hiện tại.",
+        reason:
+          "INVISIBLE (Dead Tuple): Tx 202 committed its update (xmax=202 committed) prior to this query's statement snapshot.",
       };
     }
     return {
       visible: true,
-      reasonVi:
-        "HIỂN THỊ (REPEATABLE READ Snapshot): Bản ghi cũ (xmin=100) vẫn hiển thị vì giao dịch cập nhật xmax=202 hoàn tất sau thời điểm chụp Snapshot đầu giao dịch.",
+      reason:
+        "VISIBLE (REPEATABLE READ): The original tuple (xmin=100) remains visible because xmax=202 committed after this transaction's initial snapshot.",
     };
   }
 
   return {
     visible: true,
-    reasonVi: "HIỂN THỊ: xmin=100 đã COMMIT trước khi giao dịch đọc bắt đầu và xmax=NULL.",
+    reason: "VISIBLE: xmin=100 committed prior to reader transaction start and xmax=NULL.",
   };
 }
 
@@ -131,7 +133,7 @@ function recomputeTuples(
       ...t,
       xmaxCommitted: writerCommitted && t.xmax === 202,
       isVisibleToReader: res.visible,
-      visibilityReasonVi: res.reasonVi,
+      visibilityReason: res.reason,
     };
   });
 }
@@ -152,14 +154,14 @@ function evaluatePostgresInvariants(state: PostgresMvccBtreeState): SimulationIn
       label: "Exactly One Visible Tuple Version per Primary Key in Snapshot",
       passed: uniqueVisibleVersion,
       detail: uniqueVisibleVersion
-        ? `Tại mọi thời điểm, chỉ duy nhất 1 phiên bản Tuple của account_id=${state.targetAccountId} hiển thị với Snapshot hiện tại.`
-        : `Phát hiện ${visibleMatchesForTarget.length} phiên bản hiển thị cùng lúc!`,
+        ? `At all times, exactly 1 Tuple version for account_id=${state.targetAccountId} is visible in the active Snapshot.`
+        : `VIOLATION: ${visibleMatchesForTarget.length} visible tuple versions observed simultaneously!`,
     },
     {
       id: "mvcc-no-dirty-reads",
       label: "Zero Dirty Reads (Uncommitted xmin Never Visible)",
       passed: noDirtyReads,
-      detail: "PostgreSQL không bao giờ cho phép đọc phiên bản Tuple có xmin chưa COMMIT.",
+      detail: "PostgreSQL never permits reading a tuple version whose xmin has not committed.",
     },
   ];
 }
@@ -208,10 +210,10 @@ export const postgresMvccBtreeSimulation: SimulationEngineSpec<
   presets: [
     {
       id: "mvcc-update-read-committed-vs-repeatable",
-      title: "1. UPDATE tạo CTID mới & Sự khác biệt READ COMMITTED vs REPEATABLE READ",
+      title: "1. UPDATE Appends New CTID & READ COMMITTED vs REPEATABLE READ",
       badge: "MVCC Internals",
-      descriptionVi:
-        "Quan sát cách lệnh UPDATE tạo ra phiên bản Tuple mới tại CTID (0,3), đánh dấu xmax=202 lên CTID (0,1), và cách Snapshot kiểm soát tính hiển thị trước/sau khi COMMIT.",
+      description:
+        "Observe how UPDATE appends a new Tuple version at CTID (0,3), sets xmax=202 on CTID (0,1), and how Snapshot timing controls visibility before and after COMMIT.",
       config: {
         isolationLevel: "READ COMMITTED",
         scanType: "IndexScan",
@@ -228,10 +230,10 @@ export const postgresMvccBtreeSimulation: SimulationEngineSpec<
     },
     {
       id: "repeatable-read-snapshot-isolation",
-      title: "2. REPEATABLE READ — Giữ nguyên Snapshot đầu giao dịch sau khi Writer COMMIT",
+      title: "2. REPEATABLE READ — Snapshot Preserved Post-Writer COMMIT",
       badge: "Snapshot Isolation",
-      descriptionVi:
-        "Ở mức cô lập REPEATABLE READ, ngay cả khi Tx 202 đã COMMIT số dư mới $950, giao dịch đọc Tx 201 vẫn nhìn thấy phiên bản cũ $500 tại CTID (0,1) để đảm bảo tính lặp lại.",
+      description:
+        "Under REPEATABLE READ, even after Tx 202 commits a new balance of $950, reader Tx 201 continues seeing the original $500 balance at CTID (0,1) for repeatable consistency.",
       config: {
         isolationLevel: "REPEATABLE READ",
         scanType: "IndexScan",
@@ -242,78 +244,91 @@ export const postgresMvccBtreeSimulation: SimulationEngineSpec<
         { type: "WRITER_UPDATE_ACCOUNT_BALANCE", newBalanceUsd: 950 },
         { type: "WRITER_COMMIT_TRANSACTION" },
         { type: "EXECUTE_READER_SELECT" },
+        { type: "RUN_VACUUM_UPDATE_VISIBILITY_MAP" },
+      ],
+    },
+    {
+      id: "index-only-scan-visibility-map",
+      title: "3. Index-Only Scan & Visibility Map (Heap Fetches = 0)",
+      badge: "Visibility Map (VM)",
+      description:
+        "Compare heap fetches when all_visible = 1 (Heap Fetches = 0) versus after an update clears the bit (Index-Only Scan forced to fetch heap pages).",
+      config: {
+        isolationLevel: "READ COMMITTED",
+        scanType: "IndexOnlyScan",
+        targetAccountId: 42,
+      },
+      scriptedCommands: [
+        { type: "EXECUTE_READER_SELECT" },
+        { type: "WRITER_UPDATE_ACCOUNT_BALANCE", newBalanceUsd: 1200 },
+        { type: "WRITER_COMMIT_TRANSACTION" },
+        { type: "EXECUTE_READER_SELECT" },
+        { type: "RUN_VACUUM_UPDATE_VISIBILITY_MAP" },
+        { type: "EXECUTE_READER_SELECT" },
       ],
     },
   ],
 
   createInitialFrame(config: PostgresSimulationConfig): SimulationStepFrame<PostgresMvccBtreeState> {
-    const initialTuplesRaw: PostgresHeapTuple[] = [
+    const rawTuples: PostgresHeapTuple[] = [
       {
         ctid: "(0,1)",
-        blockNumber: 0,
-        offsetNumber: 1,
         accountId: 42,
         balanceUsd: 500,
-        xmin: 100,
+        xmin: 100, // committed in past
         xmax: null,
         xmaxCommitted: false,
         isVisibleToReader: true,
-        visibilityReasonVi: "",
+        visibilityReason: "VISIBLE: xmin=100 committed prior to reader transaction start.",
       },
       {
         ctid: "(0,2)",
-        blockNumber: 0,
-        offsetNumber: 2,
-        accountId: 43,
-        balanceUsd: 1200,
-        xmin: 100,
+        accountId: 18,
+        balanceUsd: 120,
+        xmin: 90,
         xmax: null,
         xmaxCommitted: false,
         isVisibleToReader: true,
-        visibilityReasonVi: "",
+        visibilityReason: "VISIBLE: xmin=90 committed prior to reader transaction start.",
       },
       {
         ctid: "(1,1)",
-        blockNumber: 1,
-        offsetNumber: 1,
-        accountId: 88,
-        balanceUsd: 340,
-        xmin: 100,
+        accountId: 85,
+        balanceUsd: 3400,
+        xmin: 95,
         xmax: null,
         xmaxCommitted: false,
         isVisibleToReader: true,
-        visibilityReasonVi: "",
+        visibilityReason: "VISIBLE: xmin=95 committed prior to reader transaction start.",
       },
     ];
 
-    const tuples = recomputeTuples(initialTuplesRaw, config.isolationLevel, false, 201);
-
     const btreeNodes: PostgresBtreeNode[] = [
       {
-        pageNumber: 1,
-        level: "ROOT",
-        keyRangeLabel: "Root Page (Keys 1..100)",
+        pageNumber: 0,
+        level: "Root",
         entries: [
-          { key: 42, targetCtid: "Leaf Page #2" },
-          { key: 88, targetCtid: "Leaf Page #3" },
+          { key: 1, targetCtid: "Page 1 (Leaf)" },
+          { key: 50, targetCtid: "Page 2 (Leaf)" },
         ],
+        keyRangeLabel: "Root Page (B-Tree Metapage -> Level 1)",
+        visitedInCurrentScan: false,
+      },
+      {
+        pageNumber: 1,
+        level: "Leaf",
+        entries: [
+          { key: 18, targetCtid: "(0,2)" },
+          { key: 42, targetCtid: "(0,1)" },
+        ],
+        keyRangeLabel: "Leaf Page #1 [Keys 1..49]",
         visitedInCurrentScan: false,
       },
       {
         pageNumber: 2,
-        level: "LEAF",
-        keyRangeLabel: "Leaf Page #2 (Keys 1..50)",
-        entries: [
-          { key: 42, targetCtid: "(0,1)" },
-          { key: 43, targetCtid: "(0,2)" },
-        ],
-        visitedInCurrentScan: false,
-      },
-      {
-        pageNumber: 3,
-        level: "LEAF",
-        keyRangeLabel: "Leaf Page #3 (Keys 51..100)",
-        entries: [{ key: 88, targetCtid: "(1,1)" }],
+        level: "Leaf",
+        entries: [{ key: 85, targetCtid: "(1,1)" }],
+        keyRangeLabel: "Leaf Page #2 [Keys 50..100]",
         visitedInCurrentScan: false,
       },
     ];
@@ -321,15 +336,14 @@ export const postgresMvccBtreeSimulation: SimulationEngineSpec<
     const state: PostgresMvccBtreeState = {
       isolationLevel: config.isolationLevel,
       scanType: config.scanType,
+      targetAccountId: config.targetAccountId,
       readerTxId: 201,
-      readerSnapshotMinTx: 100,
       readerSnapshotMaxTx: 201,
-      concurrentWriterTxId: 202,
+      writerTxId: 202,
       writerCommitted: false,
       visibilityMapAllVisible: true,
-      targetAccountId: config.targetAccountId,
       btreeNodes,
-      heapTuples: tuples,
+      heapTuples: rawTuples,
       sharedBuffersHit: 0,
       heapFetchesCount: 0,
       returnedBalanceUsd: 500,
@@ -337,22 +351,22 @@ export const postgresMvccBtreeSimulation: SimulationEngineSpec<
 
     return {
       tick: 0,
-      phase: "Initial Clean Heap & B-Tree",
-      title: `Khởi tạo bảng accounts (8 KB Heap Pages + B-Tree Index pk_accounts)`,
+      phase: "Initial State (accounts table + pk_accounts index)",
+      title: "Initialized accounts Table (8 KB Heap Pages + B-Tree Index pk_accounts)",
       state,
       events: [
         {
           tick: 0,
-          actor: "PostgreSQL Engine",
-          action: "INIT_SNAPSHOT",
-          detail: `Giao dịch đọc Tx 201 khởi tạo ở mức cô lập ${config.isolationLevel}. Visibility Map = ALL_VISIBLE.`,
-          tone: "ok",
+          actor: "PostgresStorage",
+          action: "PAGE_INIT",
+          detail: `Reader Tx 201 initialized under ${config.isolationLevel}. Visibility Map = ALL_VISIBLE.`,
+          tone: "info",
         },
       ],
       invariants: evaluatePostgresInvariants(state),
       narration: {
-        summaryVi: `Bảng "accounts" đang chứa bản ghi account_id = 42 tại vị trí vật lý CTID (0,1) với xmin = 100 (đã commit), xmax = NULL và số dư $500. B-Tree Leaf Page #2 trỏ trực tiếp khóa 42 -> CTID (0,1).`,
-        internalsNoteVi: `Trong PostgreSQL, mỗi bảng và chỉ mục được chia thành các trang 8 KB (8192 bytes). CTID (0,1) có nghĩa là Block số 0, con trỏ dòng (Line Pointer) số 1.`,
+        summary: `Table "accounts" contains record account_id = 42 at physical CTID (0,1) with xmin = 100 (committed), xmax = NULL, and balance $500. B-Tree Leaf Page #1 points directly: Key 42 -> CTID (0,1).`,
+        internalsNote: `In PostgreSQL, tables and indexes are divided into 8 KB (8192 bytes) slotted pages. CTID (0,1) indicates Block 0, Line Pointer 1.`,
       },
       metrics: computePostgresMetrics(state),
     };
@@ -364,20 +378,21 @@ export const postgresMvccBtreeSimulation: SimulationEngineSpec<
   ): SimulationStepFrame<PostgresMvccBtreeState> {
     const nextTick = currentFrame.tick + 1;
     const prev = currentFrame.state;
-    const btreeNodes = prev.btreeNodes.map((n) => ({
+    const clonedTuples: PostgresHeapTuple[] = prev.heapTuples.map((t) => ({ ...t }));
+    const clonedBtree: PostgresBtreeNode[] = prev.btreeNodes.map((n) => ({
       ...n,
-      entries: n.entries.map((e) => ({ ...e })),
+      entries: [...n.entries],
     }));
 
     if (command.type === "EXECUTE_READER_SELECT") {
-      const tuples = recomputeTuples(
-        prev.heapTuples,
+      const tuplesWithVis = recomputeTuples(
+        clonedTuples,
         prev.isolationLevel,
         prev.writerCommitted,
         prev.readerSnapshotMaxTx,
       );
 
-      const visibleTarget = tuples.find(
+      const visibleTarget = tuplesWithVis.find(
         (t) => t.accountId === prev.targetAccountId && t.isVisibleToReader,
       );
 
@@ -385,31 +400,33 @@ export const postgresMvccBtreeSimulation: SimulationEngineSpec<
       let heapFetches = 0;
 
       if (prev.scanType === "SeqScan") {
-        btreeNodes.forEach((n) => {
-          n.visitedInCurrentScan = false;
-        });
-        buffersRead = 2; // Reads Heap Block 0 and Block 1
-        heapFetches = tuples.length;
-      } else if (prev.scanType === "IndexOnlyScan" && prev.visibilityMapAllVisible) {
-        btreeNodes.forEach((n) => {
-          n.visitedInCurrentScan = n.pageNumber === 1 || n.pageNumber === 2;
-        });
-        buffersRead = 2; // Root + Leaf #2 only; skips Heap because VM is ALL_VISIBLE!
-        heapFetches = 0;
-      } else {
-        // IndexScan (or IndexOnlyScan when VM is dirty)
-        btreeNodes.forEach((n) => {
-          n.visitedInCurrentScan = n.pageNumber === 1 || n.pageNumber === 2;
-        });
-        const candidateVersions = tuples.filter((t) => t.accountId === prev.targetAccountId).length;
-        buffersRead = 2 + 1; // B-Tree Root + Leaf #2 + Heap Block 0
-        heapFetches = candidateVersions;
+        buffersRead = 2; // Reads Block 0 and Block 1
+        heapFetches = 2;
+        clonedBtree.forEach((n) => (n.visitedInCurrentScan = false));
+      } else if (prev.scanType === "IndexScan") {
+        buffersRead = 3; // B-Tree Root (Page 0) + B-Tree Leaf (Page 1) + Heap Block 0
+        heapFetches = 1;
+        clonedBtree[0].visitedInCurrentScan = true;
+        clonedBtree[1].visitedInCurrentScan = true;
+        clonedBtree[2].visitedInCurrentScan = false;
+      } else if (prev.scanType === "IndexOnlyScan") {
+        clonedBtree[0].visitedInCurrentScan = true;
+        clonedBtree[1].visitedInCurrentScan = true;
+        clonedBtree[2].visitedInCurrentScan = false;
+
+        if (prev.visibilityMapAllVisible) {
+          buffersRead = 2; // Root + Leaf only! 0 Heap Reads
+          heapFetches = 0;
+        } else {
+          buffersRead = 3; // Forced to fetch Heap Block 0 to check xmin/xmax
+          heapFetches = 1;
+        }
       }
 
       const nextState: PostgresMvccBtreeState = {
         ...prev,
-        btreeNodes,
-        heapTuples: tuples,
+        heapTuples: tuplesWithVis,
+        btreeNodes: clonedBtree,
         sharedBuffersHit: buffersRead,
         heapFetchesCount: heapFetches,
         returnedBalanceUsd: visibleTarget?.balanceUsd ?? null,
@@ -417,69 +434,60 @@ export const postgresMvccBtreeSimulation: SimulationEngineSpec<
 
       return {
         tick: nextTick,
-        phase: `SELECT (${prev.scanType}) -> $${visibleTarget?.balanceUsd ?? "null"}`,
-        title: `Tx 201 chạy SELECT: trả về $${visibleTarget?.balanceUsd ?? "null"} từ CTID ${visibleTarget?.ctid ?? "N/A"} (${buffersRead} buffers hit)`,
+        phase: `Executed SELECT via ${prev.scanType}`,
+        title: `Tx 201 SELECT: returned $${visibleTarget?.balanceUsd ?? "null"} from CTID ${visibleTarget?.ctid ?? "N/A"} (${buffersRead} buffers hit)`,
         state: nextState,
         events: [
           ...currentFrame.events,
           {
             tick: nextTick,
-            actor: "Reader Tx 201",
-            action: `EXECUTE_${prev.scanType.toUpperCase()}`,
-            detail: `Đọc ${buffersRead} trang 8 KB (Heap Fetches = ${heapFetches}). Phiên bản hiển thị: CTID ${visibleTarget?.ctid} ($${visibleTarget?.balanceUsd}).`,
-            tone: "info",
+            actor: "QueryExecutor",
+            action: `${prev.scanType.toUpperCase()}_SCAN`,
+            detail: `Read ${buffersRead} 8 KB page(s) (Heap Fetches = ${heapFetches}). Visible version: CTID ${visibleTarget?.ctid} ($${visibleTarget?.balanceUsd}).`,
+            tone: "ok",
           },
         ],
         invariants: evaluatePostgresInvariants(nextState),
         narration: {
-          summaryVi: `Giao dịch đọc Tx 201 thực thi câu lệnh SELECT với phương thức ${prev.scanType}. Kết quả trả về số dư $${visibleTarget?.balanceUsd} từ phiên bản Tuple tại CTID ${visibleTarget?.ctid}.`,
-          internalsNoteVi:
+          summary: `Reader Tx 201 executed SELECT via ${prev.scanType}. Result returned balance $${visibleTarget?.balanceUsd} from Tuple version at CTID ${visibleTarget?.ctid}.`,
+          internalsNote:
             prev.scanType === "IndexOnlyScan" && !prev.visibilityMapAllVisible
-              ? `LƯU Ý QUAN TRỌNG: Dù chọn IndexOnlyScan, vì trang Heap Block 0 vừa có UPDATE nên bit all_visible trong Visibility Map = 0. PostgreSQL BẮT BUỘC phải đọc xuống Heap Block 0 (Heap Fetches = ${heapFetches}) để kiểm tra xmin/xmax!`
-              : `B-Tree Index bản thân nó không lưu thông tin giao dịch xmin/xmax. Do đó Index Scan luôn phải đối chiếu xuống Heap Tuple (trừ khi Visibility Map xác nhận toàn bộ trang đã hiển thị với mọi giao dịch).`,
+              ? `CRITICAL FIDELITY NOTE: Despite IndexOnlyScan, recent updates on Block 0 cleared the Visibility Map all_visible bit to 0. PostgreSQL WAS FORCED to fetch Heap Block 0 (Heap Fetches = ${heapFetches}) to evaluate xmin/xmax visibility!`
+              : `B-Tree indexes do not store transaction xmin/xmax metadata. Index scans must verify tuple visibility against heap pages (unless the Visibility Map confirms all tuples are universally visible).`,
         },
         metrics: computePostgresMetrics(nextState),
       };
     }
 
     if (command.type === "WRITER_UPDATE_ACCOUNT_BALANCE") {
-      const updatedRaw = prev.heapTuples
-        .filter((t) => t.ctid !== "(0,3)")
-        .map((t) => {
-          if (t.ctid === "(0,1)") {
-            return {
-              ...t,
-              xmax: 202,
-            };
-          }
-          return { ...t };
-        });
+      const oldTuple = clonedTuples.find(
+        (t) => t.accountId === prev.targetAccountId && t.xmax === null,
+      );
 
-      updatedRaw.push({
+      if (oldTuple) {
+        oldTuple.xmax = prev.writerTxId;
+      }
+
+      const newTuple: PostgresHeapTuple = {
         ctid: "(0,3)",
-        blockNumber: 0,
-        offsetNumber: 3,
-        accountId: 42,
+        accountId: prev.targetAccountId,
         balanceUsd: command.newBalanceUsd,
-        xmin: 202,
+        xmin: prev.writerTxId,
         xmax: null,
         xmaxCommitted: false,
         isVisibleToReader: false,
-        visibilityReasonVi: "",
-      });
+        visibilityReason: "",
+      };
+      clonedTuples.push(newTuple);
 
-      // Leaf page #2 now also points to the new tuple version (0,3)
-      for (const node of btreeNodes) {
-        if (node.pageNumber === 2) {
-          const has03 = node.entries.some((e) => e.targetCtid === "(0,3)");
-          if (!has03) {
-            node.entries.push({ key: 42, targetCtid: "(0,3)" });
-          }
-        }
+      const leaf1 = clonedBtree[1];
+      const entryIdx = leaf1.entries.findIndex((e) => e.key === prev.targetAccountId);
+      if (entryIdx !== -1) {
+        leaf1.entries[entryIdx].targetCtid = "(0,3)";
       }
 
-      const tuples = recomputeTuples(
-        updatedRaw,
+      const tuplesWithVis = recomputeTuples(
+        clonedTuples,
         prev.isolationLevel,
         false,
         prev.readerSnapshotMaxTx,
@@ -488,99 +496,86 @@ export const postgresMvccBtreeSimulation: SimulationEngineSpec<
       const nextState: PostgresMvccBtreeState = {
         ...prev,
         writerCommitted: false,
-        visibilityMapAllVisible: false, // Page 0 is now modified, VM bit cleared!
-        btreeNodes,
-        heapTuples: tuples,
+        visibilityMapAllVisible: false,
+        heapTuples: tuplesWithVis,
+        btreeNodes: clonedBtree,
       };
 
       return {
         tick: nextTick,
-        phase: "Concurrent UPDATE (Uncommitted Tx 202)",
-        title: `Writer Tx 202 chạy UPDATE balance = $${command.newBalanceUsd} -> ghi Tuple mới tại CTID (0,3)`,
+        phase: `Writer Tx 202 UPDATE balance=$${command.newBalanceUsd} (Uncommitted)`,
+        title: `Writer Tx 202 executed UPDATE balance = $${command.newBalanceUsd} -> appended Tuple at CTID (0,3)`,
         state: nextState,
         events: [
           ...currentFrame.events,
           {
             tick: nextTick,
-            actor: "Writer Tx 202",
-            action: "HEAP_UPDATE_APPEND_TUPLE",
-            detail: `Đánh dấu xmax=202 trên CTID (0,1), chèn bản ghi mới CTID (0,3) với xmin=202 ($${command.newBalanceUsd}) và xóa bit Visibility Map của Block 0.`,
+            actor: "WriterTx202",
+            action: "HEAP_INSERT_TUPLE_VERSION",
+            detail: `Stamped xmax=202 on CTID (0,1), appended new version CTID (0,3) with xmin=202 ($${command.newBalanceUsd}), and cleared Visibility Map bit for Block 0.`,
             tone: "warn",
           },
         ],
         invariants: evaluatePostgresInvariants(nextState),
         narration: {
-          summaryVi: `Giao dịch ghi Tx 202 thực hiện UPDATE account_id = 42 lên $${command.newBalanceUsd} (chưa COMMIT). PostgreSQL KHÔNG ghi đè lên CTID (0,1); thay vào đó nó gán xmax = 202 vào CTID (0,1) và ghi thêm một Tuple vật lý mới tại CTID (0,3) với xmin = 202!`,
-          internalsNoteVi: `Vì Tx 202 chưa COMMIT, đối với Tx 201 thì CTID (0,3) là vô hình (Dirty Write), còn CTID (0,1) vẫn hiển thị bình thường với giá trị $500 mà không hề bị khóa chặn lệnh đọc (Readers do not block Writers, Writers do not block Readers).`,
+          summary: `Writer Tx 202 executed UPDATE account_id = 42 to $${command.newBalanceUsd} (uncommitted). PostgreSQL DID NOT overwrite CTID (0,1); it stamped xmax = 202 on CTID (0,1) and appended a physical tuple version at CTID (0,3) with xmin = 202!`,
+          internalsNote: `Because Tx 202 has not committed, CTID (0,3) is invisible to Tx 201 (Dirty Write), while CTID (0,1) remains visible with value $500 without reader locking (Readers do not block Writers, Writers do not block Readers).`,
         },
         metrics: computePostgresMetrics(nextState),
       };
     }
 
     if (command.type === "WRITER_COMMIT_TRANSACTION") {
-      const nextSnapshotMax = prev.isolationLevel === "READ COMMITTED" ? 203 : prev.readerSnapshotMaxTx;
-      const tuples = recomputeTuples(
-        prev.heapTuples,
+      const tuplesWithVis = recomputeTuples(
+        clonedTuples,
         prev.isolationLevel,
         true,
-        nextSnapshotMax,
-      );
-      const visibleTarget = tuples.find(
-        (t) => t.accountId === prev.targetAccountId && t.isVisibleToReader,
+        prev.readerSnapshotMaxTx,
       );
 
       const nextState: PostgresMvccBtreeState = {
         ...prev,
         writerCommitted: true,
-        readerSnapshotMaxTx: nextSnapshotMax,
-        heapTuples: tuples,
-        returnedBalanceUsd: visibleTarget?.balanceUsd ?? prev.returnedBalanceUsd,
+        heapTuples: tuplesWithVis,
       };
+
+      const outcomeNote =
+        prev.isolationLevel === "READ COMMITTED"
+          ? "Tx 202 committed. Under READ COMMITTED, the next statement from Tx 201 will see CTID (0,3) = $950."
+          : "Tx 202 committed. But under REPEATABLE READ, Tx 201 retains its initial Snapshot (xmax=201) and continues seeing CTID (0,1) = $500!";
 
       return {
         tick: nextTick,
-        phase: `Writer Tx 202 COMMITTED (${prev.isolationLevel})`,
-        title: `Writer Tx 202 COMMIT vào WAL -> Kiểm tra tính hiển thị dưới ${prev.isolationLevel}`,
+        phase: `Writer Tx 202 Committed to WAL`,
+        title: `Writer Tx 202 Committed to WAL -> Visibility Evaluated under ${prev.isolationLevel}`,
         state: nextState,
         events: [
           ...currentFrame.events,
           {
             tick: nextTick,
-            actor: "Writer Tx 202",
-            action: "XACT_COMMIT_WAL_FLUSH",
-            detail:
-              prev.isolationLevel === "READ COMMITTED"
-                ? "Tx 202 đã COMMIT. Dưới READ COMMITTED, câu lệnh tiếp theo của Tx 201 sẽ nhìn thấy CTID (0,3) = $950."
-                : "Tx 202 đã COMMIT. Nhưng dưới REPEATABLE READ, Tx 201 giữ Snapshot cũ (xmax=201) nên tiếp tục nhìn thấy CTID (0,1) = $500!",
+            actor: "WALWriter",
+            action: "TX_COMMIT_FLUSH",
+            detail: outcomeNote,
             tone: "ok",
           },
         ],
         invariants: evaluatePostgresInvariants(nextState),
         narration: {
-          summaryVi:
+          summary:
             prev.isolationLevel === "READ COMMITTED"
-              ? `Tx 202 đã COMMIT thành công. Vì Tx 201 đang ở mức READ COMMITTED, câu lệnh SELECT tiếp theo sẽ lấy một Snapshot mới và nhìn thấy phiên bản mới CTID (0,3) với số dư $950 (trong khi CTID (0,1) trở thành Dead Tuple).`
-              : `Tx 202 đã COMMIT thành công. Tuy nhiên, vì Tx 201 đang ở mức REPEATABLE READ, nó vẫn giữ nguyên Snapshot được chụp từ đầu giao dịch (chỉ thấy các XID < 201). Do đó CTID (0,3) (xmin=202) bị ẩn và Tx 201 vẫn đọc được $500 từ CTID (0,1)!`,
-          internalsNoteVi: `Đây chính là bản chất của Multi-Version Concurrency Control (MVCC): cùng một thời điểm trên cùng một trang 8 KB, hai giao dịch ở hai mức cô lập khác nhau có thể đọc hai phiên bản vật lý khác nhau của cùng một dòng dữ liệu mà không cần đặt khóa đọc!`,
+              ? `Tx 202 committed successfully. Because Tx 201 operates under READ COMMITTED, its subsequent SELECT statement takes a fresh Snapshot and reads the new CTID (0,3) version with balance $950 (CTID (0,1) becomes a Dead Tuple).`
+              : `Tx 202 committed successfully. However, because Tx 201 operates under REPEATABLE READ, it retains the Snapshot captured at transaction start (visible XIDs < 201). Thus CTID (0,3) (xmin=202) is invisible, and Tx 201 still reads $500 from CTID (0,1)!`,
+          internalsNote: `This illustrates Multi-Version Concurrency Control (MVCC): concurrently on the same 8 KB page, two transactions under different isolation levels read two distinct physical versions of the same logical row without read locks!`,
         },
         metrics: computePostgresMetrics(nextState),
       };
     }
 
     if (command.type === "RUN_VACUUM_UPDATE_VISIBILITY_MAP") {
-      // If writer committed, VACUUM reclaims dead tuple (0,1) and sets VM bit all_visible = true
-      const cleanedRaw = prev.writerCommitted
-        ? prev.heapTuples.filter((t) => t.ctid !== "(0,1)")
-        : prev.heapTuples.map((t) => ({ ...t }));
+      const cleanedTuples = clonedTuples.filter((t) => !(t.ctid === "(0,1)" && prev.writerCommitted));
 
-      for (const node of btreeNodes) {
-        if (node.pageNumber === 2 && prev.writerCommitted) {
-          node.entries = node.entries.filter((e) => e.targetCtid !== "(0,1)");
-        }
-      }
-
-      const tuples = recomputeTuples(
-        cleanedRaw,
+      const tuplesWithVis = recomputeTuples(
+        cleanedTuples,
         prev.isolationLevel,
         prev.writerCommitted,
         prev.readerSnapshotMaxTx,
@@ -589,76 +584,68 @@ export const postgresMvccBtreeSimulation: SimulationEngineSpec<
       const nextState: PostgresMvccBtreeState = {
         ...prev,
         visibilityMapAllVisible: true,
-        btreeNodes,
-        heapTuples: tuples,
+        heapTuples: tuplesWithVis,
       };
 
       return {
         tick: nextTick,
-        phase: "VACUUM Reclaimed Dead Tuple & Set VM=1",
-        title: `VACUUM thu hồi Dead Tuple CTID (0,1) và bật bit ALL_VISIBLE trong Visibility Map`,
+        phase: `Autovacuum Completed (all_visible = 1)`,
+        title: `VACUUM Reclaimed Dead Tuple CTID (0,1) & Enabled ALL_VISIBLE Bit in Visibility Map`,
         state: nextState,
         events: [
           ...currentFrame.events,
           {
             tick: nextTick,
-            actor: "Autovacuum Worker",
-            action: "VACUUM_AND_SET_VM",
+            actor: "AutovacuumWorker",
+            action: "VACUUM_PRUNE_AND_UPDATE_VM",
             detail:
-              "Đã dọn dẹp Dead Tuple (0,1), gỡ con trỏ khỏi B-Tree Leaf #2 và bật bit Visibility Map = ALL_VISIBLE.",
+              "Cleaned Dead Tuple (0,1), pruned B-Tree index pointers, and set Visibility Map = ALL_VISIBLE.",
             tone: "ok",
           },
         ],
         invariants: evaluatePostgresInvariants(nextState),
         narration: {
-          summaryVi: `Tiến trình VACUUM đã dọn dẹp phiên bản cũ không còn giao dịch nào tham chiếu (Dead Tuple tại CTID (0,1)) và bật lại bit ALL_VISIBLE = 1 trên Visibility Map cho Heap Block 0.`,
-          internalsNoteVi: `Sau khi VACUUM cập nhật Visibility Map, các truy vấn Index-Only Scan tiếp theo có thể trả kết quả trực tiếp từ trang lá B-Tree (Heap Fetches = 0) mà không cần đọc xuống Heap Block 0.`,
+          summary: `VACUUM pruned unreferenced historical versions (Dead Tuple at CTID (0,1)) and set the ALL_VISIBLE = 1 bit on the Visibility Map for Heap Block 0.`,
+          internalsNote: `With the Visibility Map updated, subsequent Index-Only Scans return data directly from B-Tree leaf pages (Heap Fetches = 0) without accessing Heap Block 0.`,
         },
         metrics: computePostgresMetrics(nextState),
       };
     }
 
     if (command.type === "SWITCH_ISOLATION_OR_SCAN") {
-      const nextSnapshotMax =
-        command.isolationLevel === "READ COMMITTED" && prev.writerCommitted ? 203 : 201;
-      const tuples = recomputeTuples(
-        prev.heapTuples,
+      const tuplesWithVis = recomputeTuples(
+        clonedTuples,
         command.isolationLevel,
         prev.writerCommitted,
-        nextSnapshotMax,
-      );
-      const visibleTarget = tuples.find(
-        (t) => t.accountId === prev.targetAccountId && t.isVisibleToReader,
+        prev.readerSnapshotMaxTx,
       );
 
       const nextState: PostgresMvccBtreeState = {
         ...prev,
         isolationLevel: command.isolationLevel,
         scanType: command.scanType,
-        readerSnapshotMaxTx: nextSnapshotMax,
-        heapTuples: tuples,
-        returnedBalanceUsd: visibleTarget?.balanceUsd ?? prev.returnedBalanceUsd,
+        heapTuples: tuplesWithVis,
       };
 
       return {
         tick: nextTick,
-        phase: `${command.isolationLevel} | ${command.scanType}`,
-        title: `Đổi cấu hình sang ${command.isolationLevel} và ${command.scanType}`,
+        phase: `Configuration Switched (${command.isolationLevel}, ${command.scanType})`,
+        title: `Switched Configuration to ${command.isolationLevel} & ${command.scanType}`,
         state: nextState,
         events: [
           ...currentFrame.events,
           {
             tick: nextTick,
-            actor: "Playground",
-            action: "CHANGE_SCAN_OR_ISOLATION",
-            detail: `Cấu hình hiện tại: ${command.isolationLevel}, Access Path = ${command.scanType}.`,
+            actor: "SessionConfig",
+            action: "SET_ISOLATION_LEVEL",
+            detail: `Active configuration: ${command.isolationLevel}, Access Path = ${command.scanType}.`,
             tone: "info",
           },
         ],
         invariants: evaluatePostgresInvariants(nextState),
         narration: {
-          summaryVi: `Đã chuyển cấu hình phiên đọc sang mức cô lập "${command.isolationLevel}" và chiến lược quét "${command.scanType}". Hãy bấm "Execute Reader SELECT" để quan sát số trang 8 KB được đọc và phiên bản Tuple trả về.`,
-          internalsNoteVi: `Hãy thử chuyển qua lại giữa READ COMMITTED và REPEATABLE READ sau khi Writer Tx 202 đã COMMIT để thấy hiệu ứng dịch chuyển hiển thị giữa CTID (0,1) và CTID (0,3).`,
+          summary: `Switched reader configuration to isolation level "${command.isolationLevel}" and access path "${command.scanType}". Click "Execute Reader SELECT" to observe 8 KB page reads and returned tuple versions.`,
+          internalsNote: `Toggle between READ COMMITTED and REPEATABLE READ after Writer Tx 202 commits to observe the visibility shift between CTID (0,1) and CTID (0,3).`,
         },
         metrics: computePostgresMetrics(nextState),
       };
