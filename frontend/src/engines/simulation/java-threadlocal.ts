@@ -277,10 +277,10 @@ export const javaThreadLocalEngine: SimulationEngineSpec<
           "In Java, every Thread object has an internal field: ThreadLocal.ThreadLocalMap threadLocals. Because web servers (Tomcat, Netty) reuse worker threads for months, failing to clean ThreadLocal values causes catastrophic memory leaks.",
         summaryEn:
           "In Java, every Thread object has an internal field: ThreadLocal.ThreadLocalMap threadLocals. Because web servers (Tomcat, Netty) reuse worker threads for months, failing to clean ThreadLocal values causes catastrophic memory leaks.",
-        summaryVi:
-          "Trong Java, mỗi đối tượng Thread sở hữu một trường nội bộ: ThreadLocal.ThreadLocalMap threadLocals. Do các Web Server (Tomcat, Netty) tái sử dụng worker thread liên tục trong nhiều tháng, việc không dọn dẹp ThreadLocal sau mỗi request sẽ gây ra rò rỉ bộ nhớ (Memory Leak) nghiêm trọng.",
-        productionWarningVi:
-          "Quy tắc vàng: Bất kỳ mã nguồn nào gọi threadLocal.set(...) BẮT BUỘC phải đi kèm try { ... } finally { threadLocal.remove(); }!",
+        productionWarning:
+          "Golden Rule: Any code calling threadLocal.set(...) MUST be enclosed in try { ... } finally { threadLocal.remove(); }!",
+        productionWarningEn:
+          "Golden Rule: Any code calling threadLocal.set(...) MUST be enclosed in try { ... } finally { threadLocal.remove(); }!",
       },
       metrics: {
         "Pooled Workers": workers.length,
@@ -296,8 +296,7 @@ export const javaThreadLocalEngine: SimulationEngineSpec<
     const state = JSON.parse(JSON.stringify(frame.state)) as JavaThreadLocalState;
     const events = [...frame.events];
     let narrationEn = "";
-    let narrationVi = "";
-    let prodWarningVi: string | undefined = undefined;
+    let prodWarningEn: string | undefined = undefined;
 
     switch (command.type) {
       case "SUBMIT_HTTP_REQUEST": {
@@ -326,7 +325,6 @@ export const javaThreadLocalEngine: SimulationEngineSpec<
         });
 
         narrationEn = `Worker thread accepted ${reqId} and called threadLocal.set(...). An Entry was added to Thread.currentThread().threadLocals with a WeakReference key and StrongReference value.`;
-        narrationVi = `Worker thread đón nhận ${reqId} và gọi threadLocal.set(...). Một Entry được thêm vào Thread.currentThread().threadLocals với Key là WeakReference và Value là StrongReference.`;
         break;
       }
 
@@ -354,8 +352,6 @@ export const javaThreadLocalEngine: SimulationEngineSpec<
 
         narrationEn =
           "The method ended and the local ThreadLocal variable on the stack was popped. Now the only reference to the ThreadLocal object is the WeakReference key in ThreadLocalMap!";
-        narrationVi =
-          "Phương thức kết thúc, biến cục bộ ThreadLocal trên call stack bị giải phóng. Lúc này, chỉ còn duy nhất WeakReference trong ThreadLocalMap trỏ tới nó!";
         break;
       }
 
@@ -408,10 +404,8 @@ export const javaThreadLocalEngine: SimulationEngineSpec<
 
         narrationEn =
           "CRITICAL MEMORY LEAK EXPOSED: During GC, because the key was a WeakReference with no strong roots, the key was collected (key == null). HOWEVER, Entry.value is still strongly reachable through Thread -> ThreadLocalMap -> Entry -> Value. Since worker threads never die, this 50 MB payload can NEVER be garbage collected!";
-        narrationVi =
-          "RÒ RỈ BỘ NHỚ CHẾT NGƯỜI: Khi GC quét qua, do Key là WeakReference và không còn ai giữ strong ref, Key bị thu hồi thành (key == null). TUY NHIÊN, Entry.value vẫn là StrongReference nối từ Thread -> ThreadLocalMap -> Entry -> Value. Vì worker thread không bao giờ chết, 50 MB này KHÔNG BAO GIỜ được dọn dẹp!";
-        prodWarningVi =
-          "Trong các Web App lớn, việc rò rỉ này kéo theo ClassLoader của ứng dụng, khiến Redeploy ứng dụng trên Tomcat nhanh chóng dẫn tới java.lang.OutOfMemoryError: Metaspace!";
+        prodWarningEn =
+          "In enterprise web applications, leaking ThreadLocal values holds onto application ClassLoaders, quickly resulting in java.lang.OutOfMemoryError: Metaspace during application redeployments!";
         break;
       }
 
@@ -434,8 +428,6 @@ export const javaThreadLocalEngine: SimulationEngineSpec<
 
         narrationEn =
           "BULLETPROOF DISCIPLINE: Calling threadLocal.remove() inside a finally block explicitly removes both key and value from ThreadLocalMap. The permanent worker thread is clean and ready for the next request!";
-        narrationVi =
-          "KỶ LUẬT THÉP: Gọi threadLocal.remove() trong khối finally xóa sạch cả Key lẫn Value ra khỏi ThreadLocalMap. Worker thread hoàn toàn trong sạch, sẵn sàng đón nhận request tiếp theo mà không rò rỉ 1 byte nào!";
         break;
       }
 
@@ -459,9 +451,7 @@ export const javaThreadLocalEngine: SimulationEngineSpec<
         });
 
         narrationEn =
-          "SoftReference Semantics: SoftReferences are retained as long as memory is sufficient, but guaranteed to be collected before an OutOfMemoryError is thrown (perfect for LRU caches). PhantomReferences are enqueued on ReferenceQueue for native cleanup.";
-        narrationVi =
-          "Ngữ nghĩa SoftReference: SoftReference được giữ lại miễn là bộ nhớ còn đủ, nhưng cam kết sẽ bị thu hồi trước khi JVM ném OutOfMemoryError (rất thích hợp làm cache). PhantomReference được đưa vào ReferenceQueue để phục vụ dọn dẹp tài nguyên native.";
+          "SoftReference Semantics: SoftReferences are retained as long as memory is sufficient, but guaranteed to be collected before an OutOfMemoryError is thrown (ideal for LRU caches). PhantomReferences are enqueued on ReferenceQueue for native cleanup.";
         break;
       }
     }
@@ -478,8 +468,8 @@ export const javaThreadLocalEngine: SimulationEngineSpec<
       narration: {
         summary: narrationEn || frame.narration.summary,
         summaryEn: narrationEn || frame.narration.summaryEn,
-        summaryVi: narrationVi || frame.narration.summaryVi,
-        productionWarningVi: prodWarningVi || frame.narration.productionWarningVi,
+        productionWarning: prodWarningEn || frame.narration.productionWarning,
+        productionWarningEn: prodWarningEn || frame.narration.productionWarningEn,
       },
       metrics: {
         "Leaked Heap": `${state.totalLeakedMb} MB`,

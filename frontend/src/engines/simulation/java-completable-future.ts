@@ -356,10 +356,6 @@ export const javaCompletableFutureEngine: SimulationEngineSpec<
           "The CompletableFuture pipeline DAG has been assembled. Notice the Main Thread does NOT block: execution will be orchestrated asynchronously across thread pools.",
         summaryEn:
           "The CompletableFuture pipeline DAG has been assembled. Notice the Main Thread does NOT block: execution will be orchestrated asynchronously across thread pools.",
-        summaryVi:
-          "Đồ thị pipeline CompletableFuture đã được thiết lập. Lưu ý luồng chính (Main/HTTP Thread) HOÀN TOÀN KHÔNG bị chặn (non-blocking), các tác vụ sẽ được điều phối bất đồng bộ.",
-        productionWarningVi:
-          "Tránh gọi .get() hoặc .join() trên luồng xử lý HTTP request của Tomcat/Jetty vì sẽ làm khóa luồng, làm giảm nghiêm trọng thông lượng hệ thống.",
       },
       metrics: {
         Mode: state.mode,
@@ -375,14 +371,11 @@ export const javaCompletableFutureEngine: SimulationEngineSpec<
     const state = JSON.parse(JSON.stringify(frame.state)) as JavaCompletableFutureState;
     const events = [...frame.events];
     let narrationEn = "";
-    let narrationVi = "";
-    let prodWarningVi: string | undefined = undefined;
 
     switch (command.type) {
       case "STEP_ASYNC_DISPATCH": {
         if (state.pipelineFinished) {
           narrationEn = "Async pipeline has completed all orchestration stages.";
-          narrationVi = "Pipeline bất đồng bộ đã hoàn thành tất cả các giai đoạn điều phối.";
           break;
         }
 
@@ -390,7 +383,6 @@ export const javaCompletableFutureEngine: SimulationEngineSpec<
         if (stageIdx >= state.stages.length) {
           state.pipelineFinished = true;
           narrationEn = "All CompletableFuture stages completed successfully.";
-          narrationVi = "Tất cả các chặng CompletableFuture đã hoàn tất thành công.";
           break;
         }
 
@@ -428,9 +420,6 @@ export const javaCompletableFutureEngine: SimulationEngineSpec<
               tone: "danger",
             });
             narrationEn = `Stage 2 threw an exception! CompletableFuture captures the failure without crashing the JVM and looks for an exceptionally handler.`;
-            narrationVi = `Chặng 2 ném ngoại lệ timeout! CompletableFuture đóng gói lỗi và tìm kiếm bước .exceptionally() để xử lý dự phòng.`;
-            prodWarningVi =
-              "Nếu không có .exceptionally() hoặc .handle(), ngoại lệ sẽ bị nuốt chìm âm thầm cho đến khi ai đó gọi .join(), gây khó khăn cho việc debug!";
           } else if (state.mode === "ERROR_RECOVERY_EXCEPTIONALLY" && stageIdx === 2) {
             stage.status = "COMPLETED";
             stage.result = "FallbackResult[CircuitBreakerActive, cachedData]";
@@ -445,8 +434,6 @@ export const javaCompletableFutureEngine: SimulationEngineSpec<
             });
             narrationEn =
               "The .exceptionally() stage intercepted the upstream failure and supplied a degraded fallback result smoothly.";
-            narrationVi =
-              "Tầng .exceptionally() đã chặn bắt lỗi upstream thành công và cung cấp dữ liệu dự phòng mềm mại mà không ngắt quãng pipeline.";
           } else {
             stage.status = "COMPLETED";
             stage.result = `Payload-Result-From-${stage.name}`;
@@ -473,7 +460,6 @@ export const javaCompletableFutureEngine: SimulationEngineSpec<
               tone: "ok",
             });
             narrationEn = `${stage.name} completed successfully on ${stage.poolType}. Result handed off to next stage.`;
-            narrationVi = `${stage.name} hoàn thành xuất sắc trên ${stage.poolType}. Kết quả được bàn giao cho chặng tiếp theo.`;
           }
 
           state.currentStepIndex++;
@@ -507,10 +493,6 @@ export const javaCompletableFutureEngine: SimulationEngineSpec<
 
         narrationEn =
           "ANTI-PATTERN TRIGGERED: Calling .join() inside a thread pool worker blocks the carrier thread. Under high concurrency, all workers become starved, causing complete service freeze.";
-        narrationVi =
-          "CẢNH BÁO PHẢN MẪU: Gọi .join() hoặc .get() bên trong thread pool worker làm chiếm giữ luồng. Dưới tải cao, toàn bộ worker bị cạn kiệt, dẫn đến tê liệt hệ thống (Thread Starvation Deadlock).";
-        prodWarningVi =
-          "Quy tắc vàng: Luôn dùng .thenCompose() thay vì lồng .join() để liên kết 2 CompletableFuture với nhau!";
         break;
       }
 
@@ -528,7 +510,6 @@ export const javaCompletableFutureEngine: SimulationEngineSpec<
         });
 
         narrationEn = `Injected external fault into ${activeStage.name}. If no .exceptionally() is configured, the entire future DAG will complete exceptionally.`;
-        narrationVi = `Đã bơm lỗi vào ${activeStage.name}. Nếu không cấu hình .exceptionally(), toàn bộ tương lai tiếp theo sẽ bị hủy bỏ với ngoại lệ này.`;
         break;
       }
 
@@ -554,8 +535,6 @@ export const javaCompletableFutureEngine: SimulationEngineSpec<
 
         narrationEn =
           "CompletableFuture.allOf() synchronized all branches. The composite future completed without burning CPU polling cycles.";
-        narrationVi =
-          "CompletableFuture.allOf() đồng bộ hóa toàn bộ các nhánh song song. Future tổng hoàn thành mà không hề tốn chu kỳ CPU thăm dò.";
         break;
       }
     }
@@ -574,8 +553,8 @@ export const javaCompletableFutureEngine: SimulationEngineSpec<
       narration: {
         summary: narrationEn || frame.narration.summary,
         summaryEn: narrationEn || frame.narration.summaryEn,
-        summaryVi: narrationVi || frame.narration.summaryVi,
-        productionWarningVi: prodWarningVi || frame.narration.productionWarningVi,
+        summaryVi: narrationEn || frame.narration.summaryVi,
+        productionWarningVi: frame.narration.productionWarningVi,
       },
       metrics: {
         Mode: state.mode,

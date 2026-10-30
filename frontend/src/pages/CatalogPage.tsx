@@ -27,6 +27,7 @@ const domainIcons: Record<string, React.ReactNode> = {
 export function CatalogPage() {
   const [progress] = useState(() => loadProgressEnvelope());
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const { domains, modules } = validatedContentPack;
 
   const totalInteractiveModules = modules.length;
@@ -34,13 +35,95 @@ export function CatalogPage() {
     (m) => m.simulationStepsExplored > 0,
   ).length;
 
-  const filteredDomains =
-    selectedFilter === "all"
-      ? domains
-      : domains.filter((d) => d.id === selectedFilter);
+  // Find most recently explored module
+  const sortedExplored = Object.entries(progress.modules)
+    .filter(([, data]) => (data.simulationStepsExplored ?? 0) > 0)
+    .sort(
+      ([, a], [, b]) =>
+        new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+    );
+  const recentSlug = sortedExplored[0]?.[0];
+  const resumeModule = recentSlug ? modules.find((m) => m.slug === recentSlug) : null;
+
+  const filteredDomains = domains
+    .filter((d) => selectedFilter === "all" || d.id === selectedFilter)
+    .filter((d) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      const domainMatches =
+        d.title.toLowerCase().includes(q) ||
+        d.tagline.toLowerCase().includes(q) ||
+        d.topics.some((t) => t.toLowerCase().includes(q));
+      const hasMatchingModule = modules.some(
+        (m) => m.domainId === d.id && m.title.toLowerCase().includes(q)
+      );
+      return domainMatches || hasMatchingModule;
+    });
 
   return (
     <div className="catalog-page">
+      {/* Resume Card if any module was visited */}
+      {resumeModule && (
+        <div
+          style={{
+            background: "var(--surface-1)",
+            border: "1px solid var(--accent)",
+            borderRadius: "var(--radius-lg)",
+            padding: "var(--space-4) var(--space-5)",
+            marginBottom: "var(--space-6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "var(--space-3)",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span
+              style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: "var(--accent)",
+                boxShadow: "0 0 10px var(--accent)",
+              }}
+            />
+            <div>
+              <span
+                style={{
+                  fontSize: "0.6875rem",
+                  fontFamily: "var(--font-mono)",
+                  color: "var(--accent)",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                }}
+              >
+                Resume Active Simulation
+              </span>
+              <h2
+                style={{
+                  margin: "2px 0 0 0",
+                  fontSize: "var(--text-sm)",
+                  fontWeight: 600,
+                  color: "var(--text-primary)",
+                }}
+              >
+                {resumeModule.title}
+              </h2>
+            </div>
+          </div>
+          <Link
+            to={`/domains/${resumeModule.domainId}/${resumeModule.slug}`}
+            className="btn btn-primary"
+            style={{ fontSize: "var(--text-xs)", display: "flex", alignItems: "center", gap: "6px" }}
+          >
+            <span>Continue Workbench</span>
+            <ArrowRight size={13} />
+          </Link>
+        </div>
+      )}
+
       {/* Hero Banner */}
       <section className="catalog-hero" aria-labelledby="hero-heading">
         <div className="hero-pill">
@@ -81,29 +164,69 @@ export function CatalogPage() {
         </div>
       </section>
 
-      {/* Filter Chips Bar */}
-      <div className="filter-bar" role="tablist" aria-label="Domain Filter">
-        <button
-          type="button"
-          className={`filter-chip ${selectedFilter === "all" ? "active" : ""}`}
-          onClick={() => setSelectedFilter("all")}
-          role="tab"
-          aria-selected={selectedFilter === "all"}
-        >
-          <span>All Domains ({domains.length})</span>
-        </button>
-        {domains.map((domain) => (
+      {/* Search & Filter Bar */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "var(--space-3)",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "var(--space-5)",
+        }}
+      >
+        <div className="filter-bar" role="tablist" aria-label="Domain Filter" style={{ margin: 0 }}>
           <button
-            key={domain.id}
             type="button"
-            className={`filter-chip ${selectedFilter === domain.id ? "active" : ""}`}
-            onClick={() => setSelectedFilter(domain.id)}
+            className={`filter-chip ${selectedFilter === "all" ? "active" : ""}`}
+            onClick={() => setSelectedFilter("all")}
             role="tab"
-            aria-selected={selectedFilter === domain.id}
+            aria-selected={selectedFilter === "all"}
           >
-            <span>{domain.title.split("&")[0].trim()}</span>
+            <span>All Domains ({domains.length})</span>
           </button>
-        ))}
+          {domains.map((domain) => (
+            <button
+              key={domain.id}
+              type="button"
+              className={`filter-chip ${selectedFilter === domain.id ? "active" : ""}`}
+              onClick={() => setSelectedFilter(domain.id)}
+              role="tab"
+              aria-selected={selectedFilter === domain.id}
+            >
+              <span>{domain.title.split("&")[0].trim()}</span>
+            </button>
+          ))}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            background: "var(--surface-1)",
+            padding: "6px 12px",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--border-subtle)",
+            minWidth: "220px",
+          }}
+        >
+          <span style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>Filter:</span>
+          <input
+            type="text"
+            placeholder="Search topics, protocols..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              color: "var(--text-primary)",
+              fontSize: "var(--text-xs)",
+              width: "100%",
+            }}
+          />
+        </div>
       </div>
 
       {/* Domain Cards Grid */}

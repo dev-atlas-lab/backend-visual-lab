@@ -4,6 +4,8 @@ import { AppShell } from "./components/layout/AppShell";
 import { CatalogPage } from "./pages/CatalogPage";
 import { ModuleReaderPage } from "./pages/ModuleReaderPage";
 import { ProgressPage } from "./pages/ProgressPage";
+import { KnowledgePage } from "./pages/KnowledgePage";
+import { SettingsPage } from "./pages/SettingsPage";
 
 import "./styles/tokens.css";
 import "./styles/layout.css";
@@ -18,6 +20,8 @@ export function AppRouter() {
           <Route index element={<CatalogPage />} />
           <Route path="domains/:domainId/:moduleSlug" element={<ModuleReaderPage />} />
           <Route path="progress" element={<ProgressPage />} />
+          <Route path="knowledge" element={<KnowledgePage />} />
+          <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

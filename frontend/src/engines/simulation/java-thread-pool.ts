@@ -231,10 +231,6 @@ export const javaThreadPoolEngine: SimulationEngineSpec<
           "ThreadPoolExecutor is initialized. Remember the Golden Rule: when a task arrives, it only goes to the workQueue AFTER the core pool is full; and non-core workers are only created AFTER the queue is completely full!",
         summaryEn:
           "ThreadPoolExecutor is initialized. Remember the Golden Rule: when a task arrives, it only goes to the workQueue AFTER the core pool is full; and non-core workers are only created AFTER the queue is completely full!",
-        summaryVi:
-          "ThreadPoolExecutor được khởi tạo. Hãy ghi nhớ quy luật cốt lõi: Task mới chỉ đẩy vào workQueue KHI core pool đã đầy; và chỉ tạo thêm worker phụ KHI hàng đợi đã kín chỗ!",
-        productionWarningVi:
-          "Tuyệt đối không dùng Executors.newFixedThreadPool() hoặc newCachedThreadPool() trong production vì chúng dùng hàng đợi vô hạn (LinkedBlockingQueue) gây OutOfMemoryError!",
       },
       metrics: {
         "Active Workers": `${state.workers.length} / ${state.maximumPoolSize}`,
@@ -250,8 +246,6 @@ export const javaThreadPoolEngine: SimulationEngineSpec<
     const state = JSON.parse(JSON.stringify(frame.state)) as JavaThreadPoolState;
     const events = [...frame.events];
     let narrationEn = "";
-    let narrationVi = "";
-    let prodWarningVi: string | undefined = undefined;
 
     const dispatchTask = (taskId: string) => {
       state.totalTasksSubmitted++;
@@ -368,7 +362,6 @@ export const javaThreadPoolEngine: SimulationEngineSpec<
         const taskId = `T-${state.totalTasksSubmitted + 1}`;
         dispatchTask(taskId);
         narrationEn = `Submitted ${taskId}. Observed ThreadPoolExecutor 4-step dispatching algorithm.`;
-        narrationVi = `Đã gửi ${taskId}. Quan sát 4 bước điều phối của ThreadPoolExecutor.`;
         break;
       }
 
@@ -377,9 +370,6 @@ export const javaThreadPoolEngine: SimulationEngineSpec<
           dispatchTask(`Burst-${i}`);
         }
         narrationEn = `Burst traffic: submitted ${command.count} tasks concurrently, pushing the pool through core -> queue -> maxPool -> ${state.rejectionPolicy}!`;
-        narrationVi = `Lưu lượng đột biến: gửi ${command.count} tasks cùng lúc, kích hoạt tuần tự core → queue → maxPool → ${state.rejectionPolicy}!`;
-        prodWarningVi =
-          "Trong hệ thống microservices, CallerRunsPolicy là lựa chọn tốt nhất để làm chậm client gửi request (natural backpressure) thay vì làm sập server.";
         break;
       }
 
@@ -408,7 +398,6 @@ export const javaThreadPoolEngine: SimulationEngineSpec<
         });
         state.callerRunsActive = false;
         narrationEn = "Worker threads completed execution cycle and polled next tasks from workQueue.";
-        narrationVi = "Các worker thread đã hoàn thành chu kỳ xử lý và lấy tiếp task từ hàng đợi.";
         break;
       }
 
@@ -422,7 +411,6 @@ export const javaThreadPoolEngine: SimulationEngineSpec<
           tone: "info",
         });
         narrationEn = `Rejection policy changed to ${command.policy}.`;
-        narrationVi = `Chính sách từ chối đổi sang ${command.policy}.`;
         break;
       }
 
@@ -438,7 +426,6 @@ export const javaThreadPoolEngine: SimulationEngineSpec<
           tone: "ok",
         });
         narrationEn = "Non-core workers were terminated after keepAliveTime expired without work.";
-        narrationVi = "Các worker phụ không có việc làm đã bị hủy sau khi hết thời gian keepAliveTime.";
         break;
       }
     }
@@ -455,8 +442,6 @@ export const javaThreadPoolEngine: SimulationEngineSpec<
       narration: {
         summary: narrationEn || frame.narration.summary,
         summaryEn: narrationEn || frame.narration.summaryEn,
-        summaryVi: narrationVi || frame.narration.summaryVi,
-        productionWarningVi: prodWarningVi || frame.narration.productionWarningVi,
       },
       metrics: {
         "Active Workers": `${state.workers.length} / ${state.maximumPoolSize}`,

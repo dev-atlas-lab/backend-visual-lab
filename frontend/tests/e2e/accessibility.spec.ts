@@ -81,9 +81,9 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
     if (await howToBtn.isVisible()) {
       await howToBtn.click();
       await expect(page.locator("#lab-guide-title")).toBeVisible();
-      await expect(page.locator("text=Cẩm Nang Tương Tác Lab Mô Phỏng")).toBeVisible();
+      await expect(page.locator("text=Interactive Simulation Field Guide")).toBeVisible();
       // Close modal
-      await page.getByRole("button", { name: /Đã hiểu, bắt đầu khám phá!/i }).click();
+      await page.getByRole("button", { name: /Got it, let's explore!/i }).click();
       await expect(page.locator("#lab-guide-title")).not.toBeVisible();
     }
   });

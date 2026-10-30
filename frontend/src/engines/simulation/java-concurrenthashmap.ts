@@ -256,10 +256,6 @@ export const javaConcurrentHashMapEngine: SimulationEngineSpec<
           "ConcurrentHashMap table is initialized with 8 empty bins. In Java 8+, Segment Locks are eliminated in favor of fine-grained atomic CAS and per-bin synchronized locking.",
         summaryEn:
           "ConcurrentHashMap table is initialized with 8 empty bins. In Java 8+, Segment Locks are eliminated in favor of fine-grained atomic CAS and per-bin synchronized locking.",
-        summaryVi:
-          "Bảng ConcurrentHashMap được khởi tạo với 8 bin rỗng. Từ Java 8+, Segment Locking (Java 7) đã bị loại bỏ hoàn toàn để thay bằng CAS nguyên tử trên bin rỗng và khóa synchronized trên từng đầu node.",
-        productionWarningVi:
-          "Đừng bao giờ bọc ConcurrentHashMap trong Collections.synchronizedMap() vì sẽ làm mất đi khả năng đọc ghi đồng thời siêu nhanh của cấu trúc này.",
       },
       metrics: {
         "Table Size": state.tableCapacity,
@@ -275,8 +271,6 @@ export const javaConcurrentHashMapEngine: SimulationEngineSpec<
     const state = JSON.parse(JSON.stringify(frame.state)) as JavaConcurrentHashMapState;
     const events = [...frame.events];
     let narrationEn = "";
-    let narrationVi = "";
-    let prodWarningVi: string | undefined = undefined;
 
     switch (command.type) {
       case "DISPATCH_PARALLEL_PUTS_DISTINCT_BINS": {
@@ -311,8 +305,6 @@ export const javaConcurrentHashMapEngine: SimulationEngineSpec<
 
         narrationEn =
           "Parallel insertion into empty buckets succeeded simultaneously via lock-free atomic CAS (casTabAt). Zero monitor locks acquired, achieving maximum multi-core scalability.";
-        narrationVi =
-          "Chèn đồng thời vào các bucket rỗng thành công tức thì thông qua CAS nguyên tử (casTabAt). Hoàn toàn KHÔNG cần acquire monitor lock, mang lại thông lượng tối đa.";
         break;
       }
 
@@ -350,10 +342,6 @@ export const javaConcurrentHashMapEngine: SimulationEngineSpec<
 
           narrationEn =
             "Hash collision on Bin #3: Thread-1 acquired synchronized(binHead) to append a node. Thread-2 blocked waiting for Bin #3. Crucially, all other bins remain unlocked!";
-          narrationVi =
-            "Va chạm hash tại Bin #3: Thread-1 giữ synchronized(binHead) để thêm node. Thread-2 bị chặn chờ tại Bin #3. Điều cốt lõi: tất cả các bin khác hoàn toàn không bị ảnh hưởng!";
-          prodWarningVi =
-            "Khóa chỉ áp dụng trên từng bin (Striped/Fine-grained). Do đó, ConcurrentHashMap có thể phục vụ hàng nghìn thread đồng thời miễn là chúng không va chạm cùng 1 bucket.";
         } else {
           // Release lock and finish insertion
           bin3.isLocked = false;
@@ -373,7 +361,6 @@ export const javaConcurrentHashMapEngine: SimulationEngineSpec<
           });
 
           narrationEn = "Thread-1 released bin monitor. Thread-2 acquired lock and appended node to bucket chain.";
-          narrationVi = "Thread-1 nhả monitor của bin. Thread-2 nhận khóa và gắn node thành công vào danh sách liên kết.";
         }
         break;
       }
@@ -398,15 +385,12 @@ export const javaConcurrentHashMapEngine: SimulationEngineSpec<
 
         narrationEn =
           "Concurrent resize triggered! Bins 0-3 are migrated to new table. ForwardingNodes (hash = -1 / MOVED) placed at old bins so concurrent writers can participate via helpTransfer().";
-        narrationVi =
-          "Kích hoạt tái phân bổ (Resize đồng thời)! Các bin 0-3 được dọn sang bảng mới và thay bằng ForwardingNode (hash = -1 / MOVED) để các thread khác cùng tham gia dọn phụ (helpTransfer).";
         break;
       }
 
       case "STEP_HELP_TRANSFER": {
         if (!state.isResizing) {
           narrationEn = "Table is not in resizing phase.";
-          narrationVi = "Bảng hiện không trong trạng thái resize.";
           break;
         }
 
@@ -428,7 +412,6 @@ export const javaConcurrentHashMapEngine: SimulationEngineSpec<
         });
 
         narrationEn = "All worker threads helped migrate remaining bins cooperatively. Table resize completed.";
-        narrationVi = "Toàn bộ worker thread đã tham gia chuyển dọn dữ liệu thành công. Quá trình resize hoàn tất.";
         break;
       }
 
@@ -442,7 +425,6 @@ export const javaConcurrentHashMapEngine: SimulationEngineSpec<
           tone: "ok",
         });
         narrationEn = `Lock-free read executed for '${command.key}'. In ConcurrentHashMap, get() never blocks and never locks.`;
-        narrationVi = `Đọc không khóa (Lock-free read) cho khóa '${command.key}'. Trong ConcurrentHashMap, hàm get() tuyệt đối không bao giờ cần chiếm giữ khóa.`;
         break;
       }
     }
@@ -457,8 +439,6 @@ export const javaConcurrentHashMapEngine: SimulationEngineSpec<
       narration: {
         summary: narrationEn || frame.narration.summary,
         summaryEn: narrationEn || frame.narration.summaryEn,
-        summaryVi: narrationVi || frame.narration.summaryVi,
-        productionWarningVi: prodWarningVi || frame.narration.productionWarningVi,
       },
       metrics: {
         "Table Size": state.tableCapacity,

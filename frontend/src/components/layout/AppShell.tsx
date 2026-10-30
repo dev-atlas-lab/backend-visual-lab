@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { CommandPalette } from "./CommandPalette";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { getModuleBySlug } from "../../content";
 
 export function AppShell() {
   const location = useLocation();
   const [navOpen, setNavOpen] = useState(false);
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem("bvl.sidebar-collapsed") === "true";
@@ -127,6 +129,12 @@ export function AppShell() {
     if (pathname.startsWith("/progress")) {
       return { prefix: "Learning Dashboard", current: "Progress & Mastery" };
     }
+    if (pathname.startsWith("/knowledge")) {
+      return { prefix: "Knowledge Base", current: "Terms & Assessments" };
+    }
+    if (pathname.startsWith("/settings")) {
+      return { prefix: "Workbench", current: "Settings & Preferences" };
+    }
     if (pathname.includes("/domains/")) {
       const parts = pathname.split("/");
       const moduleSlug = parts[parts.length - 1];
@@ -185,13 +193,21 @@ export function AppShell() {
           breadcrumbCurrent={breadcrumb.current}
           theme={theme}
           onToggleTheme={toggleTheme}
+          onOpenCommandPalette={() => setCmdPaletteOpen(true)}
         />
 
         <main className="main-content" id="main-content">
           <ErrorBoundary>
-            <Outlet />
+            <Outlet context={{ theme, onToggleTheme: toggleTheme }} />
           </ErrorBoundary>
         </main>
+
+        <CommandPalette
+          isOpen={cmdPaletteOpen}
+          onClose={() => setCmdPaletteOpen(false)}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
 
         <footer className="footer">
           <div className="footer-content">

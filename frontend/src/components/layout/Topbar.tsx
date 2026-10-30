@@ -1,6 +1,6 @@
 import { useState, type RefObject } from "react";
 import { Link } from "react-router-dom";
-import { Menu, Sun, Moon, Volume2, VolumeX, Keyboard, X } from "lucide-react";
+import { Menu, Sun, Moon, Volume2, VolumeX, Keyboard, Search, X } from "lucide-react";
 import { isSoundEnabled, toggleSound, playClick } from "../../engines/audio/sound-fx";
 
 interface TopbarProps {
@@ -11,6 +11,7 @@ interface TopbarProps {
   breadcrumbCurrent?: string;
   theme: "dark" | "light";
   onToggleTheme: () => void;
+  onOpenCommandPalette?: () => void;
 }
 
 export function Topbar({
@@ -21,6 +22,7 @@ export function Topbar({
   breadcrumbCurrent = "Catalog & Roadmap",
   theme,
   onToggleTheme,
+  onOpenCommandPalette,
 }: TopbarProps) {
   const [soundActive, setSoundActive] = useState(() => isSoundEnabled());
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
@@ -43,7 +45,7 @@ export function Topbar({
           type="button"
           className="icon-button nav-toggle"
           aria-label="Open navigation"
-          title="Mở thanh điều hướng (Open sidebar navigation)"
+          title="Toggle navigation sidebar (Open / Collapse)"
           aria-expanded={navOpen}
           aria-controls="primary-navigation"
           onClick={onOpenNav}
@@ -74,6 +76,20 @@ export function Topbar({
       </div>
 
       <div className="topbar-end">
+        {/* Command Palette Trigger */}
+        {onOpenCommandPalette && (
+          <button
+            type="button"
+            className="topbar-search-trigger"
+            onClick={onOpenCommandPalette}
+            title="Open Command Palette (Cmd+K / Ctrl+K)"
+          >
+            <Search size={14} aria-hidden="true" />
+            <span className="topbar-search-text">Search Labs...</span>
+            <kbd className="topbar-search-kbd">⌘K</kbd>
+          </button>
+        )}
+
         {/* Engine mode pill */}
         <div className="engine-badge" title="Executing in Deterministic Client-side Browser Engine">
           <span className="engine-dot" aria-hidden="true" />

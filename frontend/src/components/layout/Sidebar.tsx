@@ -3,6 +3,8 @@ import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   Layers,
   BarChart3,
+  BookOpen,
+  Settings,
   Cpu,
   Radio,
   Zap,
@@ -198,7 +200,7 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
           className="icon-button sidebar-close"
           onClick={onClose}
           aria-label="Close navigation"
-          title="Thu gọn / Đóng sidebar (Collapse Sidebar)"
+          title="Collapse or close sidebar"
         >
           <X size={16} strokeWidth={2} aria-hidden="true" />
         </button>
@@ -224,6 +226,22 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
           >
             <BarChart3 size={16} strokeWidth={1.8} aria-hidden="true" />
             <span>Progress &amp; Mastery</span>
+          </NavLink>
+          <NavLink
+            to="/knowledge"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+            onClick={onNavigate}
+          >
+            <BookOpen size={16} strokeWidth={1.8} aria-hidden="true" />
+            <span>Knowledge &amp; Assessment</span>
+          </NavLink>
+          <NavLink
+            to="/settings"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+            onClick={onNavigate}
+          >
+            <Settings size={16} strokeWidth={1.8} aria-hidden="true" />
+            <span>Settings &amp; Shortcuts</span>
           </NavLink>
         </div>
 
@@ -253,7 +271,7 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
                     onClick={() => toggleGroup(group.id)}
                     aria-expanded={isOpen}
                     aria-controls={`doc-group-items-${group.id}`}
-                    title={`${isOpen ? "Thu gọn" : "Mở rộng"} chuyên đề ${group.title}`}
+                    title={`${isOpen ? "Collapse" : "Expand"} ${group.title} domain`}
                   >
                     <div className="doc-group-title-wrap">
                       <Icon size={15} strokeWidth={1.9} className="doc-group-icon" aria-hidden="true" />
