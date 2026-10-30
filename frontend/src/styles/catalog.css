@@ -113,6 +113,15 @@
   gap: var(--space-2);
   overflow-x: auto;
   padding-bottom: 4px;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.filter-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .filter-chip {
@@ -148,7 +157,7 @@
 
 .domain-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: var(--space-6);
 }
 

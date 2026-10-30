@@ -96,6 +96,10 @@ export function KnowledgePage() {
           gap: "8px",
           borderBottom: "1px solid var(--border-subtle)",
           marginBottom: "var(--space-6)",
+          overflowX: "auto",
+          maxWidth: "100%",
+          paddingBottom: "var(--space-2)",
+          WebkitOverflowScrolling: "touch",
         }}
       >
         <button
@@ -171,7 +175,7 @@ export function KnowledgePage() {
               />
             </div>
 
-            <div style={{ display: "flex", gap: "6px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
               {["all", "java", "messaging", "databases", "caching"].map((dom) => (
                 <button
                   key={dom}
@@ -194,7 +198,7 @@ export function KnowledgePage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
               gap: "var(--space-4)",
             }}
           >
@@ -286,7 +290,7 @@ export function KnowledgePage() {
 
       {/* Tab 2: Scenario Assessment Bank */}
       {activeTab === "questions" && (
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 320px) 1fr", gap: "var(--space-5)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: "var(--space-5)" }}>
           {/* Question List Sidebar */}
           <div
             style={{
@@ -510,7 +514,7 @@ export function KnowledgePage() {
 
       {/* Tab 3: Authoritative Sources */}
       {activeTab === "sources" && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "var(--space-4)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: "var(--space-4)" }}>
           {authoritativeSources.map((s) => (
             <div
               key={s.id}
