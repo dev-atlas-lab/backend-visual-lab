@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 184" width="220" height="184" role="img" aria-labelledby="dalStackedTitle">
+  <title id="dalStackedTitle">Dev Atlas Lab — knowledge atlas for builders</title>
+  <defs>
+    <linearGradient id="dalStackedCopper" x1="0" y1="14" x2="0" y2="49" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F6C6A0"/>
+      <stop offset="1" stop-color="#D08553"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(65.2 10.25) scale(1.4)">
+    <path d="M15 49 32 14 49 49M21.3 36h21.4" fill="none" stroke="url(#dalStackedCopper)" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="15" cy="49" r="3.4" fill="#F2BB90"/>
+    <circle cx="49" cy="49" r="3.4" fill="#F2BB90"/>
+  </g>
+
+  <text x="110" y="120" text-anchor="middle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="33" letter-spacing="-0.02em"><tspan font-weight="300" fill="#A9AAB1">dev </tspan><tspan font-weight="600" fill="#F4F1EA">atlas</tspan></text>
+
+  <text x="110" y="145" text-anchor="middle" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="13.5" font-weight="500" letter-spacing="0.18em" fill="#E2A173">/ LAB</text>
+
+  <text x="110" y="169" text-anchor="middle" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="8" letter-spacing="0.22em" fill="#82858E">KNOWLEDGE ATLAS FOR BUILDERS</text>
+</svg>

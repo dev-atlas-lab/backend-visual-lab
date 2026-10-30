@@ -23,7 +23,12 @@ import {
   projectJavaVirtualThreadsFrameToLanes,
 } from "../engines/visualization/projectors";
 import { recordSimulationInteraction } from "../engines/progress/progress-store";
-import { ArrowLeft, Clock, ExternalLink, Zap } from "lucide-react";
+import {
+  ArrowLeft,
+  Clock,
+  ExternalLink,
+  Zap,
+} from "lucide-react";
 
 export function ModuleReaderPage() {
   const { moduleSlug } = useParams<{ moduleSlug: string }>();
@@ -31,9 +36,11 @@ export function ModuleReaderPage() {
 
   if (!moduleData) {
     return (
-      <div style={{ padding: "var(--space-8)", textAlign: "center" }}>
-        <h2>Learning Module Not Found</h2>
-        <p style={{ color: "var(--text-secondary)", margin: "var(--space-4) 0" }}>
+      <div style={{ padding: "var(--space-12) var(--space-4)", textAlign: "center" }}>
+        <h2 style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-3)" }}>
+          Learning Module Not Found
+        </h2>
+        <p style={{ color: "var(--text-secondary)", marginBottom: "var(--space-6)" }}>
           The requested module with slug "{moduleSlug}" was not found or has not been published yet.
         </p>
         <Link to="/" className="btn btn-primary">
@@ -49,161 +56,131 @@ export function ModuleReaderPage() {
     recordSimulationInteraction(moduleData.slug);
   };
 
+  const domainName =
+    moduleData.domainId === "messaging"
+      ? "Messaging & Event Streaming"
+      : moduleData.domainId === "databases"
+      ? "Databases & Storage Internals"
+      : moduleData.domainId === "caching"
+      ? "Caching & Redis Internals"
+      : moduleData.domainId === "java"
+      ? "Java Core & JVM Internals"
+      : moduleData.domainId.toUpperCase();
+
   return (
-    <article style={{ maxWidth: "var(--lesson-reading-width)", margin: "0 auto" }}>
-      {/* Back Link & Header */}
-      <div style={{ marginBottom: "var(--space-6)" }}>
-        <Link
-          to="/"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            fontSize: "13px",
-            color: "var(--text-secondary)",
-            marginBottom: "var(--space-3)",
-          }}
-        >
-          <ArrowLeft size={14} /> Back to Catalog
+    <article style={{ maxWidth: "var(--lesson-column)", margin: "0 auto" }}>
+      {/* Header */}
+      <header className="module-header">
+        <Link to="/" className="module-back-link">
+          <ArrowLeft size={14} /> Back to Catalog &amp; Roadmap
         </Link>
 
-        <h1 style={{ fontSize: "28px", fontWeight: "800", lineHeight: "1.3", marginBottom: "var(--space-2)" }}>
-          {moduleData.title}
-        </h1>
-        <p style={{ fontSize: "16px", color: "var(--text-secondary)", marginBottom: "var(--space-4)" }}>
-          {moduleData.subtitle}
-        </p>
+        <h1 className="module-title">{moduleData.title}</h1>
+        <p className="module-subtitle">{moduleData.subtitle}</p>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)", alignItems: "center" }}>
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "11px",
-              padding: "2px 8px",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--accent-subtle)",
-              color: "var(--accent-primary)",
-              fontWeight: "700",
-            }}
-          >
-            {moduleData.domainId.toUpperCase()}
-          </span>
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "11px",
-              padding: "2px 8px",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--surface-2)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            Difficulty: {moduleData.difficulty}
-          </span>
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "11px",
-              padding: "2px 8px",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--surface-2)",
-              color: "var(--text-secondary)",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-            }}
-          >
+        <div className="module-meta-chips">
+          <span className="module-chip module-chip-accent">{domainName}</span>
+          <span className="module-chip">Difficulty: {moduleData.difficulty}</span>
+          <span className="module-chip" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
             <Clock size={12} /> {moduleData.estimatedMinutes} mins
           </span>
+          <span className="module-chip" style={{ color: "var(--ok)", borderColor: "var(--ok-quiet)" }}>
+            &bull; Verified Curriculum
+          </span>
         </div>
-      </div>
+      </header>
 
-      {/* Key Terms */}
-      <section
-        style={{
-          background: "var(--surface-1)",
-          border: "1px solid var(--border-subtle)",
-          borderRadius: "var(--radius-md)",
-          padding: "var(--space-4)",
-          marginBottom: "var(--space-6)",
-        }}
-      >
-        <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-tertiary)" }}>
-          Essential Domain Terminology:
-        </span>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "var(--space-3)", marginTop: "var(--space-2)" }}>
+      {/* 7-Stage Pedagogy Stepper Strip */}
+      <nav className="pedagogy-stepper" aria-label="7-Stage Pedagogy Progression">
+        <div className="pedagogy-stepper-item active">
+          <span>1. WHAT</span>
+        </div>
+        <span className="pedagogy-stepper-sep">&rarr;</span>
+        <div className="pedagogy-stepper-item active">
+          <span>2. WHY</span>
+        </div>
+        <span className="pedagogy-stepper-sep">&rarr;</span>
+        <div className="pedagogy-stepper-item active">
+          <span>3. SIMULATION</span>
+        </div>
+        <span className="pedagogy-stepper-sep">&rarr;</span>
+        <div className="pedagogy-stepper-item active">
+          <span>4. HOW</span>
+        </div>
+        <span className="pedagogy-stepper-sep">&rarr;</span>
+        <div className="pedagogy-stepper-item active">
+          <span>5. INTERNALS</span>
+        </div>
+        <span className="pedagogy-stepper-sep">&rarr;</span>
+        <div className="pedagogy-stepper-item active">
+          <span>6. TRADE-OFFS</span>
+        </div>
+        <span className="pedagogy-stepper-sep">&rarr;</span>
+        <div className="pedagogy-stepper-item active">
+          <span>7. PRODUCTION</span>
+        </div>
+      </nav>
+
+      {/* Essential Key Terms */}
+      <section className="key-terms-section" aria-labelledby="key-terms-heading">
+        <div className="section-label" id="key-terms-heading">
+          Essential Domain Terminology
+        </div>
+        <div className="key-terms-grid">
           {moduleData.keyTerms.map((term, tIdx) => (
-            <div key={tIdx} style={{ fontSize: "12px" }}>
-              <strong style={{ color: "var(--accent-primary)" }}>{term.term}</strong>:{" "}
-              <span style={{ color: "var(--text-secondary)" }}>
+            <div key={tIdx} className="key-term-card">
+              <div className="key-term-title">{term.term}</div>
+              <p className="key-term-def">
                 {term.definitionEn || term.definition || term.definitionVi}
-              </span>
+              </p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Stage 1: WHAT */}
-      <section style={{ marginBottom: "var(--space-6)" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "var(--space-3)" }}>
-          {moduleData.stages.what.heading}
-        </h2>
+      <section className="pedagogy-stage-card">
+        <h2 className="stage-heading">{moduleData.stages.what.heading}</h2>
         {moduleData.stages.what.paragraphs.map((p, pIdx) => (
-          <p key={pIdx} style={{ marginBottom: "var(--space-3)", color: "var(--text-primary)", fontSize: "15px" }}>
+          <p key={pIdx} className="stage-paragraph">
             {p}
           </p>
         ))}
         {moduleData.stages.what.bulletPoints ? (
-          <ul style={{ paddingLeft: "var(--space-4)", color: "var(--text-secondary)", fontSize: "14px" }}>
+          <ul className="stage-bullets">
             {moduleData.stages.what.bulletPoints.map((b, bIdx) => (
-              <li key={bIdx} style={{ marginBottom: "4px" }}>
-                {b}
-              </li>
+              <li key={bIdx}>{b}</li>
             ))}
           </ul>
         ) : null}
       </section>
 
       {/* Stage 2: WHY */}
-      <section style={{ marginBottom: "var(--space-6)" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "var(--space-3)" }}>
-          {moduleData.stages.why.heading}
-        </h2>
+      <section className="pedagogy-stage-card">
+        <h2 className="stage-heading">{moduleData.stages.why.heading}</h2>
         {moduleData.stages.why.paragraphs.map((p, pIdx) => (
-          <p key={pIdx} style={{ marginBottom: "var(--space-3)", color: "var(--text-primary)", fontSize: "15px" }}>
+          <p key={pIdx} className="stage-paragraph">
             {p}
           </p>
         ))}
         {moduleData.stages.why.callout ? (
-          <div
-            style={{
-              padding: "var(--space-3) var(--space-4)",
-              background: "var(--status-warn-subtle)",
-              borderLeft: "4px solid var(--status-warn)",
-              borderRadius: "var(--radius-sm)",
-              margin: "var(--space-4) 0",
-            }}
-          >
-            <div style={{ fontWeight: "700", color: "var(--status-warn)", fontSize: "13px" }}>
-              {moduleData.stages.why.callout.title}
-            </div>
-            <div style={{ fontSize: "13px", color: "var(--text-primary)", marginTop: "4px" }}>
-              {moduleData.stages.why.callout.body}
-            </div>
+          <div className="callout-box callout-tip">
+            <div className="callout-title">{moduleData.stages.why.callout.title}</div>
+            <p className="callout-body">{moduleData.stages.why.callout.body}</p>
           </div>
         ) : null}
       </section>
 
       {/* EMBEDDED INTERACTIVE SIMULATION WORKBENCH */}
       {moduleData.simulationId ? (
-        <div style={{ margin: "var(--space-8) 0" }}>
+        <section style={{ margin: "var(--space-8) 0" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "var(--space-2)" }}>
-            <Zap size={18} color="var(--accent-primary)" />
-            <h2 style={{ fontSize: "18px", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            <Zap size={20} color="var(--accent)" />
+            <h2 style={{ fontSize: "var(--text-lg)", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Interactive Simulation Workbench
             </h2>
           </div>
-          <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "var(--space-3)" }}>
+          <p style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)", marginBottom: "var(--space-3)" }}>
             Pure deterministic TypeScript state machine. Step forward/back or auto-play to inspect state mutations, wire-protocol frames, and invariant assertions.
           </p>
 
@@ -494,28 +471,24 @@ export function ModuleReaderPage() {
               )}
             />
           ) : null}
-        </div>
+        </section>
       ) : null}
 
       {/* Stage 3: HOW */}
-      <section style={{ marginBottom: "var(--space-6)" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "var(--space-3)" }}>
-          {moduleData.stages.how.heading}
-        </h2>
+      <section className="pedagogy-stage-card">
+        <h2 className="stage-heading">{moduleData.stages.how.heading}</h2>
         {moduleData.stages.how.paragraphs.map((p, pIdx) => (
-          <p key={pIdx} style={{ marginBottom: "var(--space-3)", color: "var(--text-primary)", fontSize: "15px" }}>
+          <p key={pIdx} className="stage-paragraph">
             {p}
           </p>
         ))}
       </section>
 
       {/* Stage 4: INTERNALS */}
-      <section style={{ marginBottom: "var(--space-6)" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "var(--space-3)" }}>
-          {moduleData.stages.internals.heading}
-        </h2>
+      <section className="pedagogy-stage-card">
+        <h2 className="stage-heading">{moduleData.stages.internals.heading}</h2>
         {moduleData.stages.internals.paragraphs.map((p, pIdx) => (
-          <p key={pIdx} style={{ marginBottom: "var(--space-3)", color: "var(--text-primary)", fontSize: "15px" }}>
+          <p key={pIdx} className="stage-paragraph">
             {p}
           </p>
         ))}
@@ -523,25 +496,15 @@ export function ModuleReaderPage() {
           <div style={{ margin: "var(--space-4) 0" }}>
             <div
               style={{
-                fontSize: "12px",
+                fontSize: "var(--text-xs)",
                 fontFamily: "var(--font-mono)",
                 color: "var(--text-secondary)",
-                marginBottom: "4px",
+                marginBottom: "var(--space-1)",
               }}
             >
               {moduleData.stages.internals.codeSnippet.caption}:
             </div>
-            <pre
-              style={{
-                background: "var(--surface-inset)",
-                border: "1px solid var(--border-subtle)",
-                borderRadius: "var(--radius-md)",
-                padding: "var(--space-4)",
-                overflowX: "auto",
-                fontSize: "13px",
-                lineHeight: "1.5",
-              }}
-            >
+            <pre className="inspector-code-block">
               <code>{moduleData.stages.internals.codeSnippet.code}</code>
             </pre>
           </div>
@@ -549,97 +512,69 @@ export function ModuleReaderPage() {
       </section>
 
       {/* Stage 5: TRADE-OFFS */}
-      <section style={{ marginBottom: "var(--space-6)" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "var(--space-3)" }}>
-          {moduleData.stages.tradeOffs.heading}
-        </h2>
+      <section className="pedagogy-stage-card">
+        <h2 className="stage-heading">{moduleData.stages.tradeOffs.heading}</h2>
         {moduleData.stages.tradeOffs.paragraphs.map((p, pIdx) => (
-          <p key={pIdx} style={{ marginBottom: "var(--space-3)", color: "var(--text-primary)", fontSize: "15px" }}>
+          <p key={pIdx} className="stage-paragraph">
             {p}
           </p>
         ))}
         {moduleData.stages.tradeOffs.bulletPoints ? (
-          <ul style={{ paddingLeft: "var(--space-4)", color: "var(--text-secondary)", fontSize: "14px" }}>
+          <ul className="stage-bullets">
             {moduleData.stages.tradeOffs.bulletPoints.map((b, bIdx) => (
-              <li key={bIdx} style={{ marginBottom: "4px" }}>
-                {b}
-              </li>
+              <li key={bIdx}>{b}</li>
             ))}
           </ul>
         ) : null}
       </section>
 
       {/* Stage 6: FAILURE SCENARIOS */}
-      <section style={{ marginBottom: "var(--space-6)" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "var(--space-3)" }}>
-          {moduleData.stages.failureScenarios.heading}
-        </h2>
+      <section className="pedagogy-stage-card">
+        <h2 className="stage-heading">{moduleData.stages.failureScenarios.heading}</h2>
         {moduleData.stages.failureScenarios.paragraphs.map((p, pIdx) => (
-          <p key={pIdx} style={{ marginBottom: "var(--space-3)", color: "var(--text-primary)", fontSize: "15px" }}>
+          <p key={pIdx} className="stage-paragraph">
             {p}
           </p>
         ))}
         {moduleData.stages.failureScenarios.callout ? (
-          <div
-            style={{
-              padding: "var(--space-3) var(--space-4)",
-              background: "var(--status-danger-subtle)",
-              borderLeft: "4px solid var(--status-danger)",
-              borderRadius: "var(--radius-sm)",
-              margin: "var(--space-4) 0",
-            }}
-          >
-            <div style={{ fontWeight: "700", color: "var(--status-danger)", fontSize: "13px" }}>
-              {moduleData.stages.failureScenarios.callout.title}
-            </div>
-            <div style={{ fontSize: "13px", color: "var(--text-primary)", marginTop: "4px" }}>
-              {moduleData.stages.failureScenarios.callout.body}
-            </div>
+          <div className="callout-box callout-warning">
+            <div className="callout-title">{moduleData.stages.failureScenarios.callout.title}</div>
+            <p className="callout-body">{moduleData.stages.failureScenarios.callout.body}</p>
           </div>
         ) : null}
       </section>
 
       {/* Stage 7: PRODUCTION ENGINEERING */}
-      <section style={{ marginBottom: "var(--space-6)" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "var(--space-3)" }}>
-          {moduleData.stages.productionEngineering.heading}
-        </h2>
+      <section className="pedagogy-stage-card">
+        <h2 className="stage-heading">{moduleData.stages.productionEngineering.heading}</h2>
         {moduleData.stages.productionEngineering.paragraphs.map((p, pIdx) => (
-          <p key={pIdx} style={{ marginBottom: "var(--space-3)", color: "var(--text-primary)", fontSize: "15px" }}>
+          <p key={pIdx} className="stage-paragraph">
             {p}
           </p>
         ))}
       </section>
 
       {/* Sources & Citations */}
-      <section
-        style={{
-          padding: "var(--space-4)",
-          background: "var(--surface-1)",
-          border: "1px solid var(--border-subtle)",
-          borderRadius: "var(--radius-md)",
-          margin: "var(--space-6) 0",
-        }}
-      >
-        <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--text-tertiary)" }}>
-          Authoritative Specifications &amp; Architecture References:
-        </span>
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "var(--space-2)" }}>
+      <section className="sources-container">
+        <div className="sources-title">
+          Authoritative Specifications &amp; Architecture References
+        </div>
+        <div>
           {moduleData.sourceIds.map((sid) => {
             const src = getSourceById(sid);
             if (!src) return null;
             return (
-              <div key={src.id} style={{ fontSize: "12px" }}>
+              <div key={src.id} className="source-item">
                 <a
                   href={src.url}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+                  className="source-link"
                 >
                   {src.title} ({src.publisher}) <ExternalLink size={12} />
                 </a>
-                <span style={{ color: "var(--text-secondary)", marginLeft: "6px" }}>
-                  — {src.supports}
+                <span style={{ color: "var(--text-secondary)" }}>
+                  {src.supports}
                 </span>
               </div>
             );

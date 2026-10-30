@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dev Atlas Lab — Brand system</title>
+<meta name="description" content="Identity guidelines for Dev Atlas Lab: mark, lockups, colour and usage." />
+<link rel="icon" href="svg/favicon.svg" type="image/svg+xml" />
+<style>
+  /* ---------- tokens ---------- */
+  :root {
+    color-scheme: dark;
+    --sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+    --bg: #0e0f12;
+    --panel: #14161a;
+    --panel-2: #191b20;
+    --line: #24272e;
+    --line-strong: #353941;
+    --text: #ecebe7;
+    --text-2: #a9aab1;
+    --text-3: #82858e;
+    --accent: #e2a173;
+    --accent-bright: #f2bb90;
+    --accent-soft: rgba(226, 161, 115, 0.12);
+    --ok: #8dc7a9;
+    --shadow: 0 24px 60px -32px rgba(0, 0, 0, 0.8);
+    --dot: rgba(255, 255, 255, 0.055);
+    --radius: 12px;
+  }
+
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f6f3;
+    --panel: #ffffff;
+    --panel-2: #f1efea;
+    --line: #e4e1da;
+    --line-strong: #cfcbc2;
+    --text: #14161a;
+    --text-2: #4f535c;
+    --text-3: #6e727b;
+    --accent: #a85b2b;
+    --accent-bright: #8f4a1f;
+    --accent-soft: rgba(168, 91, 43, 0.1);
+    --ok: #2f7d5b;
+    --shadow: 0 24px 50px -36px rgba(30, 25, 20, 0.4);
+    --dot: rgba(20, 22, 26, 0.07);
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; }
+  img { display: block; max-width: 100%; }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+
+  .mono {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 32px;
+    height: 56px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    border-bottom: 1px solid var(--line);
+  }
+  @supports not (background: color-mix(in srgb, red 50%, transparent)) {
+    .topbar { background: var(--bg); }
+  }
+  .topbar img { width: 24px; height: 24px; }
+  .topbar .org { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+  .topbar .org span { color: var(--text-3); font-weight: 400; }
+  .topbar .spacer { flex: 1; }
+
+  .theme-switch {
+    display: inline-flex;
+    padding: 3px;
+    gap: 2px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+  .theme-switch button {
+    font: inherit;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    background: none;
+    border: 0;
+    border-radius: 5px;
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
+  }
+  .theme-switch button:hover { color: var(--text); }
+  .theme-switch button[aria-pressed="true"] {
+    background: var(--accent-soft);
+    color: var(--accent-bright);
+  }
+
+  /* ---------- layout ---------- */
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px 96px; }
+
+  .hero { padding: 68px 0 40px; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 56px; align-items: center; }
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; }
+  .eyebrow::before { content: ""; width: 26px; height: 1px; background: var(--accent); }
+  h1 {
+    margin: 0 0 18px;
+    font-size: clamp(34px, 4.4vw, 52px);
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    font-weight: 600;
+    text-wrap: balance;
+  }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lede { margin: 0; max-width: 46ch; color: var(--text-2); font-size: 16px; }
+
+  .hero-stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    padding: 36px 36px 48px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background:
+      radial-gradient(var(--dot) 1px, transparent 1px) 0 0 / 14px 14px,
+      linear-gradient(160deg, var(--panel-2), var(--bg));
+    overflow: hidden;
+  }
+  .hero-stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(70% 70% at 50% 45%, transparent 40%, var(--bg) 130%);
+    pointer-events: none;
+  }
+  .hero-stage .lockup { position: relative; z-index: 1; width: min(440px, 100%); }
+  .stage-caption {
+    position: absolute;
+    left: 22px;
+    right: 22px;
+    bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    z-index: 1;
+  }
+  .stage-caption span { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-3); }
+
+  .logo-on-light { display: none; }
+  [data-theme="light"] .logo-on-dark { display: none; }
+  [data-theme="light"] .logo-on-light { display: block; }
+
+  .index {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    margin-top: 28px;
+  }
+  .index a {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: var(--text-3);
+    border-bottom: 1px solid transparent;
+    padding-bottom: 2px;
+  }
+  .index a:hover { color: var(--accent); border-color: var(--line-strong); }
+  .index a b { color: var(--accent); font-weight: 400; margin-right: 5px; }
+
+  section { scroll-margin-top: 76px; }
+
+  section { padding-top: 64px; }
+  .section-head {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 20px;
+    align-items: baseline;
+    padding-bottom: 20px;
+    margin-bottom: 32px;
+    border-bottom: 1px solid var(--line);
+  }
+  .section-head .num { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: 0.1em; }
+  .section-head h2 { margin: 0; font-size: 24px; letter-spacing: -0.02em; font-weight: 600; }
+  .section-head p { margin: 6px 0 0; color: var(--text-2); max-width: 62ch; font-size: 14.5px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    padding: 26px;
+  }
+  .panel--flush { padding: 0; overflow: hidden; }
+  .panel--dots {
+    background:
+      radial-gradient(var(--dot) 1px, transparent 1px) 0 0 / 12px 12px,
+      var(--panel);
+  }
+  .panel--paper { background: #f7f6f3; border-color: #e4e1da; }
+  .panel--ink { background: #0e0f12; border-color: #24272e; }
+
+  .caption {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .caption .name { font-size: 13px; color: var(--text-2); }
+  .caption .file { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); letter-spacing: 0.02em; }
+
+  /* ---------- mark section ---------- */
+  .mark-stage {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .mark-box {
+    display: grid;
+    place-items: center;
+    min-height: 280px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 32px;
+  }
+  .mark-box img { width: 148px; }
+
+  .anatomy { display: grid; gap: 18px; margin: 0; padding: 0; list-style: none; }
+  .anatomy li { display: grid; grid-template-columns: 34px 1fr; gap: 14px; }
+  .anatomy .k {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    padding-top: 2px;
+    border-top: 1px solid var(--line-strong);
+  }
+  .anatomy strong { display: block; font-weight: 600; font-size: 14.5px; }
+  .anatomy span { display: block; color: var(--text-2); font-size: 13.5px; line-height: 1.55; }
+
+  .specs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 24px; }
+  .specs div { background: var(--panel); padding: 16px 18px; }
+  .specs dt { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
+  .specs dd { margin: 4px 0 0; font-size: 14px; }
+
+  /* ---------- lockups ---------- */
+  .lockup-stage {
+    display: grid;
+    place-items: center;
+    min-height: 190px;
+    padding: 32px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+  }
+  .lockup-stage img { width: min(430px, 100%); }
+  .stacked-stage img { width: 200px; }
+
+  .min-size { display: flex; align-items: center; gap: 10px; margin-top: 12px; color: var(--text-3); font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.04em; }
+  .min-size::before { content: ""; width: 18px; height: 1px; background: var(--line-strong); }
+
+  /* ---------- scale ---------- */
+  .scale-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 40px;
+    padding: 30px 6px 34px;
+    overflow-x: auto;
+  }
+  .scale-item { text-align: center; flex: none; }
+  .scale-item img { margin: 0 auto 12px; }
+  .scale-item span { display: block; font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+  .scale-item small { display: block; font-family: var(--mono); font-size: 9.5px; color: var(--text-3); opacity: 0.75; margin-top: 2px; }
+
+  .mocks { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; margin-top: 8px; }
+  .browser { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel-2); }
+  .browser-bar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .browser-dots { display: flex; gap: 5px; }
+  .browser-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
+  .tab { display: flex; align-items: center; gap: 8px; margin-left: 8px; padding: 5px 12px; border: 1px solid var(--line); border-bottom: 0; border-radius: 7px 7px 0 0; background: var(--panel-2); font-size: 11.5px; color: var(--text-2); align-self: flex-end; }
+  .tab img { width: 14px; height: 14px; }
+  .browser-body { padding: 26px 22px; color: var(--text-3); font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; }
+
+  .org-card { display: flex; align-items: center; gap: 16px; border: 1px solid var(--line); border-radius: 12px; padding: 18px; background: var(--panel); }
+  .avatar-circle { width: 56px; height: 56px; border-radius: 50%; overflow: hidden; border: 1px solid var(--line); flex: none; }
+  .avatar-circle img { width: 100%; height: 100%; }
+  .org-card strong { display: block; font-size: 14px; font-weight: 600; }
+  .org-card span { display: block; font-size: 12px; color: var(--text-3); }
+
+  /* ---------- palette ---------- */
+  .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .swatch {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    font: inherit;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 0;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .swatch .chip { height: 88px; border-bottom: 1px solid var(--line); }
+  .swatch .meta { display: block; padding: 12px 14px 14px; }
+  .swatch .nm { display: block; font-size: 12.5px; font-weight: 600; }
+  .swatch .hex { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); letter-spacing: 0.04em; margin-top: 2px; }
+  .swatch .use { display: block; font-size: 11px; color: var(--text-2); margin-top: 6px; line-height: 1.4; }
+  .swatch:hover .chip { opacity: 0.9; }
+  .swatch .copied {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: var(--bg);
+    color: var(--accent);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 3px 6px;
+    opacity: 0;
+    transition: opacity 140ms ease;
+  }
+  .swatch.is-copied .copied { opacity: 1; }
+
+  /* ---------- type ---------- */
+  .type-row { display: grid; grid-template-columns: 200px 1fr; gap: 28px; padding: 22px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
+  .type-row:last-child { border-bottom: 0; padding-bottom: 0; }
+  .type-row .role { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
+  .type-row .role b { display: block; font-family: var(--sans); font-size: 13px; letter-spacing: 0; text-transform: none; color: var(--text); font-weight: 600; margin-top: 3px; }
+  .specimen-display { font-size: 42px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
+  .specimen-ui { font-size: 17px; line-height: 1.6; color: var(--text-2); max-width: 56ch; }
+  .specimen-mono { font-family: var(--mono); font-size: 14px; letter-spacing: 0.06em; color: var(--accent); }
+
+  /* ---------- usage ---------- */
+  .usage { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .usage .panel h3 { margin: 0 0 14px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; font-family: var(--mono); font-weight: 500; }
+  .usage ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+  .usage li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; font-size: 13.5px; color: var(--text-2); line-height: 1.5; }
+  .usage li::before { font-family: var(--mono); font-size: 12px; line-height: 1.6; }
+  .usage .do li::before { content: "✓"; color: var(--ok); }
+  .usage .dont li::before { content: "×"; color: var(--text-3); }
+
+  /* ---------- files ---------- */
+  .files {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 2;
+    color: var(--text-2);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .files .d { color: var(--accent); }
+  .files .c { color: var(--text-3); }
+
+  footer {
+    margin-top: 80px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  footer a { color: var(--text-2); text-decoration: none; border-bottom: 1px solid var(--line-strong); }
+  footer a:hover { color: var(--accent); border-color: var(--accent); }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; gap: 32px; padding-top: 48px; }
+    .hero-stage { min-height: 240px; }
+    .grid-2, .mark-stage, .mocks, .usage { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr; }
+    .specs { grid-template-columns: 1fr 1fr; }
+    .swatches { grid-template-columns: 1fr 1fr; }
+    .type-row { grid-template-columns: 1fr; gap: 10px; }
+    .section-head { grid-template-columns: 1fr; gap: 6px; }
+  }
+
+  @media (max-width: 560px) {
+    .wrap { padding: 0 20px 64px; }
+    .topbar { padding: 0 20px; }
+    .topbar .org span { display: none; }
+    .swatches { grid-template-columns: 1fr 1fr; }
+    .swatch .chip { height: 64px; }
+    .scale-row { gap: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <img src="svg/favicon.svg" alt="" width="24" height="24" />
+  <div class="org">dev atlas lab <span>/ brand system</span></div>
+  <div class="spacer"></div>
+  <div class="theme-switch" role="group" aria-label="Colour theme">
+    <button type="button" data-theme-set="dark" aria-pressed="true">Dark</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero" aria-labelledby="hero-title">
+    <div>
+      <p class="eyebrow mono">Brand system · v1.0 · 2026</p>
+      <h1 id="hero-title">An atlas for the <em>builder’s path</em>.</h1>
+      <p class="lede">
+        Dev Atlas Lab is a personal knowledge atlas: routes through software engineering,
+        DevOps, architecture, AI and cloud. The identity borrows the language of navigation —
+        a letterform that is also a trail, waypoints that mark how far you have come.
+      </p>
+      <nav class="index" aria-label="Contents">
+        <a href="#mark"><b>01</b>Mark</a>
+        <a href="#lockups"><b>02</b>Lockups</a>
+        <a href="#icon"><b>03</b>Icon</a>
+        <a href="#colour"><b>04</b>Colour</a>
+        <a href="#type"><b>05</b>Type</a>
+        <a href="#usage"><b>06</b>Usage</a>
+        <a href="#files"><b>07</b>Files</a>
+      </nav>
+    </div>
+    <div class="hero-stage">
+      <img class="lockup logo-on-dark" src="svg/lockup-horizontal.svg" alt="Dev Atlas Lab" />
+      <img class="lockup logo-on-light" src="svg/lockup-horizontal-light.svg" alt="Dev Atlas Lab" />
+      <div class="stage-caption">
+        <span>Primary lockup</span>
+        <span>SVG · vector master</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="mark" aria-labelledby="s-mark">
+    <div class="section-head">
+      <span class="num">01</span>
+      <div>
+        <h2 id="s-mark">The mark</h2>
+        <p>A waypoint “A” on a survey line. Read literally: the atlas letter, a summit, two base camps. Read as a system: every stop is a domain you have mapped.</p>
+      </div>
+    </div>
+
+    <div class="mark-stage">
+      <div class="mark-box panel--dots">
+        <img src="svg/mark.svg" alt="Dev Atlas Lab mark: a copper letter A with two waypoint dots at its base" width="148" height="148" />
+      </div>
+      <div class="panel">
+        <ul class="anatomy">
+          <li>
+            <span class="k">01</span>
+            <div>
+              <strong>Summit = direction</strong>
+              <span>The apex is where the two routes meet: the goal you are navigating toward, not a finish line.</span>
+            </div>
+          </li>
+          <li>
+            <span class="k">02</span>
+            <div>
+              <strong>Waypoints = progress</strong>
+              <span>The two nodes are base camps. Learning is a sequence of mapped stops, not a single jump.</span>
+            </div>
+          </li>
+          <li>
+            <span class="k">03</span>
+            <div>
+              <strong>Survey line = the atlas</strong>
+              <span>The crossbar meets a measured latitude. The app icon keeps that line; small sizes drop it.</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <dl class="specs">
+      <div><dt>Grid</dt><dd>64 units</dd></div>
+      <div><dt>Stroke</dt><dd>5.8 units, round caps</dd></div>
+      <div><dt>Nodes</dt><dd>r 3.4, at the feet</dd></div>
+      <div><dt>Clearspace</dt><dd>0.5× mark height</dd></div>
+    </dl>
+  </section>
+
+  <section id="lockups" aria-labelledby="s-lockups">
+    <div class="section-head">
+      <span class="num">02</span>
+      <div>
+        <h2 id="s-lockups">Lockups</h2>
+        <p>The horizontal lockup is the default. Use the stacked version when width is not available. The wordmark sets “dev” light and “atlas” semibold: the atlas is the subject.</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <div class="lockup-stage panel--ink">
+          <img src="svg/lockup-horizontal.svg" alt="Dev Atlas Lab horizontal lockup on dark" />
+        </div>
+        <div class="caption"><span class="name">Horizontal · dark</span><span class="file">svg/lockup-horizontal.svg</span></div>
+      </div>
+      <div>
+        <div class="lockup-stage panel--paper">
+          <img src="svg/lockup-horizontal-light.svg" alt="Dev Atlas Lab horizontal lockup on light" />
+        </div>
+        <div class="caption"><span class="name">Horizontal · light</span><span class="file">svg/lockup-horizontal-light.svg</span></div>
+      </div>
+      <div>
+        <div class="lockup-stage panel--ink stacked-stage">
+          <img src="svg/lockup-stacked.svg" alt="Dev Atlas Lab stacked lockup with the tagline knowledge atlas for builders" />
+        </div>
+        <div class="caption"><span class="name">Stacked · with tagline</span><span class="file">svg/lockup-stacked.svg</span></div>
+      </div>
+      <div class="panel">
+        <p class="mono" style="margin:0 0 14px">Minimum sizes</p>
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--line)">
+          <img src="svg/lockup-horizontal.svg" width="160" alt="The horizontal lockup at its 160 px minimum width" />
+          <span class="mono" style="font-size:9.5px">160 px</span>
+        </div>
+        <p style="margin:0;color:var(--text-2);font-size:13.5px">
+          Horizontal lockup: 160 px wide on screen, 32 mm in print.
+          Stacked lockup: 120 px wide. Below that, use the mark on its own.
+        </p>
+        <div class="min-size">measured at 1× pixel density</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="icon" aria-labelledby="s-icon">
+    <div class="section-head">
+      <span class="num">03</span>
+      <div>
+        <h2 id="s-icon">Icon, avatar, favicon</h2>
+        <p>The ink tile carries the mark wherever a square is required. The survey line stays at large sizes and is removed in the 16 px favicon.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="scale-row">
+        <div class="scale-item"><img src="svg/avatar.svg" width="128" height="128" alt="" /><span>128</span><small>avatar</small></div>
+        <div class="scale-item"><img src="svg/app-icon.svg" width="64" height="64" alt="" /><span>64</span><small>app icon</small></div>
+        <div class="scale-item"><img src="svg/app-icon.svg" width="32" height="32" alt="" /><span>32</span><small>app icon</small></div>
+        <div class="scale-item"><img src="svg/favicon.svg" width="32" height="32" alt="" /><span>32</span><small>favicon</small></div>
+        <div class="scale-item"><img src="svg/favicon.svg" width="16" height="16" alt="" /><span>16</span><small>tab / favicon</small></div>
+        <div class="scale-item"><img src="svg/mark.svg" width="24" height="24" alt="" /><span>24</span><small>inline mark</small></div>
+      </div>
+
+      <div class="mocks">
+        <div class="browser" role="img" aria-label="Example browser tab using the 16 px favicon">
+          <div class="browser-bar">
+            <span class="browser-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="tab"><img src="svg/favicon.svg" alt="" width="14" height="14" /> dev atlas lab</span>
+          </div>
+          <div class="browser-body">KNOWLEDGE ATLAS · SOFTWARE / DEVOPS / ARCHITECTURE / AI / CLOUD</div>
+        </div>
+        <div class="org-card">
+          <span class="avatar-circle"><img src="svg/avatar.svg" alt="" /></span>
+          <div>
+            <strong>dev-atlas-lab</strong>
+            <span>GitHub organisation avatar · circular crop</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-3" style="margin-top:24px">
+      <div>
+        <div class="lockup-stage panel--ink" style="min-height:150px"><img src="svg/mark-mono-paper.svg" width="92" alt="Monochrome mark in paper" /></div>
+        <div class="caption"><span class="name">Mono · paper on ink</span><span class="file">svg/mark-mono-paper.svg</span></div>
+      </div>
+      <div>
+        <div class="lockup-stage panel--paper" style="min-height:150px"><img src="svg/mark-mono-ink.svg" width="92" alt="Monochrome mark in ink" /></div>
+        <div class="caption"><span class="name">Mono · ink on paper</span><span class="file">svg/mark-mono-ink.svg</span></div>
+      </div>
+      <div>
+        <div class="lockup-stage panel--ink" style="min-height:150px;background:repeating-linear-gradient(135deg,#23262c 0 10px,#15171c 10px 20px)"><img src="svg/mark.svg" width="92" alt="The mark placed on a busy striped background" /></div>
+        <div class="caption"><span class="name">Busy field · don’t</span><span class="file">use a solid tile instead</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="colour" aria-labelledby="s-colour">
+    <div class="section-head">
+      <span class="num">04</span>
+      <div>
+        <h2 id="s-colour">Colour</h2>
+        <p>Ink and copper: a dark drafting table with one warm signal. Copper is the only accent in the identity — everything else is a neutral. Select a swatch to copy its hex.</p>
+      </div>
+    </div>
+
+    <div class="swatches">
+      <button type="button" class="swatch" data-hex="#0E0F12">
+        <span class="copied">Copied</span>
+        <span class="chip" style="background:#0e0f12"></span>
+        <span class="meta"><span class="nm">Ink 950</span><span class="hex">#0E0F12</span><span class="use">Primary dark surface</span></span>
+      </button>
+      <button type="button" class="swatch" data-hex="#14161A">
+        <span class="copied">Copied</span>
+        <span class="chip" style="background:#14161a"></span>
+        <span class="meta"><span class="nm">Ink 900</span><span class="hex">#14161A</span><span class="use">Panels, cards</span></span>
+      </button>
+      <button type="button" class="swatch" data-hex="#20242B">
+        <span class="copied">Copied</span>
+        <span class="chip" style="background:#20242b"></span>
+        <span class="meta"><span class="nm">Ink 800</span><span class="hex">#20242B</span><span class="use">Tile gradient start</span></span>
+      </button>
+      <button type="button" class="swatch" data-hex="#F7F6F3">
+        <span class="copied">Copied</span>
+        <span class="chip" style="background:#f7f6f3"></span>
+        <span class="meta"><span class="nm">Paper</span><span class="hex">#F7F6F3</span><span class="use">Light surface</span></span>
+      </button>
+      <button type="button" class="swatch" data-hex="#F2BB90">
+        <span class="copied">Copied</span>
+        <span class="chip" style="background:#f2bb90"></span>
+        <span class="meta"><span class="nm">Copper 300</span><span class="hex">#F2BB90</span><span class="use">Highlight, nodes</span></span>
+      </button>
+      <button type="button" class="swatch" data-hex="#E2A173">
+        <span class="copied">Copied</span>
+        <span class="chip" style="background:#e2a173"></span>
+        <span class="meta"><span class="nm">Copper 400</span><span class="hex">#E2A173</span><span class="use">Primary accent</span></span>
+      </button>
+      <button type="button" class="swatch" data-hex="#D08553">
+        <span class="copied">Copied</span>
+        <span class="chip" style="background:#d08553"></span>
+        <span class="meta"><span class="nm">Copper 500</span><span class="hex">#D08553</span><span class="use">Gradient end</span></span>
+      </button>
+      <button type="button" class="swatch" data-hex="#A85B2B">
+        <span class="copied">Copied</span>
+        <span class="chip" style="background:#a85b2b"></span>
+        <span class="meta"><span class="nm">Copper 700</span><span class="hex">#A85B2B</span><span class="use">Copper on paper</span></span>
+      </button>
+    </div>
+    <p class="mono" style="margin-top:16px">Neutral text: #F4F1EA · #A9AAB1 · #82858E &nbsp;/&nbsp; light theme: #14161A · #4F535C · #6E727B</p>
+  </section>
+
+  <section id="type" aria-labelledby="s-type">
+    <div class="section-head">
+      <span class="num">05</span>
+      <div>
+        <h2 id="s-type">Typography</h2>
+        <p>One neutral grotesque for names and prose, one monospace for coordinates, labels and the “LAB” suffix. Both resolve from system fonts — no webfont requests.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="type-row">
+        <div class="role">Display<b>Inter / Segoe UI</b></div>
+        <div>
+          <div class="specimen-display"><span style="font-weight:300;color:var(--text-2)">dev </span>atlas</div>
+          <p class="specimen-ui" style="margin:10px 0 0">Weights 300 and 600, tracking −0.02em. “dev” recedes, “atlas” carries the name.</p>
+        </div>
+      </div>
+      <div class="type-row">
+        <div class="role">Interface<b>Inter / Segoe UI</b></div>
+        <div>
+          <p class="specimen-ui" style="margin:0">Sections, lesson copy and controls. Vietnamese diacritics must be checked at 14–16 px before extending the system.</p>
+        </div>
+      </div>
+      <div class="type-row">
+        <div class="role">Technical<b>JetBrains Mono</b></div>
+        <div>
+          <div class="specimen-mono">/ LAB · 24.5098° N 46.6396° E · v1.0</div>
+          <p class="specimen-ui" style="margin:10px 0 0">Uppercase, 0.14–0.22em tracking. Used for the LAB suffix, section numbers and file names.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="usage" aria-labelledby="s-usage">
+    <div class="section-head">
+      <span class="num">06</span>
+      <div>
+        <h2 id="s-usage">Usage</h2>
+        <p>The mark is simple enough to survive small sizes; keep it that way. These rules protect legibility more than they protect taste.</p>
+      </div>
+    </div>
+
+    <div class="usage">
+      <div class="panel do">
+        <h3>Do</h3>
+        <ul>
+          <li>Keep clearspace of at least half the mark’s height on every side.</li>
+          <li>Use the light lockup on paper, the dark lockup on ink.</li>
+          <li>Use the tile icon for avatars and favicons; it is built to be cropped to a circle.</li>
+          <li>Use the mono mark for one-colour print, embroidery or stamps.</li>
+          <li>Scale the whole lockup proportionally; type stays typeset, not redrawn.</li>
+        </ul>
+      </div>
+      <div class="panel dont">
+        <h3>Don’t</h3>
+        <ul>
+          <li>Don’t stretch, shear or rotate the mark.</li>
+          <li>Don’t recolour it outside the copper and neutral palette.</li>
+          <li>Don’t place the mark on photography or gradients without a solid backing tile.</li>
+          <li>Don’t add outlines, shadows, glow or extra waypoints.</li>
+          <li>Don’t set “dev atlas” in a different typeface to imitate the wordmark.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="files" aria-labelledby="s-files">
+    <div class="section-head">
+      <span class="num">07</span>
+      <div>
+        <h2 id="s-files">Files</h2>
+        <p>SVG is the master format. PNG exports exist only where a platform requires raster: avatars, favicons and social previews.</p>
+      </div>
+    </div>
+
+    <div class="files">
+<span class="d">brand/</span>
+├─ index.html            <span class="c">← this document</span>
+├─ README.md             <span class="c">← usage notes</span>
+├─ <span class="d">svg/</span>
+│  ├─ mark.svg
+│  ├─ app-icon.svg
+│  ├─ favicon.svg
+│  ├─ avatar.svg
+│  ├─ lockup-horizontal.svg
+│  ├─ lockup-horizontal-light.svg
+│  ├─ lockup-stacked.svg
+│  ├─ mark-mono-ink.svg
+│  └─ mark-mono-paper.svg
+├─ <span class="d">png/</span>
+│  ├─ avatar-1024.png
+│  ├─ icon-512.png
+│  ├─ icon-192.png
+│  ├─ apple-touch-icon-180.png
+│  ├─ favicon-32.png
+│  ├─ favicon-16.png
+│  ├─ lockup-horizontal-1200.png
+│  └─ social-1280x640.png
+└─ <span class="d">tools/</span>
+   ├─ assets.html        <span class="c">← render source</span>
+   └─ render-assets.mjs  <span class="c">← PNG export</span>
+    </div>
+  </section>
+
+  <footer>
+    <span>Dev Atlas Lab · brand system 1.0 · October 2026</span>
+    <span><a href="https://github.com/dev-atlas-lab">github.com/dev-atlas-lab</a></span>
+  </footer>
+</main>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var buttons = Array.prototype.slice.call(document.querySelectorAll("[data-theme-set]"));
+
+    function apply(theme) {
+      root.dataset.theme = theme;
+      root.style.colorScheme = theme;
+      buttons.forEach(function (button) {
+        button.setAttribute("aria-pressed", String(button.dataset.themeSet === theme));
+      });
+      try { localStorage.setItem("dal.brand.theme", theme); } catch (error) { /* storage blocked */ }
+    }
+
+    var stored = null;
+    try { stored = localStorage.getItem("dal.brand.theme"); } catch (error) { /* storage blocked */ }
+    apply(stored === "light" ? "light" : "dark");
+
+    buttons.forEach(function (button) {
+      button.addEventListener("click", function () { apply(button.dataset.themeSet); });
+    });
+
+    var live = document.createElement("p");
+    live.className = "sr-only";
+    live.setAttribute("role", "status");
+    document.body.appendChild(live);
+
+    Array.prototype.forEach.call(document.querySelectorAll(".swatch"), function (swatch) {
+      swatch.setAttribute("aria-label", "Copy colour " + swatch.dataset.hex);
+      swatch.addEventListener("click", function () {
+        var hex = swatch.dataset.hex;
+        function done() {
+          live.textContent = hex + " copied";
+          swatch.classList.add("is-copied");
+          setTimeout(function () { swatch.classList.remove("is-copied"); }, 1400);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(hex).then(done, fallback);
+        } else {
+          fallback();
+        }
+        function fallback() {
+          var area = document.createElement("textarea");
+          area.value = hex;
+          area.setAttribute("readonly", "");
+          area.style.position = "fixed";
+          area.style.opacity = "0";
+          document.body.appendChild(area);
+          area.select();
+          try { document.execCommand("copy"); done(); } catch (error) { live.textContent = "Copy failed"; }
+          document.body.removeChild(area);
+        }
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>
