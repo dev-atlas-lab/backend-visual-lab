@@ -10,24 +10,24 @@
   --border-bold: #484f58;
 
   --text-primary: #f0f6fc;
-  --text-secondary: #8b949e;
-  --text-tertiary: #6e7681;
+  --text-secondary: #9da7b3;
+  --text-tertiary: #8b949e;
 
   --accent-primary: #38bdf8;
   --accent-hover: #0284c7;
-  --accent-subtle: rgba(56, 189, 248, 0.12);
+  --accent-subtle: rgba(56, 189, 248, 0.15);
 
   --status-ok: #3fb950;
-  --status-ok-subtle: rgba(63, 185, 80, 0.15);
+  --status-ok-subtle: rgba(63, 185, 80, 0.2);
 
   --status-warn: #d29922;
-  --status-warn-subtle: rgba(210, 153, 34, 0.15);
+  --status-warn-subtle: rgba(210, 153, 34, 0.2);
 
   --status-danger: #f85149;
-  --status-danger-subtle: rgba(248, 81, 73, 0.15);
+  --status-danger-subtle: rgba(248, 81, 73, 0.2);
 
   --status-info: #58a6ff;
-  --status-info-subtle: rgba(88, 166, 255, 0.15);
+  --status-info-subtle: rgba(88, 166, 255, 0.2);
 
   --focus-ring: #38bdf8;
 
