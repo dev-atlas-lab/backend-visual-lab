@@ -43,6 +43,7 @@ export function Topbar({
           type="button"
           className="icon-button nav-toggle"
           aria-label="Open navigation"
+          title="Mở thanh điều hướng (Open sidebar navigation)"
           aria-expanded={navOpen}
           aria-controls="primary-navigation"
           onClick={onOpenNav}

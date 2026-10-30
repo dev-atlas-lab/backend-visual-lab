@@ -8,6 +8,14 @@ import { getModuleBySlug } from "../../content";
 export function AppShell() {
   const location = useLocation();
   const [navOpen, setNavOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("bvl.sidebar-collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
@@ -35,7 +43,27 @@ export function AppShell() {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
-  // Close drawer on navigation
+  const handleCloseSidebar = () => {
+    setNavOpen(false);
+    setSidebarCollapsed(true);
+    try {
+      localStorage.setItem("bvl.sidebar-collapsed", "true");
+    } catch {
+      // Ignored
+    }
+  };
+
+  const handleOpenSidebar = () => {
+    setNavOpen(true);
+    setSidebarCollapsed(false);
+    try {
+      localStorage.setItem("bvl.sidebar-collapsed", "false");
+    } catch {
+      // Ignored
+    }
+  };
+
+  // Close mobile drawer on navigation
   const handleNavigate = () => {
     setNavOpen(false);
   };
@@ -126,19 +154,23 @@ export function AppShell() {
   const breadcrumb = getBreadcrumb();
 
   return (
-    <div className={`app-shell ${navOpen ? "nav-is-open" : ""}`}>
+    <div
+      className={`app-shell ${navOpen ? "nav-is-open" : ""} ${
+        sidebarCollapsed ? "sidebar-collapsed" : ""
+      }`}
+    >
       {/* Sidebar Drawer Backdrop (Mobile only) */}
       {navOpen && (
         <div
           className="drawer-backdrop"
-          onClick={() => setNavOpen(false)}
+          onClick={handleCloseSidebar}
           aria-hidden="true"
         />
       )}
 
       {/* Primary Sidebar */}
       <Sidebar
-        onClose={() => setNavOpen(false)}
+        onClose={handleCloseSidebar}
         onNavigate={handleNavigate}
         closeButtonRef={closeButtonRef}
       />
@@ -146,8 +178,8 @@ export function AppShell() {
       {/* Main Content Scaffold */}
       <div className="app-main">
         <Topbar
-          navOpen={navOpen}
-          onOpenNav={() => setNavOpen(true)}
+          navOpen={navOpen || !sidebarCollapsed}
+          onOpenNav={handleOpenSidebar}
           toggleButtonRef={toggleButtonRef}
           breadcrumbPrefix={breadcrumb.prefix}
           breadcrumbCurrent={breadcrumb.current}
