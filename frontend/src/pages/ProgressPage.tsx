@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { validatedContentPack } from "../content";
 import {
   loadProgressEnvelope,
   resetAllProgress,
 } from "../engines/progress/progress-store";
-import { CheckCircle2, RotateCcw, ArrowRight, Award, Zap } from "lucide-react";
+import { RotateCcw, ArrowRight, Award, Zap } from "lucide-react";
 
 export function ProgressPage() {
   const [envelope, setEnvelope] = useState(() => loadProgressEnvelope());

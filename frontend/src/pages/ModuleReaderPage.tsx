@@ -1,4 +1,3 @@
-import React from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   getModuleBySlug,
@@ -18,7 +17,7 @@ import {
   projectPostgresFrameToLanes,
 } from "../engines/visualization/projectors";
 import { recordSimulationInteraction } from "../engines/progress/progress-store";
-import { ArrowLeft, Clock, BookOpen, ExternalLink, Zap } from "lucide-react";
+import { ArrowLeft, Clock, ExternalLink, Zap } from "lucide-react";
 
 export function ModuleReaderPage() {
   const { moduleSlug } = useParams<{ moduleSlug: string }>();

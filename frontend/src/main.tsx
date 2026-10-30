@@ -1,4 +1,3 @@
-import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
@@ -28,8 +27,6 @@ export function AppRouter() {
 const rootElement = document.getElementById("root");
 if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
-    <React.StrictMode>
-      <AppRouter />
-    </React.StrictMode>,
+    <AppRouter />,
   );
 }

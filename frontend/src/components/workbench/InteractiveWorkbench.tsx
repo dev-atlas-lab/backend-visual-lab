@@ -1,4 +1,4 @@
-import React, { useId, useState } from "react";
+import { useId, useState, useEffect } from "react";
 import {
   type SimulationEngineSpec,
   type SimulationStepFrame,
@@ -11,8 +11,6 @@ import {
   RotateCcw,
   ChevronLeft,
   ChevronRight,
-  ShieldAlert,
-  Info,
   CheckCircle,
   AlertTriangle,
 } from "lucide-react";
@@ -47,7 +45,7 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
   const lanes = projector(currentFrame);
 
   // Playback Auto-Stepper
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isPlaying) return;
     const timer = setInterval(() => {
       setCurrentIndex((prev) => {

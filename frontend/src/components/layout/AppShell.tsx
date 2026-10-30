@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
-import { Layers, Moon, Sun, Terminal, CheckCircle2 } from "lucide-react";
+import { Layers, Moon, Sun } from "lucide-react";
 
 export function AppShell() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
