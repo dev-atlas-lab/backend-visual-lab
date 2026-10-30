@@ -164,7 +164,16 @@ export function ModuleReaderPage() {
   };
 
   return (
-    <div key={moduleData.slug} style={{ maxWidth: viewMode === "split" ? "100%" : "var(--lesson-column)", margin: "0 auto" }}>
+    <div
+      key={moduleData.slug}
+      style={{
+        maxWidth: viewMode === "split" ? "100%" : "var(--lesson-column)",
+        width: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
+        margin: "0 auto",
+      }}
+    >
       {/* Module Header */}
       <header className="module-header" style={{ marginBottom: "var(--space-4)" }}>
         <Link to="/" className="module-back-link">

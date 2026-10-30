@@ -253,8 +253,8 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
           <button
             onClick={handleReset}
             className="btn"
-            title="Reset to initial state (Tick 1) [R]"
-            aria-label="Reset to initial state"
+            title="Reset simulation to initial state (Tick 1) [R]"
+            aria-label="Reset simulation to initial state [R]"
           >
             <RotateCcw size={14} />
             <span>Reset</span>
@@ -394,6 +394,7 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
       {/* Custom Interactive Chaos / Fault Controls */}
       {renderCustomControls ? (
         <div
+          className="workbench-mutation-toolbar"
           style={{
             padding: "var(--space-2) var(--space-5)",
             background: "var(--surface-2)",
@@ -402,6 +403,8 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
             flexWrap: "wrap",
             gap: "var(--space-2)",
             alignItems: "center",
+            maxWidth: "100%",
+            boxSizing: "border-box",
           }}
         >
           <span

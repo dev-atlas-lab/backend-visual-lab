@@ -658,6 +658,14 @@
   max-width: var(--max-content-width);
   margin: 0 auto;
   padding: clamp(1.5rem, 3vw, 2.5rem) clamp(1.25rem, 3vw, 2.5rem) var(--space-12);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: var(--space-4) var(--space-3) var(--space-8);
+  }
 }
 
 /* ── Modern Footer ─────────────────────────────────────────────────────── */
@@ -785,6 +793,23 @@
   .topbar-search-text {
     display: none;
   }
+  .breadcrumb-prefix,
+  .breadcrumb-sep {
+    display: none;
+  }
+}
+
+@media (max-width: 440px) {
+  .engine-badge {
+    display: none;
+  }
+}
+
+/* ── Global Accessible Focus Visible ────────────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ── Command Palette Modal ──────────────────────────────────────────────── */

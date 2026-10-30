@@ -133,9 +133,9 @@
   --surface-inset: #eae7df;
   --surface-glass: rgba(255, 255, 255, 0.88);
 
-  --border-subtle: #dcd7ce;
-  --border-bold: #c7c1b5;
-  --border-strong: #b8b1a4;
+  --border-subtle: #d3cec4;
+  --border-bold: #bfb8aa;
+  --border-strong: #a9a293;
 
   --text-primary: #18191b;
   --text-secondary: #56575e;
@@ -215,6 +215,16 @@ button {
 
 code, pre, kbd {
   font-family: var(--font-mono);
+}
+
+pre {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+}
+
+p, li, dd, dt, h1, h2, h3, h4, h5, h6 {
+  overflow-wrap: anywhere;
 }
 
 ::selection {

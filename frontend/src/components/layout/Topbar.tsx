@@ -1,4 +1,4 @@
-import { useState, type RefObject } from "react";
+import { useState, useEffect, type RefObject } from "react";
 import { Link } from "react-router-dom";
 import { Menu, Sun, Moon, Volume2, VolumeX, Keyboard, Search, X } from "lucide-react";
 import { isSoundEnabled, toggleSound, playClick } from "../../engines/audio/sound-fx";
@@ -36,6 +36,17 @@ export function Topbar({
     playClick();
     setShowShortcutsModal(true);
   };
+
+  useEffect(() => {
+    if (!showShortcutsModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowShortcutsModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showShortcutsModal]);
 
   return (
     <header className="topbar">
