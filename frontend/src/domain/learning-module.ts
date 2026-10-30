@@ -91,6 +91,7 @@ export const simulationIdSchema = z.enum([
   "java-memory-gc",
   "java-hashmap-treeification",
   "java-virtual-threads",
+  "java-exceptions-stack-unwinding",
 ]);
 
 export type SimulationId = z.infer<typeof simulationIdSchema>;

@@ -13,6 +13,7 @@ import {
   javaMemoryGcSimulation,
   javaHashMapSimulation,
   javaVirtualThreadsSimulation,
+  javaExceptionsSimulation,
 } from "../engines/simulation";
 import {
   projectKafkaFrameToLanes,
@@ -21,6 +22,7 @@ import {
   projectJavaMemoryFrameToLanes,
   projectJavaHashMapFrameToLanes,
   projectJavaVirtualThreadsFrameToLanes,
+  projectJavaExceptionsFrameToLanes,
 } from "../engines/visualization/projectors";
 import { recordSimulationInteraction } from "../engines/progress/progress-store";
 import {
@@ -466,6 +468,81 @@ export function ModuleReaderPage() {
                     className="btn"
                   >
                     Resolve I/O Completion
+                  </button>
+                </>
+              )}
+            />
+          ) : null}
+
+          {moduleData.simulationId === "java-exceptions-stack-unwinding" ? (
+            <InteractiveWorkbench
+              engine={javaExceptionsSimulation}
+              projector={projectJavaExceptionsFrameToLanes}
+              onCommandDispatched={handleSimInteraction}
+              renderCustomControls={(dispatch, state) => (
+                <>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "INVOKE_METHOD",
+                        className: "PaymentGatewayClient",
+                        methodName: "authorizeTransaction()",
+                        hasCatch: false,
+                      })
+                    }
+                    className="btn"
+                    disabled={state.callStack.length >= 5 || state.activeThrowable !== null}
+                  >
+                    + Push Call Frame
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "THROW_EXCEPTION",
+                        category: "CheckedException",
+                        className: "PaymentTimeoutException",
+                        message: "Socket read timeout connecting to Visa Gateway after 5000ms",
+                      })
+                    }
+                    className="btn btn-danger"
+                    disabled={state.activeThrowable !== null || state.callStack.length === 0}
+                  >
+                    Throw Checked Exception
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "THROW_EXCEPTION",
+                        category: "UncheckedException",
+                        className: "NullPointerException",
+                        message: "Cannot invoke Account.getBalance() because account is null",
+                      })
+                    }
+                    className="btn btn-danger"
+                    disabled={state.activeThrowable !== null || state.callStack.length === 0}
+                  >
+                    Throw Unchecked RuntimeException
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "THROW_EXCEPTION",
+                        category: "Error",
+                        className: "OutOfMemoryError",
+                        message: "Java heap space exhausted: requested 64MB array allocation",
+                      })
+                    }
+                    className="btn btn-danger"
+                    disabled={state.activeThrowable !== null || state.callStack.length === 0}
+                  >
+                    Throw Fatal Error!
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "STEP_UNWIND" })}
+                    className="btn btn-primary"
+                    disabled={state.activeThrowable === null && !state.unhandledEscaped}
+                  >
+                    Step Stack Unwind (athrow)
                   </button>
                 </>
               )}

@@ -14,10 +14,12 @@ export const domainCatalog: DomainCatalogEntry[] = [
       "Java Collections: HashMap Hashing, Collisions & Red-Black Treeification",
       "Java 8+ Functional Interfaces, Lambda & Stream Pipeline Fusion",
       "CompletableFuture & Asynchronous Non-blocking Pipelines",
+      "Java Exceptions, Stack Unwinding, Exception Table & Suppressed Errors",
       "Java 21 Virtual Threads (Project Loom), Carrier Scheduling & Thread Pinning",
     ],
     featuredModuleSlugs: [
       "java-memory-heap-stack-gc",
+      "java-exceptions-stack-unwinding",
       "java-hashmap-treeification",
       "java-streams-lazy-evaluation",
       "java-virtual-threads-loom",

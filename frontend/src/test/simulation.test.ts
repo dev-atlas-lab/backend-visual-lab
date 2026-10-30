@@ -6,6 +6,7 @@ import {
   javaMemoryGcSimulation,
   javaHashMapSimulation,
   javaVirtualThreadsSimulation,
+  javaExceptionsSimulation,
   computePartitionAssignment,
   buildPresetTape,
 } from "../engines/simulation";
@@ -332,5 +333,110 @@ describe("Java 21 Virtual Threads & Loom Simulation Engine", () => {
     expect(pinned.state.carrierThreads.some((c) => c.status === "PINNED")).toBe(true);
     const pinningInvariant = pinned.invariants.find((i) => i.id === "thread-pinning-safety");
     expect(pinningInvariant?.passed).toBe(false);
+  });
+});
+
+describe("Java Exceptions, Throwable & Stack Unwinding Simulation Engine", () => {
+  it("pushes call frames, throws checked exception, and unwinds stack until catch block matches", () => {
+    const engine = javaExceptionsSimulation;
+    const initial = engine.createInitialFrame({ maxStackDepth: 6, trackSuppressed: true });
+    expect(initial.state.callStack.length).toBe(1);
+
+    // Push OrderController with catch handler
+    const frame1 = engine.applyCommand(initial, {
+      type: "INVOKE_METHOD",
+      className: "OrderController",
+      methodName: "checkout()",
+      hasCatch: true,
+      catchType: "PaymentGatewayException",
+    });
+    expect(frame1.state.callStack.length).toBe(2);
+
+    // Push OrderService without catch
+    const frame2 = engine.applyCommand(frame1, {
+      type: "INVOKE_METHOD",
+      className: "OrderService",
+      methodName: "process()",
+      hasCatch: false,
+    });
+    expect(frame2.state.callStack.length).toBe(3);
+
+    // Throw PaymentGatewayTimeoutException in OrderService
+    const thrown = engine.applyCommand(frame2, {
+      type: "THROW_EXCEPTION",
+      category: "CheckedException",
+      className: "PaymentGatewayTimeoutException",
+      message: "Socket read timeout connecting to Visa Gateway",
+    });
+    expect(thrown.state.activeThrowable).not.toBeNull();
+    expect(thrown.state.activeThrowable?.category).toBe("CheckedException");
+
+    // Step unwind: OrderService popped because no catch handler exists
+    const unwound1 = engine.applyCommand(thrown, { type: "STEP_UNWIND" });
+    expect(unwound1.state.callStack.length).toBe(2);
+    expect(unwound1.state.framesUnwoundCount).toBe(1);
+    expect(unwound1.state.activeThrowable).not.toBeNull();
+
+    // Step unwind: OrderController matches PaymentGatewayException!
+    const unwound2 = engine.applyCommand(unwound1, { type: "STEP_UNWIND" });
+    expect(unwound2.state.stackUnwindingPhase).toBe("CAUGHT_AND_HANDLED");
+    expect(unwound2.state.activeThrowable).toBeNull();
+    expect(unwound2.state.handledThrowable?.className).toBe("PaymentGatewayTimeoutException");
+    expect(unwound2.invariants.every((inv) => inv.passed)).toBe(true);
+  });
+
+  it("chains secondary failure as Suppressed Exception during Try-with-Resources AutoCloseable cleanup", () => {
+    const engine = javaExceptionsSimulation;
+    const initial = engine.createInitialFrame({ maxStackDepth: 6, trackSuppressed: true });
+
+    // Method with resource that fails on close
+    const frameWithResource = engine.applyCommand(initial, {
+      type: "INVOKE_METHOD",
+      className: "OrderRepository",
+      methodName: "queryAccountBalance()",
+      hasCatch: true,
+      catchType: "SQLException",
+      withResource: "DbConnection",
+      failOnClose: true,
+    });
+    expect(frameWithResource.state.callStack[1].openedResources.length).toBe(1);
+
+    // Throw primary SQLException
+    const primaryThrow = engine.applyCommand(frameWithResource, {
+      type: "THROW_EXCEPTION",
+      category: "CheckedException",
+      className: "SQLException",
+      message: "Row lock timeout on table accounts",
+    });
+
+    // Step unwind: AutoCloseable triggered, close() throws and is added as Suppressed Exception
+    const stepCleanup = engine.applyCommand(primaryThrow, { type: "STEP_UNWIND" });
+    expect(stepCleanup.state.suppressedThrowables.length).toBe(1);
+    expect(stepCleanup.state.suppressedThrowables[0].isSuppressed).toBe(true);
+    expect(stepCleanup.state.suppressedThrowables[0].suppressedBy).toBe("SQLException");
+
+    // Primary exception is NOT masked!
+    expect(stepCleanup.state.activeThrowable?.className).toBe("SQLException");
+  });
+
+  it("terminates thread when unhandled RuntimeException reaches bottom of Call Stack", () => {
+    const engine = javaExceptionsSimulation;
+    const initial = engine.createInitialFrame({ maxStackDepth: 6, trackSuppressed: true });
+
+    // Throw NullPointerException at root main()
+    const thrown = engine.applyCommand(initial, {
+      type: "THROW_EXCEPTION",
+      category: "UncheckedException",
+      className: "NullPointerException",
+      message: "Cannot read field 'id' because order is null",
+    });
+
+    // Step unwind: root frame popped without handler
+    const fatal = engine.applyCommand(thrown, { type: "STEP_UNWIND" });
+    expect(fatal.state.callStack.length).toBe(0);
+    expect(fatal.state.unhandledEscaped).toBe(true);
+    expect(fatal.state.stackUnwindingPhase).toBe("FATAL_UNCAUGHT_TERMINATION");
+    const liveness = fatal.invariants.find((inv) => inv.id === "uncaught-thread-termination");
+    expect(liveness?.passed).toBe(false);
   });
 });
