@@ -1338,4 +1338,399 @@ CompletableFuture<UserDashboard> dashboardFuture = userFuture
     sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
     questionIds: ["java-q11-cf-join-starvation", "java-q12-cf-async-handoff"],
   },
+
+  // 8. Java Core: Concurrent Collections (ConcurrentHashMap)
+  {
+    id: "java-concurrenthashmap-locking",
+    slug: "java-concurrenthashmap-locking",
+    domainId: "java",
+    title: "Java 8+ — Concurrent Collections: ConcurrentHashMap Internals & Lock Striping",
+    subtitle:
+      "casTabAt on empty bins, synchronized head locking, ForwardingNode cooperative transfer, and lock-free reads",
+    governanceStatus: "VERIFIED",
+    estimatedMinutes: 25,
+    difficulty: "Senior / Staff",
+    simulationId: "java-concurrenthashmap",
+    keyTerms: [
+      {
+        term: "ConcurrentHashMap",
+        definition:
+          "A thread-safe hash table implementation designed for highly concurrent multi-core reads and writes without global table locks or coarse segment blocking.",
+      },
+      {
+        term: "casTabAt (CAS Bin Head)",
+        definition:
+          "Lock-free atomic Compare-And-Swap operation used by ConcurrentHashMap to initialize a previously empty table bucket without acquiring any monitor lock.",
+      },
+      {
+        term: "Striped Bin Locking",
+        definition:
+          "Fine-grained locking mechanism: on hash collisions, synchronization is acquired strictly on the first node (head) of that individual bucket (synchronized(binHead)).",
+      },
+      {
+        term: "ForwardingNode (hash = -1 / MOVED)",
+        definition:
+          "A special sentinel node placed into old table buckets during resize. It routes concurrent readers to the nextTable and prompts mutating threads to help transfer bins cooperatively.",
+      },
+    ],
+    stages: {
+      what: {
+        heading: "1. Core Architectural Concepts (WHAT)",
+        paragraphs: [
+          "In Java 7 and earlier, ConcurrentHashMap achieved thread safety via Segment Locking (ReentrantLock arrays partitioning the table into 16 segments). While far superior to a globally locked Hashtable or Collections.synchronizedMap(), concurrency was fundamentally bounded by the number of segments.",
+          "In Java 8+ (JSR 166 rewrite by Doug Lea), Segment locks were completely replaced with lock-free atomic CAS for empty bucket insertions and fine-grained synchronized locking on the head node of individual collided buckets. This increases effective lock striping to the entire table capacity (thousands of independent bins).",
+        ],
+        bulletPoints: [
+          "Lock-Free Reads: get() operations never acquire any locks, traversing volatile Node.val and Node.next references without contention.",
+          "Lock-Free Empty Writes: If a bucket is empty, a new node is installed via atomic casTabAt with zero monitor overhead.",
+          "Collided Bucket Locking: synchronized(binHead) locks only the collided bucket chain. All remaining bins accept concurrent mutations.",
+        ],
+      },
+      why: {
+        heading: "2. Why Fine-Grained Striping Matters for Backend Systems (WHY)",
+        paragraphs: [
+          "High-throughput backend architectures (e.g. real-time rate limiters, session caches, metrics counters) encounter thousands of concurrent requests per second. Under heavy multi-threaded access, coarse table locks become crippling bottlenecks.",
+        ],
+        bulletPoints: [
+          "Elimination of Stop-The-World Resizing: Instead of freezing the table during capacity doubling, resizing is progressive and cooperative: threads encounter ForwardingNodes and assist via helpTransfer().",
+          "Near Linear Read Scalability: 100% lock-free reads scale across 128+ CPU cores without CPU cache coherence invalidation storm.",
+          "Prevention of Deadlocks: Locking is strictly restricted to individual bucket heads, preventing cross-bin lock inversion deadlocks.",
+        ],
+      },
+      how: {
+        heading: "3. Implementation Patterns & Atomic Mechanics (HOW)",
+        paragraphs: [
+          "ConcurrentHashMap exposes powerful atomic methods that eliminate the need for external synchronization:",
+        ],
+        codeSnippet: {
+          language: "java",
+          caption: "Atomic ConcurrentHashMap Mutation Patterns",
+          code: `ConcurrentHashMap<String, LongAdder> metrics = new ConcurrentHashMap<>();
+
+// 1. Atomic computeIfAbsent: executes mappingFunction only once per key atomically
+metrics.computeIfAbsent("orders.checkout.success", k -> new LongAdder()).increment();
+
+// 2. Atomic putIfAbsent: thread-safe insertion check
+ConcurrentHashMap<String, Session> activeSessions = new ConcurrentHashMap<>();
+Session existing = activeSessions.putIfAbsent(sessionId, newSession);
+if (existing != null) {
+    // Session already registered concurrently
+}`,
+        },
+        bulletPoints: [
+          "computeIfAbsent / compute: Atomically computes the value for a key while holding the bin head lock, preventing race conditions during factory initialization.",
+          "Never Use Collections.synchronizedMap: Wrapping ConcurrentHashMap in synchronizedMap() destroys its concurrent capabilities by forcing a single reentrant lock.",
+          "Null Values Forbidden: Neither keys nor values can be null (throws NullPointerException) to eliminate ambiguity between 'key mapped to null' and 'key not found'.",
+        ],
+      },
+      internals: {
+        heading: "4. HotSpot JVM Internals: ForwardingNodes & Cooperative Transfer (INTERNALS)",
+        paragraphs: [
+          "The internal architecture of java.util.concurrent.ConcurrentHashMap relies on specialized sentinel node hierarchies:",
+        ],
+        bulletPoints: [
+          "ForwardingNode: Has hash = -1 (MOVED) and points to nextTable. When a thread encounters this during put(), it immediately invokes helpTransfer() to assist migrating remaining bins.",
+          "TreeBin (hash = -2): Encapsulates Red-Black tree root when bucket chain length reaches TREEIFY_THRESHOLD (8). Locks the TreeBin root rather than individual tree nodes.",
+          "CounterCell (Striped LongAdder): Table size is not stored in a single volatile counter (which would suffer cache line bouncing). It is striped across an array of CounterCell instances.",
+        ],
+      },
+      tradeOffs: {
+        heading: "5. Technical Trade-Offs: ConcurrentHashMap vs Alternatives (TRADE-OFFS)",
+        paragraphs: [
+          "Comparing thread-safe map structures in Java backend engineering:",
+        ],
+        bulletPoints: [
+          "ConcurrentHashMap vs Collections.synchronizedMap: synchronizedMap locks the entire map for every read and write. ConcurrentHashMap allows N concurrent writes (across N bins) and infinite concurrent reads.",
+          "ConcurrentHashMap vs CopyOnWriteArrayList: CopyOnWrite makes a full array clone on every write (ideal for 99.9% read-heavy configs). ConcurrentHashMap is optimized for high-volume concurrent writes and reads.",
+          "Weakly Consistent Iterators: ConcurrentHashMap iterators reflect the state of the map at or since creation without throwing ConcurrentModificationException. Trade-off: size() is an estimate, not a point-in-time freeze.",
+        ],
+      },
+      failureScenarios: {
+        heading: "6. Production Failure Modes & Anti-Patterns (FAILURE SCENARIOS)",
+        paragraphs: [
+          "Common pitfalls when employing ConcurrentHashMap in production:",
+        ],
+        callout: {
+          tone: "warning",
+          title: "Critical ConcurrentHashMap Pitfalls",
+          body: "1. Compound Action Race Condition: 'if (!map.containsKey(k)) map.put(k, v);' is NOT atomic! Between containsKey() and put(), another thread can insert key k. Always use map.putIfAbsent() or computeIfAbsent()!\n2. Blocking I/O inside computeIfAbsent: computeIfAbsent holds the bucket head lock while computing the lambda. If the lambda performs a slow remote HTTP or DB call, all operations targeting that bucket freeze completely!\n3. Expecting Strict Snapshot Semantics: size() and isEmpty() compute estimations across striped CounterCells. Do not rely on them for strict transactional invariant checks.",
+        },
+      },
+      productionEngineering: {
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
+        paragraphs: [
+          "1. Keep computeIfAbsent Lambdas Pure and In-Memory: Never perform network RPCs or disk writes inside computeIfAbsent or compute.",
+          "2. Pre-size Capacity with InitialCapacity: When expecting millions of keys, initialize capacity = expectedItems / 0.75f + 1 to avoid massive cooperative resize transfers during peak traffic.",
+          "3. Combine with LongAdder: For high-frequency counters, use ConcurrentHashMap<Key, LongAdder> rather than AtomicLong to eliminate CAS spin contention on the counter value.",
+        ],
+      },
+    },
+    sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
+    questionIds: ["java-q13-chm-locking-internals", "java-q14-chm-forwarding-nodes"],
+  },
+
+  // 9. Java Core: Optional & Functional Null-Safety
+  {
+    id: "java-optional-functional-patterns",
+    slug: "java-optional-functional-patterns",
+    domainId: "java",
+    title: "Java 8+ — Java Optional: Functional Null-Safety & Eager orElse Anti-Patterns",
+    subtitle:
+      "Memory footprint boxing, eager orElse vs lazy orElseGet traps, and monadic pipeline composition",
+    governanceStatus: "VERIFIED",
+    estimatedMinutes: 20,
+    difficulty: "Foundational",
+    simulationId: "java-optional-patterns",
+    keyTerms: [
+      {
+        term: "java.util.Optional<T>",
+        definition:
+          "A value-based container object introduced in Java 8 which may or may not contain a non-null value, designed as a library return type to explicitly signal absent results.",
+      },
+      {
+        term: "Eager Evaluation (orElse)",
+        definition:
+          "Java method parameters evaluate eagerly before the method body runs. Therefore, opt.orElse(expensive()) always evaluates the expensive argument even when the Optional contains a value.",
+      },
+      {
+        term: "Lazy Evaluation (orElseGet)",
+        definition:
+          "orElseGet(Supplier<T>) accepts a functional lambda. The supplier is evaluated lazily only when the Optional is verified to be empty.",
+      },
+      {
+        term: "Value-Based Class",
+        definition:
+          "A class whose instances are immutable, lack identity (== comparisons are discouraged), do not implement Serializable, and should not be synchronized upon.",
+      },
+    ],
+    stages: {
+      what: {
+        heading: "1. Core Architectural Concepts (WHAT)",
+        paragraphs: [
+          "Invented by Tony Hoare in 1965, the null reference has famously been called the 'billion-dollar mistake'. In Java, NullPointerException (NPE) is the most frequent runtime exception, often crashing production services when unexpected nulls propagate across service layers.",
+          "Java 8 introduced java.util.Optional<T> not as a general-purpose replacement for every null in the codebase, but specifically as a library return type to force calling code to explicitly consider and handle the possibility of an absent result.",
+        ],
+        bulletPoints: [
+          "Explicit Return Type: Signatures like Optional<User> findUser(id) make absence explicit in the API contract without requiring JavaDoc inspection.",
+          "Monadic Chaining: Supports map, flatMap, filter, and orElseGet to transform values cleanly without nested null checks.",
+          "Boxing Overhead: An Optional instance allocates a separate 16-24 byte container on the JVM Heap wrapping the reference.",
+        ],
+      },
+      why: {
+        heading: "2. Why Optional in High-Fidelity Domain Services (WHY)",
+        paragraphs: [
+          "In enterprise backend architectures, defensive programming using nested 'if (user != null && user.getAddress() != null)' quickly leads to brittle, unreadable code.",
+          "Optional enables concise, declarative pipelines that cleanly express business logic flow while safeguarding against NPE cascades.",
+        ],
+        bulletPoints: [
+          "Defensive Clarity: Eliminates defensive boilerplate and reduces cyclomatic complexity.",
+          "Guaranteed Handling: Forces developers at compile-time to handle absence rather than silently passing null to downstream services.",
+          "Functional Composition: Integrates seamlessly with Java Streams and reactive pipelines.",
+        ],
+      },
+      how: {
+        heading: "3. Implementation Patterns: Idiomatic Monadic Chaining (HOW)",
+        paragraphs: [
+          "Modern Java backend services consume Optional through functional combinators:",
+        ],
+        codeSnippet: {
+          language: "java",
+          caption: "Idiomatic Optional Monadic Composition",
+          code: `// Clean monadic pipeline: transforms, filters, and resolves with zero null checks
+String postalCode = userRepository.findById(userId)
+    .filter(User::isActive)
+    .map(User::getAddress)
+    .map(Address::getPostalCode)
+    .orElseGet(() -> defaultPostalService.getDefaultCode());
+
+// Anti-pattern: DO NOT write imperative isPresent() + get()
+// if (opt.isPresent()) { return opt.get(); } // SMELL! Defeats Optional's purpose`,
+        },
+        bulletPoints: [
+          "map vs flatMap: Use map(T -> R) for simple transformations. Use flatMap(T -> Optional<R>) when the transformer itself returns an Optional.",
+          "orElse vs orElseGet: NEVER use orElse(heavyComputation()) for expensive operations. ALWAYS use orElseGet(() -> heavyComputation()).",
+          "Optional.ofNullable: Use ofNullable(val) to wrap potentially null inputs safely. Optional.of(null) throws NullPointerException immediately.",
+        ],
+      },
+      internals: {
+        heading: "4. HotSpot JVM Internals: Memory Footprint & Value-Based Class (INTERNALS)",
+        paragraphs: [
+          "The internal representation of java.util.Optional in OpenJDK HotSpot 64-bit architecture:",
+        ],
+        bulletPoints: [
+          "Memory Layout: An Optional object on 64-bit JVM with compressed OOPs contains: Mark Word (8 bytes) + Klass Word (4 bytes) + value reference (4 bytes) = 16 bytes. Without compressed OOPs, it occupies 24 bytes.",
+          "No Serialization: Optional does NOT implement java.io.Serializable. Using Optional as fields in Hibernate/JPA entities or Spring DTOs causes serialization exceptions in distributed caches (Redis) and RMI.",
+          "Identity-less Semantics: In Project Valhalla (future Java), Optional is slated to migrate to a primitive value class with zero allocation overhead.",
+        ],
+      },
+      tradeOffs: {
+        heading: "5. Technical Trade-Offs: Optional vs Null References (TRADE-OFFS)",
+        paragraphs: [
+          "Evaluating when to use Optional and when to return primitive/empty collections:",
+        ],
+        bulletPoints: [
+          "Optional vs Empty Collections: Never return Optional<List<T>>! Return an empty immutable list (Collections.emptyList() or List.of()). Empty collections are already safe and cost zero boxing overhead.",
+          "Optional vs Primitive Nulls: For high-throughput numeric crunching, wrapping integers in Optional<Integer> incurs auto-boxing and heap allocations. Use OptionalInt, OptionalLong, or sentinel values (-1).",
+          "Method Arguments: Do not use Optional<T> as method parameters. It forces callers to wrap values (Optional.of(...)) and complicates null checking (param could itself be null). Use method overloading instead.",
+        ],
+      },
+      failureScenarios: {
+        heading: "6. Production Failure Modes & Anti-Patterns (FAILURE SCENARIOS)",
+        paragraphs: [
+          "Classic production bugs caused by improper Optional usage:",
+        ],
+        callout: {
+          tone: "warning",
+          title: "Critical Optional Production Hazards",
+          body: "1. The Eager orElse() Trap: 'cache.find(id).orElse(remoteService.fetch(id))'. In Java, parameters evaluate eagerly before the method runs. Even when cache hits 100%, the remote service is invoked on every single request!\n2. NoSuchElementException via .get(): Calling opt.get() without checking or without fallback throws java.util.NoSuchElementException: No value present, resulting in HTTP 500 crashes.\n3. NotSerializableException in Redis/Session: Storing an entity with an 'Optional<String> middleName' field into Redis or HTTP session breaks serialization because Optional is not Serializable.",
+        },
+      },
+      productionEngineering: {
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
+        paragraphs: [
+          "1. Enforce Static Analysis Rules: Enable ErrorProne or SonarQube rules: 'OptionalNotPresentCheck' and 'OptionalAsField' in CI/CD pipeline.",
+          "2. Standardize on orElseThrow(): When an absent value represents an exceptional business scenario, use .orElseThrow(() -> new EntityNotFoundException(id)).",
+          "3. Java 9+ Modern Enhancements: Leverage .ifPresentOrElse(Consumer, Runnable) for clean side-effect branching and .or(() -> fallbackOptional) for chaining fallback providers.",
+        ],
+      },
+    },
+    sourceIds: ["java-lang-optional-api", "jvm-spec-se21"],
+    questionIds: ["java-q15-optional-orelse-trap", "java-q16-optional-best-practices"],
+  },
+
+  // 10. Java Concurrency: ThreadPoolExecutor & Saturation Policies
+  {
+    id: "java-thread-pool-executor",
+    slug: "java-thread-pool-executor",
+    domainId: "java",
+    title: "Java Concurrency — ThreadPoolExecutor: Worker Lifecycle & Saturation Policies",
+    subtitle:
+      "4-step task dispatching, bounded workQueue capacity, Worker keepAlive, and Rejection Policies",
+    governanceStatus: "VERIFIED",
+    estimatedMinutes: 25,
+    difficulty: "Senior / Staff",
+    simulationId: "java-thread-pool-executor",
+    keyTerms: [
+      {
+        term: "ThreadPoolExecutor",
+        definition:
+          "The core extensible thread pool implementation in java.util.concurrent that manages a pool of worker threads, a task queue, and rejection handlers for asynchronous task execution.",
+      },
+      {
+        term: "4-Step Task Dispatching",
+        definition:
+          "The invariant dispatching sequence: 1) Active < corePoolSize -> spawn Core Worker; 2) workQueue not full -> enqueue; 3) Active < maximumPoolSize -> spawn Non-Core Worker; 4) Queue & Max full -> reject.",
+      },
+      {
+        term: "CallerRunsPolicy",
+        definition:
+          "A saturation rejection handler where the rejected task executes directly on the submitting caller thread, effectively slowing down request ingress and creating natural backpressure.",
+      },
+      {
+        term: "Worker keepAliveTime",
+        definition:
+          "The duration for which non-core worker threads wait for new tasks in the workQueue before timing out and terminating, shrinking the pool back to corePoolSize.",
+      },
+    ],
+    stages: {
+      what: {
+        heading: "1. Core Architectural Concepts (WHAT)",
+        paragraphs: [
+          "Operating system threads are expensive resources. Each Java platform thread consumes 1 MB of native stack memory, requires kernel scheduler coordination, and costs 1-5 microseconds per context switch. Creating a new thread per request (Thread-per-Request) quickly exhausts OS file handles and leads to OutOfMemoryError: unable to create new native thread.",
+          "ThreadPoolExecutor solves this by decoupling task submission from thread execution. It maintains a managed pool of reusable worker threads, a bounded BlockingQueue buffer, and a configurable RejectedExecutionHandler for handling traffic saturation.",
+        ],
+        bulletPoints: [
+          "Core vs Maximum Pool Size: corePoolSize threads remain active even when idle; maximumPoolSize caps total worker threads during traffic surges.",
+          "WorkQueue Buffering: BlockingQueue (e.g. ArrayBlockingQueue) buffers tasks when core workers are busy.",
+          "KeepAlive Worker Reaping: Non-core worker threads terminate when idle longer than keepAliveTime.",
+        ],
+      },
+      why: {
+        heading: "2. Why Thread Pool Sizing and Rejection Policies Matter (WHY)",
+        paragraphs: [
+          "Under production load spikes (e.g. Black Friday flash sales, marketing push notifications), backend microservices experience traffic surges 10x normal volume. An improperly configured thread pool will either exhaust JVM heap memory (unbounded queue) or crash with thread exhaustion.",
+        ],
+        bulletPoints: [
+          "Fail-Fast vs Backpressure: Rejection policies allow architects to either fail fast (AbortPolicy) to trip circuit breakers or slow down callers (CallerRunsPolicy) to absorb bursts gracefully.",
+          "Bounded Resource Safety: Enforcing strict maximumPoolSize and bounded queue capacities prevents catastrophic OutOfMemoryError.",
+          "Predictable Latency: Queued tasks experience queuing delay. Sizing the queue correctly ensures tasks are processed within SLA limits.",
+        ],
+      },
+      how: {
+        heading: "3. Implementation Patterns: Production ThreadPool Sizing (HOW)",
+        paragraphs: [
+          "Configuring a robust ThreadPoolExecutor in Java backend services:",
+        ],
+        codeSnippet: {
+          language: "java",
+          caption: "Production ThreadPoolExecutor Configuration",
+          code: `int cpuCores = Runtime.getRuntime().availableProcessors();
+
+// Sizing rule of thumb:
+// CPU-bound tasks: Pool size = cpuCores (+ 1 to absorb page faults)
+// I/O-bound tasks: Pool size = cpuCores * (1 + WaitTime / ServiceTime)
+
+ThreadPoolExecutor executor = new ThreadPoolExecutor(
+    cpuCores * 2,                         // corePoolSize
+    cpuCores * 4,                         // maximumPoolSize
+    60L, TimeUnit.SECONDS,                // keepAliveTime for non-core
+    new ArrayBlockingQueue<>(500),         // BOUNDED queue capacity!
+    new CustomNamedThreadFactory("order-worker"),
+    new ThreadPoolExecutor.CallerRunsPolicy() // Natural backpressure!
+);`,
+        },
+        bulletPoints: [
+          "Never Use Executors.newFixedThreadPool(): It creates an unbounded LinkedBlockingQueue (Integer.MAX_VALUE capacity). Under load, the queue buffers millions of tasks until Heap OOM crashes the JVM.",
+          "Never Use Executors.newCachedThreadPool(): It sets maximumPoolSize = Integer.MAX_VALUE. Traffic bursts spawn thousands of OS threads, crashing the operating system.",
+          "Name Your Threads: Always provide a custom ThreadFactory that names threads (e.g. 'order-worker-1') to make stack traces identifiable in profilers and logs.",
+        ],
+      },
+      internals: {
+        heading: "4. HotSpot JVM Internals: The 4-Step Dispatch Algorithm & ctl AtomicInteger (INTERNALS)",
+        paragraphs: [
+          "ThreadPoolExecutor encodes both its run state (RUNNING, SHUTDOWN, STOP, TIDYING, TERMINATED) and worker count into a single 32-bit atomic integer: ctl (3 bits for state, 29 bits for worker count).",
+        ],
+        bulletPoints: [
+          "Step 1: If workerCountOf(ctl) < corePoolSize -> invoke addWorker(task, true).",
+          "Step 2: If pool is RUNNING and workQueue.offer(task) succeeds -> task buffered.",
+          "Step 3: If workQueue was full, check if workerCountOf(ctl) < maximumPoolSize -> invoke addWorker(task, false) to create temporary worker.",
+          "Step 4: If addWorker fails (pool saturated) -> invoke reject(task).",
+          "Worker.runWorker() Loop: Workers repeatedly call getTask() on the queue. Non-core workers poll with keepAliveTime timeout; if timeout expires and queue is empty, getTask() returns null and the worker terminates.",
+        ],
+      },
+      tradeOffs: {
+        heading: "5. Technical Trade-Offs: Saturation Rejection Policies (TRADE-OFFS)",
+        paragraphs: [
+          "Comparing the 4 built-in RejectedExecutionHandler strategies:",
+        ],
+        bulletPoints: [
+          "CallerRunsPolicy: Runs the task on the submitting thread. Pros: Zero task loss, automatically slows down the caller thread creating natural backpressure. Trade-off: Slows down web server request threads.",
+          "AbortPolicy: Throws RejectedExecutionException immediately. Pros: Fails fast, lets callers immediately detect overload and redirect traffic. Trade-off: Drops requests unless caught by retry/circuit-breaker logic.",
+          "DiscardOldestPolicy: Drops the oldest unhandled task in the queue and retries execution. Pros: Prioritizes fresh real-time data. Trade-off: Stale tasks vanish without notification.",
+          "DiscardPolicy: Silently swallows and drops the task. Warning: Almost never appropriate for business transactions.",
+        ],
+      },
+      failureScenarios: {
+        heading: "6. Production Failure Modes & Anti-Patterns (FAILURE SCENARIOS)",
+        paragraphs: [
+          "Classic production incidents involving Java thread pools:",
+        ],
+        callout: {
+          tone: "warning",
+          title: "Critical Thread Pool Incidents",
+          body: "1. Unbounded Queue OutOfMemoryError: Using Executors.newFixedThreadPool(20) under downstream database slowdown. Tasks queue up endlessly in LinkedBlockingQueue until the 4 GB JVM Heap crashes with OOM.\n2. Thread Leak via Uncaught Exceptions: If a Runnable task throws an uncaught RuntimeException, the Worker thread terminates. While ThreadPoolExecutor creates a replacement worker, rapid failures cause high thread churn.\n3. Synchronous Deadlock via Subtask Queuing: Submitting parent tasks to a pool that spawn child tasks submitted to the same pool. If parent tasks occupy all core workers and wait for child tasks that are queued behind them, the pool permanently deadlocks!",
+        },
+      },
+      productionEngineering: {
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
+        paragraphs: [
+          "1. Expose Micrometer / Prometheus Metrics: Monitor 'executor.active', 'executor.completed', and 'executor.queue.remaining' to trigger alerts before queue reaches 80% saturation.",
+          "2. Graceful Shutdown Hook: Always configure graceful shutdown: executor.shutdown(); followed by executor.awaitTermination(30, TimeUnit.SECONDS); to allow in-flight tasks to finish on SIGTERM.",
+          "3. Virtual Threads (Java 21): For lightweight, blocking I/O tasks, consider migrating from pooled platform threads to Executors.newVirtualThreadPerTaskExecutor().",
+        ],
+      },
+    },
+    sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
+    questionIds: ["java-q17-thread-pool-4step-dispatch", "java-q18-thread-pool-rejection-policies"],
+  },
 ];

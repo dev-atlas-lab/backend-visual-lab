@@ -758,4 +758,226 @@ export const questionBank: ScenarioQuestion[] = [
       "Non-async methods execute inline on the completing thread, while Async methods dispatch to an Executor. Unhandled exceptions bypass normal transformation stages until caught by .exceptionally() or .handle().",
     sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
   },
+  {
+    id: "java-q13-chm-locking-internals",
+    moduleId: "java-concurrenthashmap-locking",
+    domainId: "java",
+    type: "single-choice",
+    stem: "Why does ConcurrentHashMap in Java 8+ achieve significantly higher write scalability than Java 7 Segment locking?",
+    choices: [
+      {
+        id: "a",
+        text: "Java 8 replaces coarse Segment arrays with fine-grained atomic CAS (casTabAt) for empty bins, and restricts synchronization to just the first node of each collided bucket (synchronized(binHead)), permitting concurrent writes across all other bins.",
+        explanation:
+          "Correct: By removing Segment locks and locking strictly on the head node of individual hash bins, lock striping granularity equals the table capacity (often thousands of buckets), drastically reducing lock contention.",
+      },
+      {
+        id: "b",
+        text: "Java 8 completely eliminates all synchronization and operates 100% lock-free for all reads and writes using hardware transactional memory.",
+        explanation:
+          "Incorrect: While empty bucket writes and all reads are lock-free, collided bucket insertions still acquire synchronized on the bucket head node.",
+      },
+      {
+        id: "c",
+        text: "Java 8 requires all threads to execute in a single-threaded event loop similar to Node.js, eliminating thread contention.",
+        explanation:
+          "Incorrect: ConcurrentHashMap is designed specifically for high-concurrency multi-threaded JVM architectures.",
+      },
+      {
+        id: "d",
+        text: "Java 8 locks the entire internal array for both reads and writes using a ReentrantReadWriteLock.",
+        explanation:
+          "Incorrect: Global table locking is the anti-pattern of Collections.synchronizedMap(), not ConcurrentHashMap.",
+      },
+    ],
+    correctChoiceIds: ["a"],
+    correctExplanation:
+      "Java 8+ ConcurrentHashMap utilizes lock-free atomic CAS for empty buckets and fine-grained synchronized on the bucket head node, allowing simultaneous writes across distinct bins.",
+    sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
+  },
+  {
+    id: "java-q14-chm-forwarding-nodes",
+    moduleId: "java-concurrenthashmap-locking",
+    domainId: "java",
+    type: "multiple-response",
+    stem: "Which TWO statements correctly describe concurrent reads and table resizing mechanics in Java 8+ ConcurrentHashMap? Select TWO.",
+    choices: [
+      {
+        id: "a",
+        text: "Read operations (get()) are completely lock-free and never acquire locks, traversing nodes via volatile value and next pointers.",
+        explanation:
+          "Correct: Node.val and Node.next are declared volatile, ensuring that reader threads always observe the latest updates without locking.",
+      },
+      {
+        id: "b",
+        text: "During table resize, migrated buckets are replaced by a ForwardingNode with hash = -1 (MOVED), signaling other active writer threads to cooperatively assist in data migration via helpTransfer().",
+        explanation:
+          "Correct: ForwardingNode marks processed bins and forwards readers to the new table, while enlisting other mutating threads to assist with transfer.",
+      },
+      {
+        id: "c",
+        text: "When a table resize begins, all read operations are blocked until the entire resize operation finishes.",
+        explanation:
+          "Incorrect: Readers are never blocked during resize; ForwardingNodes seamlessly route queries to the new nextTable.",
+      },
+      {
+        id: "d",
+        text: "ConcurrentHashMap permits null keys and null values under all execution circumstances.",
+        explanation:
+          "Incorrect: ConcurrentHashMap explicitly forbids null keys and null values to prevent ambiguity between 'key mapped to null' and 'key not present' under concurrent access.",
+      },
+    ],
+    correctChoiceIds: ["a", "b"],
+    correctExplanation:
+      "get() is strictly lock-free via volatile field semantics, and ForwardingNodes (hash = -1) facilitate non-blocking reads and multi-threaded cooperative table transfers.",
+    sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
+  },
+  {
+    id: "java-q15-optional-orelse-trap",
+    moduleId: "java-optional-functional-patterns",
+    domainId: "java",
+    type: "single-choice",
+    stem: "An engineer writes: User user = userCache.findUser(id).orElse(userService.fetchRemoteUser(id));. In load testing, remote service calls spike even though the cache hit rate is 99%. What is the technical cause?",
+    choices: [
+      {
+        id: "a",
+        text: "In Java, method arguments evaluate eagerly prior to method invocation. Consequently, fetchRemoteUser(id) is executed on every invocation before calling orElse(), discarding the remote result when the cache hits. The code must use orElseGet(() -> ...) for lazy evaluation.",
+        explanation:
+          "Correct: orElse(...) accepts an evaluated value, so the expression inside is evaluated immediately. orElseGet(Supplier) accepts a lambda, deferring evaluation until the Optional is confirmed empty.",
+      },
+      {
+        id: "b",
+        text: "The userCache is corrupt and always returns Optional.empty() during high load.",
+        explanation:
+          "Incorrect: The question explicitly specifies a 99% cache hit rate; the issue is eager argument evaluation in Java.",
+      },
+      {
+        id: "c",
+        text: "Calling orElse() always invalidates the L1 cache entry.",
+        explanation:
+          "Incorrect: orElse() is a pure method on Optional and has no side effects on the underlying cache.",
+      },
+      {
+        id: "d",
+        text: "The JVM JIT compiler automatically converts orElseGet into orElse under -O3 optimization.",
+        explanation:
+          "Incorrect: JIT compilation preserves Java language evaluation semantics; eager argument evaluation is a language guarantee.",
+      },
+    ],
+    correctChoiceIds: ["a"],
+    correctExplanation:
+      "Java evaluates method parameters eagerly. Calling orElse(expensive()) always executes the expensive call; orElseGet(() -> expensive()) defers evaluation via a lazy Supplier.",
+    sourceIds: ["java-lang-optional-api", "jvm-spec-se21"],
+  },
+  {
+    id: "java-q16-optional-best-practices",
+    moduleId: "java-optional-functional-patterns",
+    domainId: "java",
+    type: "multiple-response",
+    stem: "Which TWO statements reflect official Java architecture and design guidelines regarding java.util.Optional? Select TWO.",
+    choices: [
+      {
+        id: "a",
+        text: "Optional is designed primarily as a library return type to cleanly convey absent results; it should not be used as JPA entity fields or method parameters because it does not implement java.io.Serializable and adds 16-24 bytes of heap overhead.",
+        explanation:
+          "Correct: Brian Goetz and the OpenJDK team designed Optional strictly as a return type for libraries. It is not Serializable and incurs unnecessary object allocation overhead if used as fields.",
+      },
+      {
+        id: "b",
+        text: "Writing 'if (opt.isPresent()) return opt.get();' is considered a code smell; developers should prefer monadic combinators like .map(), .filter(), .flatMap(), and .orElseGet().",
+        explanation:
+          "Correct: Imperative isPresent() + get() replicates old-school 'if (x != null)' while paying the memory tax of an Optional wrapper. Functional chaining is the intended idiomatic style.",
+      },
+      {
+        id: "c",
+        text: "Optional.of(null) is safe and automatically converts null into Optional.empty() without throwing any exception.",
+        explanation:
+          "Incorrect: Optional.of(null) immediately throws NullPointerException. To handle nullable values safely, use Optional.ofNullable(val).",
+      },
+      {
+        id: "d",
+        text: "Optional replaces all need for primitive collections like IntStream or long arrays.",
+        explanation:
+          "Incorrect: Wrapping primitive types in Optional adds significant boxing overhead. Primitive specializations (OptionalInt, OptionalLong, OptionalDouble) exist for this reason.",
+      },
+    ],
+    correctChoiceIds: ["a", "b"],
+    correctExplanation:
+      "Optional is meant as a return type (not serializable entity fields) and should be consumed via functional chaining rather than imperative isPresent() + get().",
+    sourceIds: ["java-lang-optional-api", "jvm-spec-se21"],
+  },
+  {
+    id: "java-q17-thread-pool-4step-dispatch",
+    moduleId: "java-thread-pool-executor",
+    domainId: "java",
+    type: "single-choice",
+    stem: "What is the exact sequence of evaluation when a new task is submitted to a ThreadPoolExecutor with corePoolSize=2, maximumPoolSize=4, and bounded workQueue capacity=10?",
+    choices: [
+      {
+        id: "a",
+        text: "1) If active workers < 2, spawn a Core Worker; 2) Else if queue < 10, enqueue in workQueue; 3) Else if active workers < 4, spawn a Non-Core Worker; 4) Else invoke RejectedExecutionHandler.",
+        explanation:
+          "Correct: This is the fundamental 4-step dispatching algorithm of java.util.concurrent.ThreadPoolExecutor.",
+      },
+      {
+        id: "b",
+        text: "1) Spawn workers up to maximumPoolSize (4); 2) Only then enqueue in workQueue; 3) Reject when queue is full.",
+        explanation:
+          "Incorrect: Standard ThreadPoolExecutor fills the workQueue BEFORE creating non-core threads above corePoolSize.",
+      },
+      {
+        id: "c",
+        text: "1) Enqueue all tasks into workQueue first; 2) Spawn workers only when queue capacity exceeds 50%.",
+        explanation:
+          "Incorrect: Tasks never go to the queue if active workers are below corePoolSize.",
+      },
+      {
+        id: "d",
+        text: "1) Check RejectedExecutionHandler; 2) If passed, allocate an OS thread for each incoming task unconditionally.",
+        explanation:
+          "Incorrect: That is the behavior of unbounded newCachedThreadPool(), which leads to OS thread exhaustion.",
+      },
+    ],
+    correctChoiceIds: ["a"],
+    correctExplanation:
+      "ThreadPoolExecutor always attempts: 1) Core worker spawn -> 2) WorkQueue buffering -> 3) Non-core worker spawn -> 4) Rejection handler invocation.",
+    sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
+  },
+  {
+    id: "java-q18-thread-pool-rejection-policies",
+    moduleId: "java-thread-pool-executor",
+    domainId: "java",
+    type: "multiple-response",
+    stem: "Which TWO statements accurately characterize ThreadPoolExecutor saturation rejection policies in production backend architectures? Select TWO.",
+    choices: [
+      {
+        id: "a",
+        text: "ThreadPoolExecutor.CallerRunsPolicy executes the rejected task directly on the submitting thread (e.g. Tomcat/HTTP worker), naturally slowing down the ingress rate and providing effective backpressure without dropping tasks.",
+        explanation:
+          "Correct: CallerRunsPolicy forces the caller thread to do the work, preventing it from accepting new requests until the current task completes, thus creating natural backpressure.",
+      },
+      {
+        id: "b",
+        text: "ThreadPoolExecutor.AbortPolicy is the default policy and throws an unchecked RejectedExecutionException, enabling upstream callers to detect saturation and fail fast or trip circuit breakers.",
+        explanation:
+          "Correct: AbortPolicy fails fast by throwing RejectedExecutionException, allowing error metrics and circuit breakers to trigger immediately.",
+      },
+      {
+        id: "c",
+        text: "ThreadPoolExecutor.DiscardPolicy throws a checked InterruptedException so the caller can retry automatically.",
+        explanation:
+          "Incorrect: DiscardPolicy silently swallows and drops the task without throwing any exception whatsoever.",
+      },
+      {
+        id: "d",
+        text: "Executors.newFixedThreadPool(10) uses CallerRunsPolicy by default with a bounded queue of 100 elements.",
+        explanation:
+          "Incorrect: Executors.newFixedThreadPool() uses an unbounded LinkedBlockingQueue (capacity Integer.MAX_VALUE), which never triggers rejection but can cause OutOfMemoryError.",
+      },
+    ],
+    correctChoiceIds: ["a", "b"],
+    correctExplanation:
+      "CallerRunsPolicy applies natural backpressure by running tasks on the caller thread, while AbortPolicy fails fast by throwing RejectedExecutionException.",
+    sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
+  },
 ];

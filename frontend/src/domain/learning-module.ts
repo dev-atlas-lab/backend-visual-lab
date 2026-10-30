@@ -95,6 +95,9 @@ export const simulationIdSchema = z.enum([
   "java-concurrency-jmm-locks",
   "java-streams-pipeline",
   "java-completable-future",
+  "java-concurrenthashmap",
+  "java-optional-patterns",
+  "java-thread-pool-executor",
 ]);
 
 export type SimulationId = z.infer<typeof simulationIdSchema>;
