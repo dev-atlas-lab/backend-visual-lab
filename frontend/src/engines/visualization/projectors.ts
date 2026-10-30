@@ -7,6 +7,8 @@ import type {
   JavaVirtualThreadsState,
   JavaExceptionsState,
   JavaConcurrencyState,
+  JavaStreamsState,
+  JavaCompletableFutureState,
   SimulationStepFrame,
 } from "../simulation";
 
@@ -29,6 +31,9 @@ export function projectKafkaFrameToLanes(
   frame: SimulationStepFrame<KafkaConsumerGroupState>,
 ): VisualLaneProjection[] {
   const { state } = frame;
+  if (!state || !Array.isArray(state.partitions) || !Array.isArray(state.consumers)) {
+    return [];
+  }
 
   const partitionCards: VisualNodeCard[] = state.partitions.map((p) => {
     const lag = Math.max(0, p.highWatermark - p.committedOffset);
@@ -92,6 +97,9 @@ export function projectRedisFrameToLanes(
   frame: SimulationStepFrame<RedisStampedeState>,
 ): VisualLaneProjection[] {
   const { state } = frame;
+  if (!state || !Array.isArray(state.workers)) {
+    return [];
+  }
 
   const infraCards: VisualNodeCard[] = [
     {
@@ -179,6 +187,9 @@ export function projectPostgresFrameToLanes(
   frame: SimulationStepFrame<PostgresMvccBtreeState>,
 ): VisualLaneProjection[] {
   const { state } = frame;
+  if (!state || !Array.isArray(state.btreeNodes) || !Array.isArray(state.heapTuples)) {
+    return [];
+  }
 
   const btreeCards: VisualNodeCard[] = state.btreeNodes.map((n) => ({
     id: `btree-page-${n.pageNumber}`,
@@ -219,6 +230,9 @@ export function projectJavaMemoryFrameToLanes(
   frame: SimulationStepFrame<JavaMemoryGcState>,
 ): VisualLaneProjection[] {
   const { state } = frame;
+  if (!state || !Array.isArray(state.youngEden) || !Array.isArray(state.threadStack)) {
+    return [];
+  }
 
   const stackCards: VisualNodeCard[] = state.threadStack.map((f, idx) => ({
     id: f.id,
@@ -329,6 +343,9 @@ export function projectJavaHashMapFrameToLanes(
   frame: SimulationStepFrame<JavaHashMapState>,
 ): VisualLaneProjection[] {
   const { state } = frame;
+  if (!state || !Array.isArray(state.buckets)) {
+    return [];
+  }
 
   const bucketCards: VisualNodeCard[] = state.buckets
     .filter((b) => b.nodes.length > 0)
@@ -395,6 +412,9 @@ export function projectJavaVirtualThreadsFrameToLanes(
   frame: SimulationStepFrame<JavaVirtualThreadsState>,
 ): VisualLaneProjection[] {
   const { state } = frame;
+  if (!state || !Array.isArray(state.virtualThreads) || !Array.isArray(state.carrierThreads)) {
+    return [];
+  }
 
   const carrierCards: VisualNodeCard[] = state.carrierThreads.map((c) => ({
     id: c.id,
@@ -477,6 +497,9 @@ export function projectJavaExceptionsFrameToLanes(
   frame: SimulationStepFrame<JavaExceptionsState>,
 ): VisualLaneProjection[] {
   const { state } = frame;
+  if (!state || !Array.isArray(state.callStack)) {
+    return [];
+  }
 
   // Lane 1: Thread Call Stack Frames (Top of stack first)
   const stackCards: VisualNodeCard[] = state.callStack
@@ -643,6 +666,9 @@ export function projectJavaConcurrencyFrameToLanes(
   frame: SimulationStepFrame<JavaConcurrencyState>,
 ): VisualLaneProjection[] {
   const { state } = frame;
+  if (!state || !state.markWord || !Array.isArray(state.threads)) {
+    return [];
+  }
 
   // Lane 1: Object Header (Mark Word) & Lock Escalation Status
   const mw = state.markWord;
@@ -758,6 +784,228 @@ export function projectJavaConcurrencyFrameToLanes(
     {
       laneId: "jmm-telemetry",
       laneTitle: "Concurrency Performance & Kernel Metrics",
+      cards: telemetryCards,
+    },
+  ];
+}
+
+export function projectJavaStreamsFrameToLanes(
+  frame: SimulationStepFrame<JavaStreamsState>,
+): VisualLaneProjection[] {
+  const { state } = frame;
+  if (!state || !Array.isArray(state.stages) || !Array.isArray(state.items)) {
+    return [];
+  }
+
+  // Lane 1: Pipeline Stages (Chained Sink<T> Nodes)
+  const stageCards: VisualNodeCard[] = state.stages.map((stage, idx) => {
+    let tone: VisualNodeCard["tone"] = "info";
+    if (stage.isTerminal) tone = "healthy";
+    else if (stage.isStateful) tone = "warning";
+    else if (stage.isShortCircuit) tone = "info";
+
+    const details: string[] = [
+      `Type: ${stage.isTerminal ? "Terminal Operation (Eager)" : "Intermediate Operation (Lazy)"}`,
+      `Behavior: ${stage.isStateful ? "Stateful Barrier (Requires Buffering)" : "Stateless (Loop Fusion Compatible)"}`,
+      `Processed Elements: ${stage.processedCount}`,
+    ];
+
+    if (stage.internalBuffer.length > 0) {
+      details.push(`Internal Buffer: [${stage.internalBuffer.join(", ")}]`);
+    }
+
+    return {
+      id: stage.id,
+      title: `Stage ${idx + 1}: ${stage.name}`,
+      subtitle: stage.isTerminal ? "Terminal Sink Accumulator" : "Chained Sink<T> Delegate",
+      badgeText: stage.isTerminal
+        ? "TERMINAL SINK"
+        : stage.isStateful
+          ? "STATEFUL BARRIER"
+          : "FUSED SINK",
+      tone,
+      details,
+    };
+  });
+
+  // Lane 2: Elements in Pipeline Traversal (Spliterator Stream Items)
+  const itemCards: VisualNodeCard[] = state.items.map((item) => {
+    let tone: VisualNodeCard["tone"] = "muted";
+    if (item.status === "COLLECTED") tone = "healthy";
+    else if (item.status === "PROCESSING") tone = "info";
+    else if (item.status === "FILTERED_OUT") tone = "warning";
+    else if (item.status === "SKIPPED_SHORT_CIRCUIT") tone = "muted";
+
+    return {
+      id: item.id,
+      title: `Item [Val: ${item.originalValue}]`,
+      subtitle: `Current Status: ${item.status}`,
+      badgeText: item.status,
+      tone,
+      details: [
+        `Original Value: ${item.originalValue}`,
+        `Current Transformed Value: ${item.currentValue}`,
+        `Latest Log: ${item.history[item.history.length - 1] || "Initialized"}`,
+      ],
+    };
+  });
+
+  // Lane 3: Loop Fusion & Heap Allocation Telemetry
+  const telemetryCards: VisualNodeCard[] = [
+    {
+      id: "loop-fusion-allocations",
+      title: "Heap Intermediate Collections",
+      subtitle: "Loop Fusion Memory Efficiency",
+      badgeText:
+        state.intermediateListsAllocated === 0
+          ? "0 LISTS (ZERO HEAP TRASH)"
+          : `${state.intermediateListsAllocated} INTERMEDIATE LISTS`,
+      tone: state.intermediateListsAllocated === 0 ? "healthy" : "danger",
+      details: [
+        state.intermediateListsAllocated === 0
+          ? "Loop Fusion Active: Intermediate stages fuse into a single pass per element with zero intermediate List allocations."
+          : `Naive Multi-Pass: Allocated ${state.intermediateListsAllocated} temporary intermediate ArrayLists on Heap!`,
+        `Total Sink.accept() Dispatches: ${state.sinkAcceptCalls}`,
+        `Elements Examined: ${state.totalElementsExamined} / ${state.items.length}`,
+      ],
+    },
+    {
+      id: "short-circuit-status",
+      title: "Short-Circuit Cancellation Status",
+      subtitle: "Sink.cancellationRequested() Check",
+      badgeText: state.shortCircuitTriggered ? "SHORT-CIRCUITED (ABORTED)" : "ACTIVE TRAVERSAL",
+      tone: state.shortCircuitTriggered ? "healthy" : "info",
+      details: [
+        state.shortCircuitTriggered
+          ? "Short-circuit limit reached! Traversal terminated early without touching remaining source elements."
+          : "Pipeline continuing normal traversal.",
+        `Collected Output Results: [${state.collectedResults.join(", ")}]`,
+      ],
+    },
+  ];
+
+  return [
+    {
+      laneId: "stream-stages",
+      laneTitle: `Stream Pipeline Stages (${state.stages.length} Chained Sinks)`,
+      cards: stageCards,
+    },
+    {
+      laneId: "stream-elements",
+      laneTitle: `Spliterator Source & Element Flow (${state.items.length} Elements)`,
+      cards: itemCards,
+    },
+    {
+      laneId: "stream-telemetry",
+      laneTitle: "Loop Fusion & Memory Telemetry",
+      cards: telemetryCards,
+    },
+  ];
+}
+
+export function projectJavaCompletableFutureFrameToLanes(
+  frame: SimulationStepFrame<JavaCompletableFutureState>,
+): VisualLaneProjection[] {
+  const { state } = frame;
+  if (!state || !Array.isArray(state.stages)) {
+    return [];
+  }
+
+  // Lane 1: CompletionStage DAG Stages
+  const stageCards: VisualNodeCard[] = state.stages.map((st) => {
+    let tone: VisualNodeCard["tone"] = "muted";
+    if (st.status === "COMPLETED") tone = "healthy";
+    else if (st.status === "RUNNING") tone = "info";
+    else if (st.status === "FAILED") tone = "danger";
+    else if (st.status === "BLOCKED_STARVATION") tone = "danger";
+
+    const details: string[] = [
+      `Pool Target: ${st.poolType}`,
+      `Worker: ${st.workerThreadId || "Unassigned"}`,
+      `Signature: ${st.methodSignature}`,
+    ];
+    if (st.result) {
+      details.push(`Result: ${st.result}`);
+    }
+    if (st.errorMessage) {
+      details.push(`Exception: ${st.errorMessage}`);
+    }
+
+    return {
+      id: st.id,
+      title: st.name,
+      subtitle: `Stage Status: ${st.status}`,
+      badgeText: st.status,
+      tone,
+      details,
+    };
+  });
+
+  // Lane 2: Worker Thread Pools
+  const allWorkers = [...(state.commonPoolWorkers || []), ...(state.customPoolWorkers || [])];
+  const workerCards: VisualNodeCard[] = allWorkers.map((w) => {
+    let tone: VisualNodeCard["tone"] = "healthy";
+    if (w.status === "EXECUTING") tone = "info";
+    else if (w.status === "DEADLOCKED_STARVED") tone = "danger";
+
+    return {
+      id: w.id,
+      title: w.name,
+      subtitle: `Pool: ${w.poolType}`,
+      badgeText: w.status,
+      tone,
+      details: [
+        `Pool Class: ${w.poolType}`,
+        `Current Assignment: ${w.assignedStageId || "None (Idle in Pool)"}`,
+        w.status === "DEADLOCKED_STARVED"
+          ? "CRITICAL: Pinned waiting on child future .join() call!"
+          : "Available for non-blocking task execution",
+      ],
+    };
+  });
+
+  // Lane 3: Non-Blocking & Orchestration Health
+  const telemetryCards: VisualNodeCard[] = [
+    {
+      id: "thread-starvation-telemetry",
+      title: "ThreadPool Starvation & Deadlock Sentinel",
+      subtitle: "Anti-pattern Detection: .join() in Worker",
+      badgeText: state.threadStarvationDetected ? "STARVATION ALERT (DEADLOCK HAZARD)" : "ZERO STARVATION",
+      tone: state.threadStarvationDetected ? "danger" : "healthy",
+      details: [
+        state.threadStarvationDetected
+          ? "A worker thread was blocked waiting for a child task on the same pool (.join() anti-pattern)."
+          : "Pure non-blocking stage execution. Zero threads blocked.",
+        `Caller Thread Blocked: ${state.callerThreadBlocked ? "YES (LATENCY DEGRADED)" : "NO (100% NON-BLOCKING)"}`,
+      ],
+    },
+    {
+      id: "pipeline-progress-telemetry",
+      title: "CompletionStage DAG Progress",
+      subtitle: "Asynchronous Coordination Telemetry",
+      badgeText: `${state.completedStageCount} / ${state.stages.length} STAGES DONE`,
+      tone: state.pipelineFinished ? "healthy" : "info",
+      details: [
+        `Pipeline Status: ${state.pipelineFinished ? "Completed" : "In Flight"}`,
+        `Error Recovery (.exceptionally): ${state.recoveredFromError ? "Active & Recovered" : "Not Triggered"}`,
+      ],
+    },
+  ];
+
+  return [
+    {
+      laneId: "cf-stages",
+      laneTitle: `CompletableFuture DAG Stages (${state.stages.length} Stages)`,
+      cards: stageCards,
+    },
+    {
+      laneId: "cf-workers",
+      laneTitle: `Thread Pool Workers (${allWorkers.length} Workers)`,
+      cards: workerCards,
+    },
+    {
+      laneId: "cf-telemetry",
+      laneTitle: "Non-blocking & Starvation Telemetry",
       cards: telemetryCards,
     },
   ];

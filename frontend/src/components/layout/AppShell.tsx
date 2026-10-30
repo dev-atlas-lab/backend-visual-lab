@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { getModuleBySlug } from "../../content";
 
 export function AppShell() {
@@ -155,7 +156,9 @@ export function AppShell() {
         />
 
         <main className="main-content" id="main-content">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
 
         <footer className="footer">

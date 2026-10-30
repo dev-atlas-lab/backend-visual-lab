@@ -27,6 +27,10 @@ import {
   Target,
   CheckCircle2,
   Circle,
+  HelpCircle,
+  X,
+  Compass,
+  Lightbulb,
 } from "lucide-react";
 
 interface InteractiveWorkbenchProps<TConfig, TState, TCommand> {
@@ -62,11 +66,36 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
   const [activeInspectorTab, setActiveInspectorTab] = useState<
     "invariants" | "events" | "fidelity" | "state"
   >("invariants");
+  const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
+  const [showWelcomeTip, setShowWelcomeTip] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("bvl.lab.hide_welcome") !== "true";
+  });
 
   const selectId = useId();
+
+  // Reset tape and state cleanly if engine instance changes (adjust state during render)
+  const [prevEngineId, setPrevEngineId] = useState(engine.id);
+  if (prevEngineId !== engine.id) {
+    setPrevEngineId(engine.id);
+    setSelectedPresetId(engine.presets[0]?.id ?? "");
+    const preset = engine.presets[0];
+    const tape = preset
+      ? buildPresetTape(engine, preset)
+      : [engine.createInitialFrame({} as TConfig)];
+    setFrames(tape);
+    setCurrentIndex(0);
+    setIsPlaying(false);
+  }
+
   const currentFrame = frames[currentIndex] || frames[0];
   const lanes = projector(currentFrame);
   const missions = getMissionsForSimulation(engine.id);
+
+  const handleDismissWelcome = () => {
+    setShowWelcomeTip(false);
+    localStorage.setItem("bvl.lab.hide_welcome", "true");
+  };
 
   // Check mission completion
   useEffect(() => {
@@ -271,8 +300,66 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
             {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
             <span>{isFullscreen ? "Exit Full" : "Fullscreen"}</span>
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              playClick();
+              setShowGuideModal(true);
+            }}
+            className="btn btn-guide"
+            style={{
+              backgroundColor: "var(--accent-quiet)",
+              borderColor: "var(--accent-subtle)",
+              color: "var(--accent-strong)",
+              fontWeight: 600,
+            }}
+            title="Open comprehensive visual guide on how to interact with this lab"
+          >
+            <HelpCircle size={14} />
+            <span>How to Use?</span>
+          </button>
         </div>
       </div>
+
+      {/* 2. Welcome First-Time User Onboarding Strip */}
+      {showWelcomeTip ? (
+        <div className="lab-welcome-callout">
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", flex: 1 }}>
+            <Compass size={18} color="var(--accent)" style={{ flexShrink: 0, marginTop: "2px" }} />
+            <div style={{ fontSize: "var(--text-xs)", lineHeight: 1.5 }}>
+              <strong style={{ color: "var(--text-primary)" }}>Chưa quen với buồng mô phỏng này?</strong>{" "}
+              <span style={{ color: "var(--text-secondary)" }}>
+                <strong>1.</strong> Chọn <em>Scenario</em> để xem kịch bản mẫu &bull;{" "}
+                <strong>2.</strong> Bấm <em>Step (Space)</em> hoặc <em>Play (P)</em> để bước từng nhịp &bull;{" "}
+                <strong>3.</strong> Thử các nút <em>Hành động / Bơm lỗi</em> bên dưới để tự tay kiểm chứng.
+              </span>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={() => {
+                playClick();
+                setShowGuideModal(true);
+              }}
+              className="btn"
+              style={{ fontSize: "var(--text-xs)", padding: "2px 8px" }}
+            >
+              Xem hướng dẫn
+            </button>
+            <button
+              type="button"
+              onClick={handleDismissWelcome}
+              className="icon-button"
+              style={{ width: "24px", height: "24px" }}
+              title="Đóng gợi ý này"
+              aria-label="Dismiss guide hint"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* 2. Interactive Mission Challenges HUD */}
       {missions.length > 0 ? (
@@ -576,6 +663,145 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
           </pre>
         ) : null}
       </div>
+
+      {/* 4. Interactive Lab Field Guide Modal */}
+      {showGuideModal ? (
+        <div
+          className="lab-guide-modal-backdrop"
+          onClick={() => setShowGuideModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="lab-guide-title"
+        >
+          <div
+            className="lab-guide-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingBottom: "var(--space-3)",
+                borderBottom: "1px solid var(--border-subtle)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Compass size={20} color="var(--accent)" />
+                <h3
+                  id="lab-guide-title"
+                  style={{
+                    margin: 0,
+                    fontSize: "var(--text-md)",
+                    fontWeight: 700,
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  Cẩm Nang Tương Tác Lab Mô Phỏng (Lab Field Guide)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGuideModal(false)}
+                className="icon-button"
+                title="Đóng hướng dẫn"
+                aria-label="Close guide modal"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="lab-guide-grid">
+              {/* Card 1 */}
+              <div className="lab-guide-card">
+                <div className="lab-guide-card-title">
+                  <Sliders size={16} color="var(--accent)" />
+                  <span>1. Điều Khiển &amp; Phím Tắt</span>
+                </div>
+                <div className="lab-guide-card-body">
+                  <span>Điều khiển cỗ máy thời gian mô phỏng theo từng nhịp:</span>
+                  <ul>
+                    <li><code>Space</code> / <strong>Next</strong>: Bước tới 1 nhịp trạng thái.</li>
+                    <li><code>P</code> / <strong>Play</strong>: Tự động chạy liên tục các nhịp.</li>
+                    <li><code>R</code> / <strong>Reset</strong>: Tua về trạng thái ban đầu.</li>
+                    <li><code>F</code>: Bật/tắt toàn màn hình (Fullscreen).</li>
+                    <li>Phím số <code>1</code>, <code>2</code>, <code>3</code>: Chọn nhanh kịch bản dựng sẵn.</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Card 2 */}
+              <div className="lab-guide-card">
+                <div className="lab-guide-card-title">
+                  <Activity size={16} color="var(--ok)" />
+                  <span>2. Ý Nghĩa Màu Sắc (Visual Tones)</span>
+                </div>
+                <div className="lab-guide-card-body">
+                  <span>Màu sắc trên các Lane phản ánh đúng sức khỏe kiến trúc:</span>
+                  <ul>
+                    <li><strong style={{ color: "var(--ok)" }}>Xanh lá (Normal)</strong>: Luồng xử lý ổn định, committed, cache hit.</li>
+                    <li><strong style={{ color: "var(--warn)" }}>Vàng (Warning)</strong>: Đang dirty, rebalance, cache miss, pending.</li>
+                    <li><strong style={{ color: "var(--danger)" }}>Đỏ (Danger)</strong>: Xung đột lock, starvation, exception, dropped.</li>
+                    <li><strong style={{ color: "var(--accent)" }}>Xanh dương (Active)</strong>: Node/con trỏ đang được inspect trực tiếp.</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Card 3 */}
+              <div className="lab-guide-card">
+                <div className="lab-guide-card-title">
+                  <Lightbulb size={16} color="var(--accent)" />
+                  <span>3. Tác Động &amp; Bơm Lỗi (Fault Injection)</span>
+                </div>
+                <div className="lab-guide-card-body">
+                  <span>Chủ động tương tác với hệ thống qua cụm nút bên dưới:</span>
+                  <ul>
+                    <li>Gửi message, crash consumer, flush buffer, commit transaction.</li>
+                    <li>Mỗi hành động đẩy một lệnh (Command) vào State Machine.</li>
+                    <li>Xem kết quả phản ánh tức thì tại tab <strong>Protocol Events</strong> và <strong>Invariants</strong>.</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Card 4 */}
+              <div className="lab-guide-card">
+                <div className="lab-guide-card-title">
+                  <Target size={16} color="var(--ok)" />
+                  <span>4. Hoàn Thành Thử Thách (Lab Missions)</span>
+                </div>
+                <div className="lab-guide-card-body">
+                  <span>Rèn luyện trực giác kỹ thuật qua các nhiệm vụ thực chiến:</span>
+                  <ul>
+                    <li>Đọc yêu cầu nhiệm vụ trên dải băng <strong>LAB MISSIONS</strong>.</li>
+                    <li>Thao tác sao cho hệ thống rơi vào trạng thái mục tiêu (vd: trigger rebalance, deadlock).</li>
+                    <li>Khi điều kiện thỏa mãn, huy hiệu sẽ chuyển sang <code>[SOLVED]</code>!</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: "var(--space-5)",
+                display: "flex",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  playClick();
+                  setShowGuideModal(false);
+                }}
+                className="btn btn-primary"
+                style={{ fontSize: "var(--text-xs)" }}
+              >
+                Đã hiểu, bắt đầu khám phá!
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -16,6 +16,8 @@ import {
   javaVirtualThreadsSimulation,
   javaExceptionsSimulation,
   javaConcurrencySimulation,
+  javaStreamsEngine,
+  javaCompletableFutureEngine,
 } from "../engines/simulation";
 import {
   projectKafkaFrameToLanes,
@@ -26,6 +28,8 @@ import {
   projectJavaVirtualThreadsFrameToLanes,
   projectJavaExceptionsFrameToLanes,
   projectJavaConcurrencyFrameToLanes,
+  projectJavaStreamsFrameToLanes,
+  projectJavaCompletableFutureFrameToLanes,
 } from "../engines/visualization/projectors";
 import { recordSimulationInteraction } from "../engines/progress/progress-store";
 import {
@@ -144,6 +148,7 @@ export function ModuleReaderPage() {
     if (!moduleData.simulationId) return null;
     return (
       <SimulationWorkbenchHost
+        key={moduleData.simulationId}
         simulationId={moduleData.simulationId}
         onInteraction={handleSimInteraction}
       />
@@ -151,7 +156,7 @@ export function ModuleReaderPage() {
   };
 
   return (
-    <div style={{ maxWidth: viewMode === "split" ? "100%" : "var(--lesson-column)", margin: "0 auto" }}>
+    <div key={moduleData.slug} style={{ maxWidth: viewMode === "split" ? "100%" : "var(--lesson-column)", margin: "0 auto" }}>
       {/* Module Header */}
       <header className="module-header" style={{ marginBottom: "var(--space-4)" }}>
         <Link to="/" className="module-back-link">
@@ -901,6 +906,94 @@ function SimulationWorkbenchHost({
                 className="btn btn-danger"
               >
                 Heavy Contention (Inflate Mutex)
+              </button>
+            </>
+          )}
+        />
+      );
+
+    case "java-streams-pipeline":
+      return (
+        <InteractiveWorkbench
+          engine={javaStreamsEngine}
+          projector={projectJavaStreamsFrameToLanes}
+          onCommandDispatched={onInteraction}
+          renderCustomControls={(dispatch, state) => (
+            <>
+              <button
+                onClick={() => dispatch({ type: "TRIGGER_TERMINAL_OP" })}
+                className="btn btn-primary"
+                disabled={state.terminalTriggered}
+              >
+                Trigger Terminal (.toList())
+              </button>
+              <button
+                onClick={() => dispatch({ type: "STEP_PIPELINE" })}
+                className="btn"
+                disabled={state.isComplete}
+              >
+                Step Element Traversal
+              </button>
+              <button
+                onClick={() => dispatch({ type: "TOGGLE_EXECUTION_MODE" })}
+                className="btn"
+              >
+                Toggle Mode: {state.mode === "STREAM_LOOP_FUSION" ? "Naive Multi-Pass" : "Loop Fusion"}
+              </button>
+              <button
+                onClick={() => dispatch({ type: "INJECT_STATEFUL_SORTED" })}
+                className="btn btn-warning"
+                disabled={state.stages.some((s) => s.opType === "SORTED_ASC")}
+              >
+                Inject sorted() Barrier
+              </button>
+              <button
+                onClick={() => dispatch({ type: "SHORT_CIRCUIT_EARLY" })}
+                className="btn btn-danger"
+                disabled={state.shortCircuitTriggered || state.isComplete}
+              >
+                Force Short-Circuit
+              </button>
+            </>
+          )}
+        />
+      );
+
+    case "java-completable-future":
+      return (
+        <InteractiveWorkbench
+          engine={javaCompletableFutureEngine}
+          projector={projectJavaCompletableFutureFrameToLanes}
+          onCommandDispatched={onInteraction}
+          renderCustomControls={(dispatch, state) => (
+            <>
+              <button
+                onClick={() => dispatch({ type: "STEP_ASYNC_DISPATCH" })}
+                className="btn btn-primary"
+                disabled={state.pipelineFinished}
+              >
+                Step Async Stage
+              </button>
+              <button
+                onClick={() => dispatch({ type: "TRIGGER_ALL_OF_BARRIER" })}
+                className="btn"
+                disabled={state.pipelineFinished}
+              >
+                Trigger allOf(...) Barrier
+              </button>
+              <button
+                onClick={() => dispatch({ type: "INJECT_BLOCKING_JOIN" })}
+                className="btn btn-danger"
+                disabled={state.threadStarvationDetected}
+              >
+                Inject .join() Starvation
+              </button>
+              <button
+                onClick={() => dispatch({ type: "INJECT_STAGE_EXCEPTION" })}
+                className="btn btn-warning"
+                disabled={state.stages.some((s) => s.status === "FAILED")}
+              >
+                Inject Stage Exception
               </button>
             </>
           )}

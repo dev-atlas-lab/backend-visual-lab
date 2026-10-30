@@ -59,4 +59,32 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
     await expect(page.locator("text=Accuracy Score:")).toBeVisible();
     await expect(page.getByRole("button", { name: /Retake Assessment/i })).toBeVisible();
   });
+
+  test("seamlessly navigates across domains without blank screen errors and opens Lab Guide", async ({ page }) => {
+    // 1. Visit Postgres page
+    await page.goto("/domains/databases/postgres-btree-mvcc-visibility");
+    await expect(page.locator("h1")).toContainText("PostgreSQL");
+    await expect(page.locator(".workbench-container")).toBeVisible();
+
+    // 2. Client-side navigate to Java Streams without page reload
+    await page.locator("a[href*='java-streams-lazy-evaluation']").first().click();
+    await expect(page.locator("h1")).toContainText("Stream API");
+    await expect(page.locator(".workbench-container")).toBeVisible();
+
+    // 3. Client-side navigate to CompletableFuture
+    await page.locator("a[href*='java-completable-future-async']").first().click();
+    await expect(page.locator("h1")).toContainText("CompletableFuture");
+    await expect(page.locator(".workbench-container")).toBeVisible();
+
+    // 4. Test Lab Field Guide Modal
+    const howToBtn = page.getByRole("button", { name: /How to Use\?/i });
+    if (await howToBtn.isVisible()) {
+      await howToBtn.click();
+      await expect(page.locator("#lab-guide-title")).toBeVisible();
+      await expect(page.locator("text=Cẩm Nang Tương Tác Lab Mô Phỏng")).toBeVisible();
+      // Close modal
+      await page.getByRole("button", { name: /Đã hiểu, bắt đầu khám phá!/i }).click();
+      await expect(page.locator("#lab-guide-title")).not.toBeVisible();
+    }
+  });
 });

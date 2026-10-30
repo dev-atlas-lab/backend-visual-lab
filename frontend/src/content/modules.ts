@@ -291,6 +291,7 @@ do {
     governanceStatus: "VERIFIED",
     estimatedMinutes: 20,
     difficulty: "Foundational",
+    simulationId: "java-streams-pipeline",
     keyTerms: [
       {
         term: "Functional Interface",
@@ -1198,5 +1199,143 @@ Exception table:
     },
     sourceIds: ["jvm-spec-se21", "jsr-133-jmm"],
     questionIds: ["java-q1-volatile-jmm-visibility", "java-q2-hotspot-lock-inflation"],
+  },
+
+  // 7. Java 8+ Asynchronous Orchestration: CompletableFuture
+  {
+    id: "java-completable-future-async",
+    slug: "java-completable-future-async",
+    domainId: "java",
+    title: "Java 8+ — Asynchronous Pipelines: CompletableFuture & Non-blocking Orchestration",
+    subtitle:
+      "CompletionStage DAG, ForkJoinPool handoffs, .join() thread starvation hazards, and error recovery",
+    governanceStatus: "VERIFIED",
+    estimatedMinutes: 25,
+    difficulty: "Senior / Staff",
+    simulationId: "java-completable-future",
+    keyTerms: [
+      {
+        term: "CompletableFuture",
+        definition:
+          "An implementation of Future and CompletionStage introducing non-blocking callback chaining, monadic functional transformations, and asynchronous task coordination in modern Java.",
+      },
+      {
+        term: "CompletionStage",
+        definition:
+          "A contract representing a node in an asynchronous computation graph (DAG) that performs an action or computes a value when another stage completes.",
+      },
+      {
+        term: "ForkJoinPool.commonPool()",
+        definition:
+          "The default JVM-wide work-stealing thread pool used by CompletableFuture when no explicit Executor is passed. Default parallelism is (CPU cores - 1).",
+      },
+      {
+        term: "Thread Starvation Deadlock",
+        definition:
+          "A critical concurrency failure where worker threads inside a bounded pool are blocked waiting for dependent subtasks that cannot execute because all pool threads are occupied.",
+      },
+    ],
+    stages: {
+      what: {
+        heading: "1. Core Architectural Concepts (WHAT)",
+        paragraphs: [
+          "Prior to Java 8, java.util.concurrent.Future allowed asynchronous task execution, but lacked any mechanism to combine results or attach callbacks. Developers were forced to call future.get(), which blocked the calling OS thread until the computation completed, completely nullifying non-blocking throughput.",
+          "CompletableFuture implements both Future<T> and CompletionStage<T>, allowing backend engineers to construct complex Asynchronous Directed Acyclic Graphs (DAGs). Stages execute reactively upon the completion of upstream dependencies without holding OS threads in waiting states.",
+        ],
+        bulletPoints: [
+          "Non-blocking Pipeline: Chains stages using fluent functional combinators (thenApply, thenCompose, thenCombine).",
+          "Explicit Error Channels: Encapsulates exceptions within the stage, routing failures through exceptionally() or handle() handlers.",
+          "Dual Execution Modes: Supports synchronous completion on the completing thread or asynchronous dispatch via dedicated Executor pools.",
+        ],
+      },
+      why: {
+        heading: "2. Why CompletableFuture in Distributed Systems (WHY)",
+        paragraphs: [
+          "In modern distributed architectures, serving a single client request frequently requires aggregating data from multiple downstream microservices (e.g., User Profile, Order Catalog, Pricing Engine, Fraud Detection).",
+          "Executing these RPC calls sequentially results in unacceptable latency (Latency = T1 + T2 + T3). Using CompletableFuture enables firing all RPC requests concurrently and non-blockingly joining results: Latency = max(T1, T2, T3) + overhead.",
+        ],
+        bulletPoints: [
+          "Elimination of Thread-per-Request Bottlenecks: A small pool of worker threads can orchestrate thousands of concurrent in-flight RPC requests.",
+          "Resilience & Circuit Fallbacks: If an individual dependency fails or times out, the pipeline can emit a cached or degraded response via exceptionally() without cascading failure.",
+          "Coordination Primitives: CompletableFuture.allOf() and anyOf() provide robust primitives for fan-out / fan-in aggregation patterns.",
+        ],
+      },
+      how: {
+        heading: "3. Implementation Patterns & Stage Combinators (HOW)",
+        paragraphs: [
+          "Designing high-throughput asynchronous pipelines requires choosing the correct CompletionStage combinator based on dependency topology:",
+        ],
+        codeSnippet: {
+          language: "java",
+          caption: "Production CompletableFuture Orchestration Pipeline",
+          code: `// 1. Fan-out independent remote calls to dedicated I/O pool
+CompletableFuture<User> userFuture = CompletableFuture
+    .supplyAsync(() -> userService.fetchUser(userId), ioThreadPool);
+
+CompletableFuture<List<Order>> ordersFuture = CompletableFuture
+    .supplyAsync(() -> orderService.fetchRecentOrders(userId), ioThreadPool);
+
+// 2. Non-blocking fan-in zip combination
+CompletableFuture<UserDashboard> dashboardFuture = userFuture
+    .thenCombineAsync(ordersFuture, (user, orders) -> {
+        return new UserDashboard(user, orders, pricingEngine.calculateDiscounts(user, orders));
+    }, cpuThreadPool)
+    // 3. Graceful degradation on remote timeout
+    .exceptionally(ex -> {
+        log.warn("Failed to build dashboard for user {}, serving cached view", userId, ex);
+        return UserDashboard.fallback(userId);
+    });`,
+        },
+        bulletPoints: [
+          "thenApply vs thenCompose: Use thenApply for simple synchronous transformations (T -> R). Use thenCompose when the transformation itself returns a CompletableFuture<R> to avoid nested CompletableFuture<CompletableFuture<R>> (monadic flatMap).",
+          "Sync vs Async Suffix: methods without Async (thenApply) run on whichever thread completed the previous future. Methods with Async (thenApplyAsync) dispatch execution to a specified Executor.",
+          "CompletableFuture.allOf: Synchronizes completion across an arbitrary array of futures. Note: allOf returns CompletableFuture<Void>; results must be gathered individually after resolution.",
+        ],
+      },
+      internals: {
+        heading: "4. HotSpot JVM Internals: CompletionStage State Machine (INTERNALS)",
+        paragraphs: [
+          "Under the hood, java.util.concurrent.CompletableFuture is implemented as a lock-free, atomic state machine backed by a Treiber stack of Completion dependency records:",
+        ],
+        bulletPoints: [
+          "Treiber Stack of Callbacks: Each CompletableFuture holds a volatile Object result field and a volatile Completion stack head. When you invoke thenApply() on an uncompleted future, a UniApply node is pushed onto the stack via atomic CAS (Compare-And-Swap).",
+          "Completion Cascades: When complete(result) is invoked, it atomically sets the result field and pops callback nodes from the Treiber stack, executing them or scheduling them on their target Executor in LIFO order.",
+          "Work-Stealing ForkJoinPool: When using commonPool(), tasks enter a WorkQueue array. Idle carrier threads steal tasks from the deques of busy threads using atomic CAS on queue head/tail pointers, maximizing CPU core utilization.",
+        ],
+      },
+      tradeOffs: {
+        heading: "5. Technical Trade-Offs: CompletableFuture vs Alternatives (TRADE-OFFS)",
+        paragraphs: [
+          "Comparing asynchronous orchestration options in Java backend services:",
+        ],
+        bulletPoints: [
+          "CompletableFuture vs Project Reactor (Mono/Flux): CompletableFuture is built into the JDK with zero external dependencies, perfect for 1-to-1 asynchronous RPC orchestration. Reactive Streams (Reactor) provide superior streaming, backpressure, and operators, but introduce steep learning curves and debugging complexity.",
+          "CompletableFuture vs Virtual Threads (Java 21+): Virtual Threads allow writing simple, imperative blocking code (e.g. response = httpClient.send()) with the scalability of async I/O. However, CompletableFuture remains essential for complex parallel DAG branch joins (allOf, anyOf) where multiple operations must proceed simultaneously.",
+          "ForkJoinPool.commonPool vs Dedicated Thread Pools: commonPool() is convenient but shared across the entire JVM (including parallel streams). Submitting slow, blocking I/O to commonPool() risks starving the entire application.",
+        ],
+      },
+      failureScenarios: {
+        heading: "6. Production Failure Modes & Anti-Patterns (FAILURE SCENARIOS)",
+        paragraphs: [
+          "Asynchronous pipelines introduce subtle failure modes that can silently degrade backend reliability:",
+        ],
+        callout: {
+          tone: "warning",
+          title: "Critical Production Pitfalls in CompletableFuture",
+          body: "1. Thread Pool Starvation via Worker .join(): Calling subtask.join() inside a task running on ForkJoinPool.commonPool() ties up a worker thread while waiting. Under load, all pool workers become blocked waiting for tasks that cannot run because no workers are free — resulting in a complete thread starvation freeze!\n2. Silent Swallowed Exceptions: If an exception is thrown in supplyAsync() and the pipeline terminates without exceptionally(), handle(), or a downstream reader calling get()/join(), the exception is swallowed silently and never logged to stdout or APM.\n3. CommonPool Saturation: Never run JDBC or blocking REST calls on ForkJoinPool.commonPool(). Always supply a custom ThreadPoolExecutor with bounded capacity and descriptive thread names.",
+        },
+      },
+      productionEngineering: {
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
+        paragraphs: [
+          "Production rules for high-availability CompletableFuture pipelines:",
+          "1. Always Provide Dedicated Executors: Separate thread pools for CPU-bound tasks (size = CPU cores) from I/O-bound tasks (size = 50-200 threads depending on downstream capacity).",
+          "2. Configure Explicit Timeouts (Java 9+): Always append .orTimeout(500, TimeUnit.MILLISECONDS) or .completeOnTimeout(fallback, 500, TimeUnit.MILLISECONDS) to prevent hanging futures from leaking memory.",
+          "3. MDC Context Propagation: SLF4J MDC is stored in ThreadLocal. When execution hops between threads via thenApplyAsync(), MDC is lost. Use an MDC-aware Executor decorator to copy trace IDs across asynchronous boundaries.",
+        ],
+      },
+    },
+    sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
+    questionIds: ["java-q11-cf-join-starvation", "java-q12-cf-async-handoff"],
   },
 ];

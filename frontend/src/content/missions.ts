@@ -201,6 +201,52 @@ export const labMissions: Record<string, LabMission[]> = {
         Boolean(state.isVolatileVariable) && !state.raceConditionDetected,
     },
   ],
+  "java-streams-pipeline": [
+    {
+      id: "streams-mission-1",
+      simulationId: "java-streams-pipeline",
+      title: "Verify Zero Intermediate Heap Lists (Loop Fusion)",
+      goal: "Complete a Stream pipeline with filter and map without allocating any intermediate ArrayLists on the JVM Heap.",
+      hint: "Run preset 1 and step until pipeline is complete with intermediateListsAllocated === 0.",
+      checkCompleted: (state) => {
+        const results = (state.collectedResults as Array<unknown>) || [];
+        return (
+          Boolean(state.isComplete) &&
+          Number(state.intermediateListsAllocated ?? 0) === 0 &&
+          results.length > 0
+        );
+      },
+    },
+    {
+      id: "streams-mission-2",
+      simulationId: "java-streams-pipeline",
+      title: "Observe Short-Circuit Traversal Abort",
+      goal: "Trigger short-circuiting via limit(2) so remaining stream elements are never evaluated by downstream sinks.",
+      hint: "Step through preset 1 or click 'Force Short-Circuit'.",
+      checkCompleted: (state) => Boolean(state.shortCircuitTriggered),
+    },
+  ],
+  "java-completable-future": [
+    {
+      id: "cf-mission-1",
+      simulationId: "java-completable-future",
+      title: "Complete Non-blocking Orchestration DAG",
+      goal: "Execute all asynchronous pipeline stages without blocking the caller thread or stalling worker pools.",
+      hint: "Select 'Clean Non-Blocking Pipeline' and step until all stages complete.",
+      checkCompleted: (state) =>
+        Boolean(state.pipelineFinished) &&
+        !state.callerThreadBlocked &&
+        !state.threadStarvationDetected,
+    },
+    {
+      id: "cf-mission-2",
+      simulationId: "java-completable-future",
+      title: "Detect Worker Thread Starvation (.join() Anti-pattern)",
+      goal: "Expose thread exhaustion hazard by invoking blocking .join() inside a worker thread.",
+      hint: "Select 'Anti-Pattern: Worker Thread Starvation' or click 'Inject .join() Starvation'.",
+      checkCompleted: (state) => Boolean(state.threadStarvationDetected),
+    },
+  ],
 };
 
 export function getMissionsForSimulation(simulationId: string): LabMission[] {

@@ -158,14 +158,38 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
           </NavLink>
 
           <NavLink
+            to="/domains/java/java-streams-lazy-evaluation"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+            onClick={onNavigate}
+          >
+            <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
+            <div className="nav-link-content">
+              <span className="nav-link-title">5. Stream API &amp; Fusion</span>
+              <span className="nav-link-badge">Lazy Sink</span>
+            </div>
+          </NavLink>
+
+          <NavLink
             to="/domains/java/java-virtual-threads-loom"
             className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
             onClick={onNavigate}
           >
             <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
             <div className="nav-link-content">
-              <span className="nav-link-title">5. Virtual Threads</span>
+              <span className="nav-link-title">6. Virtual Threads</span>
               <span className="nav-link-badge">Loom J21</span>
+            </div>
+          </NavLink>
+
+          <NavLink
+            to="/domains/java/java-completable-future-async"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+            onClick={onNavigate}
+          >
+            <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
+            <div className="nav-link-content">
+              <span className="nav-link-title">7. CompletableFuture</span>
+              <span className="nav-link-badge">Async DAG</span>
             </div>
           </NavLink>
         </div>
