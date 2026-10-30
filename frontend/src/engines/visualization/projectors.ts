@@ -6,6 +6,7 @@ import type {
   JavaHashMapState,
   JavaVirtualThreadsState,
   JavaExceptionsState,
+  JavaConcurrencyState,
   SimulationStepFrame,
 } from "../simulation";
 
@@ -634,6 +635,130 @@ export function projectJavaExceptionsFrameToLanes(
       laneId: "java-exceptions-resources",
       laneTitle: `AutoCloseable Resources & Reverse Order Cleanup (${state.resourcesAutoClosedCount} Auto-Closed)`,
       cards: resourceCards,
+    },
+  ];
+}
+
+export function projectJavaConcurrencyFrameToLanes(
+  frame: SimulationStepFrame<JavaConcurrencyState>,
+): VisualLaneProjection[] {
+  const { state } = frame;
+
+  // Lane 1: Object Header (Mark Word) & Lock Escalation Status
+  const mw = state.markWord;
+  let lockTone: VisualNodeCard["tone"] = "healthy";
+  let lockBadge = "UNLOCKED (001)";
+
+  if (mw.lockState === "BIASED") {
+    lockTone = "healthy";
+    lockBadge = "BIASED (101)";
+  } else if (mw.lockState === "LIGHTWEIGHT") {
+    lockTone = "warning";
+    lockBadge = "LIGHTWEIGHT CAS (00)";
+  } else if (mw.lockState === "HEAVYWEIGHT") {
+    lockTone = "danger";
+    lockBadge = "HEAVYWEIGHT MUTEX (10)";
+  }
+
+  const markWordCards: VisualNodeCard[] = [
+    {
+      id: "hotspot-mark-word",
+      title: "HotSpot 64-bit Mark Word",
+      subtitle: `Lock State: ${mw.lockState}`,
+      badgeText: lockBadge,
+      tone: lockTone,
+      details: [
+        `Owner Thread: ${mw.ownerThreadId ?? "None (Uncontested)"}`,
+        `Spin Count: ${mw.spinCount}`,
+        `Monitor WaitSet: ${mw.monitorWaitQueue.length} threads parked`,
+        state.lockInflationReason ? `Escalation: ${state.lockInflationReason}` : "Uncontested fast path",
+      ],
+    },
+    {
+      id: "jmm-shared-memory",
+      title: "Heap Main Memory Variable",
+      subtitle: state.isVolatileVariable ? "Type: volatile int" : "Type: non-volatile int",
+      badgeText: state.isVolatileVariable ? "VOLATILE COHERENT" : "STALE READ HAZARD",
+      tone: state.isVolatileVariable ? "healthy" : state.raceConditionDetected ? "danger" : "warning",
+      details: [
+        `Current Main Memory Value: ${state.sharedMainMemoryValue}`,
+        `Memory Barrier: ${state.memoryBarrierActive}`,
+        state.isVolatileVariable
+          ? "StoreLoad barrier flushes CPU store buffer immediately"
+          : "CPUs may cache stale copy in L1/L2 registers without sync",
+      ],
+    },
+  ];
+
+  // Lane 2: Threads & Local CPU Cache / Register Coherence
+  const threadCards: VisualNodeCard[] = state.threads.map((t) => {
+    const isStale = t.localCachedValue !== state.sharedMainMemoryValue;
+    let tone: VisualNodeCard["tone"] = "info";
+    if (t.holdingLock) tone = "healthy";
+    else if (t.status === "SPINNING_CAS") tone = "warning";
+    else if (t.status === "PARKED_MUTEX") tone = "danger";
+
+    return {
+      id: t.id,
+      title: t.name,
+      subtitle: `Status: ${t.status}`,
+      badgeText: t.holdingLock ? "HOLDS LOCK" : t.status,
+      tone,
+      details: [
+        `Thread-Local L1 Value: ${t.localCachedValue} ${isStale ? "(STALE!)" : "(Synchronized)"}`,
+        `CAS Spin Attempts: ${t.casSpinAttempts}`,
+        t.status === "PARKED_MUTEX"
+          ? "Suspended in OS Futex/WaitSet (Kernel Context Switch)"
+          : t.status === "SPINNING_CAS"
+            ? "Executing CPU PAUSE loops in user-space"
+            : "Active execution",
+      ],
+    };
+  });
+
+  // Lane 3: Synchronization Telemetry & Kernel Metrics
+  const telemetryCards: VisualNodeCard[] = [
+    {
+      id: "cas-telemetry",
+      title: "Optimistic Atomic CAS Telemetry",
+      subtitle: "User-space Compare-And-Swap Operations",
+      badgeText: `${state.totalCasOperations} CAS OPS`,
+      tone: "info",
+      details: [
+        `Total atomic cmpxchg executed: ${state.totalCasOperations}`,
+        "Lock-free optimistic progress without kernel traps",
+      ],
+    },
+    {
+      id: "kernel-context-switch-telemetry",
+      title: "OS Kernel Context Switch Overhead",
+      subtitle: "Thread Park / Unpark Events",
+      badgeText: `${state.contextSwitchesCount} CONTEXT SWITCHES`,
+      tone: state.contextSwitchesCount > 0 ? "danger" : "healthy",
+      details: [
+        `Kernel context switches: ${state.contextSwitchesCount}`,
+        state.contextSwitchesCount > 0
+          ? "Heavyweight monitor invoked pthread_mutex / futex syscalls (~1-5 μs per switch)"
+          : "Zero kernel transitions (100% user-mode speed)",
+      ],
+    },
+  ];
+
+  return [
+    {
+      laneId: "jmm-mark-word",
+      laneTitle: `HotSpot Object Header (Mark Word) & JMM Heap Memory (${mw.lockState})`,
+      cards: markWordCards,
+    },
+    {
+      laneId: "jmm-threads",
+      laneTitle: `Application Threads & CPU Cache Coherence (${state.threads.length} Threads)`,
+      cards: threadCards,
+    },
+    {
+      laneId: "jmm-telemetry",
+      laneTitle: "Concurrency Performance & Kernel Metrics",
+      cards: telemetryCards,
     },
   ];
 }

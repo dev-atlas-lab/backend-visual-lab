@@ -92,6 +92,7 @@ export const simulationIdSchema = z.enum([
   "java-hashmap-treeification",
   "java-virtual-threads",
   "java-exceptions-stack-unwinding",
+  "java-concurrency-jmm-locks",
 ]);
 
 export type SimulationId = z.infer<typeof simulationIdSchema>;

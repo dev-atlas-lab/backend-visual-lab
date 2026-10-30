@@ -113,4 +113,12 @@ export const authoritativeSources: SourceCitation[] = [
     accessedAt: "2026-10-30",
     supports: "athrow bytecode instruction, JVM Exception Table lookups, Call Stack Unwinding, Try-with-Resources bytecode synthesis, and Throwable.addSuppressed()",
   },
+  {
+    id: "jsr-133-jmm",
+    title: "JSR-133: Java Memory Model and Thread Specification",
+    publisher: "Java Community Process (JCP / Manson, Pugh, Adve)",
+    url: "https://jcp.org/en/jsr/detail?id=133",
+    accessedAt: "2026-10-30",
+    supports: "Java Memory Model (JMM), Happens-Before formal order, volatile load/store memory barriers, and synchronization lock inflation mechanics",
+  },
 ];
