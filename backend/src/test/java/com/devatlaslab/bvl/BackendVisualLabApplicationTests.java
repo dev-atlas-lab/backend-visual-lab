@@ -10,11 +10,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class BackendVisualLabApplicationTests {
 
     @Test
-    void catalogControllerReturnsSixCoreDomains() {
+    void catalogControllerReturnsConfiguredCoreDomains() {
         CatalogController controller = new CatalogController();
         CatalogController.PlatformStatusDto status = controller.getStatus();
         assertNotNull(status);
-        assertEquals(6, status.domains().size());
+        assertEquals(7, status.domains().size());
         assertEquals("messaging", status.domains().getFirst().id());
     }
 
