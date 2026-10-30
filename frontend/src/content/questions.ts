@@ -532,4 +532,80 @@ export const questionBank: ScenarioQuestion[] = [
       "An Index-Only Scan achieves peak performance (Heap Fetches = 0) only when the Visibility Map's all_visible bit is set. If recent updates haven't been processed by VACUUM, the engine must still fetch the heap page to verify MVCC visibility.",
     sourceIds: ["postgres-btree-nbtree", "postgres-mvcc-concurrency"],
   },
+
+  // Java Core: Exceptions, Throwable & Stack Unwinding Questions
+  {
+    id: "java-q1-exception-table-unwinding",
+    moduleId: "java-exceptions-stack-unwinding",
+    domainId: "java",
+    type: "single-choice",
+    stem: "When a Java method throws an exception using the bytecode instruction 'athrow', how does the JVM locate the appropriate catch block, and what happens if no matching block is found in the current method?",
+    choices: [
+      {
+        id: "a",
+        text: "The JVM performs an linear if-else check across all methods in the class file, and if none match, it immediately triggers garbage collection.",
+        explanation:
+          "Incorrect: The JVM does not inspect unrelated methods in the class. It strictly inspects the active method's Exception Table, and if not matched, unwinds the Call Stack to the caller frame.",
+      },
+      {
+        id: "b",
+        text: "The JVM looks up the current method's Exception Table matching the Program Counter (PC) against [from, to) ranges. If no matching catch type is found, the current stack frame is popped (deallocated), and the JVM recursively inspects the caller's Exception Table (Stack Unwinding).",
+        explanation:
+          "Correct: In the JVM specification (§3.12 & §2.10), every compiled try-catch block registers entries in the method's Exception Table. When athrow executes, the JVM checks entries where from <= PC < to for type compatibility. If none match, stack unwinding pops the current frame and checks the caller frame at its call site PC.",
+      },
+      {
+        id: "c",
+        text: "The JVM pauses all other application threads with a Stop-The-World barrier while scanning the thread stack.",
+        explanation:
+          "Incorrect: Exception handling and stack unwinding are purely thread-local operations executed entirely on the throwing thread's private Call Stack with zero global coordination.",
+      },
+      {
+        id: "d",
+        text: "The JVM dynamically transforms the exception into a checked IOException and halts the operating system process.",
+        explanation:
+          "Incorrect: The JVM does not alter the exception type at runtime; checked vs unchecked enforcement is primarily a compile-time (javac) guarantee, with runtime following polymorphic instanceof checks.",
+      },
+    ],
+    correctChoiceIds: ["b"],
+    correctExplanation:
+      "The JVM inspects the compiled Exception Table for the current method based on the instruction pointer (PC). When no handler matches, it unwinds the Call Stack frame by frame until a matching handler is found or the thread crashes.",
+    sourceIds: ["jvm-spec-se21", "jvms-21-exceptions"],
+  },
+  {
+    id: "java-q2-suppressed-exceptions",
+    moduleId: "java-exceptions-stack-unwinding",
+    domainId: "java",
+    type: "multiple-response",
+    stem: "In a Java 7+ Try-with-Resources block where an AutoCloseable resource is declared, suppose the try block throws Exception A, and the automatic invocation of resource.close() subsequently throws Exception B. Which TWO statements accurately describe the resulting behavior? Select TWO.",
+    choices: [
+      {
+        id: "a",
+        text: "Exception A is discarded, and Exception B becomes the primary thrown exception because finally-like cleanup always takes precedence.",
+        explanation:
+          "Incorrect: In pre-Java 7 finally blocks, an exception in finally would mask/hide the original try exception. Try-with-Resources was specifically engineered to eliminate this bug by preserving Exception A as primary.",
+      },
+      {
+        id: "b",
+        text: "Exception A is preserved as the primary thrown exception that propagates to the caller.",
+        explanation:
+          "Correct: Under Try-with-Resources semantics (JLS §14.20.3), the exception thrown from the try block takes precedence as the primary failure event.",
+      },
+      {
+        id: "c",
+        text: "Exception B is attached to Exception A as a Suppressed Exception via Throwable.addSuppressed(B), accessible via A.getSuppressed().",
+        explanation:
+          "Correct: Rather than masking the root cause or dropping the close() failure, the JVM attaches Exception B as a suppressed exception under Exception A. Developers can inspect all secondary failures via getSuppressed().",
+      },
+      {
+        id: "d",
+        text: "The JVM converts both exceptions into an unrecoverable java.lang.InternalError and crashes the virtual machine.",
+        explanation:
+          "Incorrect: Suppressed exceptions are standard Java Throwable instances and do not cause VM-level InternalError crashes.",
+      },
+    ],
+    correctChoiceIds: ["b", "c"],
+    correctExplanation:
+      "Under Java Try-with-Resources, the primary try-block exception propagates normally, while any secondary exceptions arising from AutoCloseable.close() are chained via Throwable.addSuppressed() to avoid masking critical failure diagnostics.",
+    sourceIds: ["jvms-21-exceptions"],
+  },
 ];

@@ -5,6 +5,7 @@ import type {
   JavaMemoryGcState,
   JavaHashMapState,
   JavaVirtualThreadsState,
+  JavaExceptionsState,
   SimulationStepFrame,
 } from "../simulation";
 
@@ -467,6 +468,172 @@ export function projectJavaVirtualThreadsFrameToLanes(
           details: ["Click Spawn Tasks to inject additional workload."],
         },
       ],
+    },
+  ];
+}
+
+export function projectJavaExceptionsFrameToLanes(
+  frame: SimulationStepFrame<JavaExceptionsState>,
+): VisualLaneProjection[] {
+  const { state } = frame;
+
+  // Lane 1: Thread Call Stack Frames (Top of stack first)
+  const stackCards: VisualNodeCard[] = state.callStack
+    .slice()
+    .reverse()
+    .map((item, idx) => {
+      const isTop = idx === 0;
+      const isHandlingCatch =
+        state.handledThrowable !== null && isTop;
+      const hasResource = item.openedResources.length > 0;
+
+      let tone: VisualNodeCard["tone"] = "healthy";
+      if (state.activeThrowable && isTop) {
+        tone = "danger";
+      } else if (isHandlingCatch) {
+        tone = "healthy";
+      } else if (hasResource) {
+        tone = "info";
+      }
+
+      const details: string[] = [
+        `ExceptionTable: ${item.exceptionTable.length > 0 ? item.exceptionTable.map((e) => `catch(${e.catchType})->PC:${e.targetPc}`).join(", ") : "None (Pass-through)"}`,
+        `Resources: ${item.openedResources.length > 0 ? item.openedResources.map((r) => `${r.name} (${r.isClosed ? "CLOSED" : "OPEN"})`).join(", ") : "0"}`,
+      ];
+
+      if (item.hasFinallyBlock) {
+        details.push("finally: [Guaranteed Execution]");
+      }
+
+      return {
+        id: item.id,
+        title: `${item.className}.${item.methodName}`,
+        subtitle: isTop ? "Top of Call Stack (Active PC)" : `Caller Frame (Depth #${state.callStack.length - idx})`,
+        badgeText: isTop
+          ? state.activeThrowable
+            ? "UNWINDING"
+            : isHandlingCatch
+              ? "CATCH HANDLER"
+              : "EXECUTING"
+          : "CALLER",
+        tone,
+        details,
+      };
+    });
+
+  // Lane 2: Active or Handled Throwable Details
+  const throwableCards: VisualNodeCard[] = [];
+  if (state.activeThrowable) {
+    const t = state.activeThrowable;
+    throwableCards.push({
+      id: t.id,
+      title: `${t.className}`,
+      subtitle: `Category: ${t.category}`,
+      badgeText: "IN-FLIGHT THROWABLE",
+      tone: t.category === "Error" ? "danger" : "warning",
+      details: [
+        `Message: "${t.message}"`,
+        `Origin Depth: Frame #${t.stackTraceDepth}`,
+        `HotSpot Bytecode: athrow opcode active`,
+      ],
+    });
+  } else if (state.handledThrowable) {
+    const h = state.handledThrowable;
+    throwableCards.push({
+      id: h.id,
+      title: `${h.className} [HANDLED]`,
+      subtitle: `Category: ${h.category}`,
+      badgeText: "CAUGHT & CONSUMED",
+      tone: "healthy",
+      details: [
+        `Caught message: "${h.message}"`,
+        `Exception Table matched successfully`,
+        `Normal execution resumed inside catch block`,
+      ],
+    });
+  } else {
+    throwableCards.push({
+      id: "no-active-throwable",
+      title: "No Active Throwable",
+      subtitle: "Call Stack running steady",
+      badgeText: "NORMAL CONTROL FLOW",
+      tone: "muted",
+      details: [
+        "Normal bytecode execution proceeding via invokevirtual / ireturn.",
+        "Throw an exception or invoke methods to trigger unwinding.",
+      ],
+    });
+  }
+
+  // Chained Suppressed Exceptions
+  state.suppressedThrowables.forEach((s) => {
+    throwableCards.push({
+      id: s.id,
+      title: `Suppressed: ${s.className}`,
+      subtitle: `AutoCloseable on ${s.suppressedBy || "Resource"}`,
+      badgeText: "SUPPRESSED (Throwable.addSuppressed)",
+      tone: "warning",
+      details: [
+        `Message: "${s.message}"`,
+        `Preserved alongside primary exception without masking!`,
+      ],
+    });
+  });
+
+  // Lane 3: AutoCloseable Resources Status
+  const allResources = state.callStack.flatMap((f) =>
+    f.openedResources.map((r) => ({ ...r, frameMethod: `${f.className}.${f.methodName}` })),
+  );
+
+  const resourceCards: VisualNodeCard[] = allResources.length > 0
+    ? allResources.map((r) => ({
+        id: r.id,
+        title: r.name,
+        subtitle: `Scope: ${r.frameMethod}`,
+        badgeText: r.isClosed ? "AUTO-CLOSED" : "OPEN RESOURCE",
+        tone: r.isClosed ? "healthy" : r.failOnClose ? "warning" : "info",
+        details: [
+          `AutoCloseable Interface: close() ${r.isClosed ? "executed" : "pending"}`,
+          r.failOnClose ? "Config: close() will simulate failure" : "Config: clean closure",
+        ],
+      }))
+    : [
+        {
+          id: "no-resources",
+          title: "No Try-with-Resources Open",
+          subtitle: "Zero unmanaged native handles",
+          badgeText: "NO RESOURCES",
+          tone: "muted",
+          details: ["Resources declared in try(...) are automatically closed in reverse order of declaration."],
+        },
+      ];
+
+  return [
+    {
+      laneId: "java-exceptions-stack",
+      laneTitle: `Thread Call Stack (${state.callStack.length} Frames) — Unwound: ${state.framesUnwoundCount}`,
+      cards: stackCards.length > 0 ? stackCards : [
+        {
+          id: "stack-empty",
+          title: "Call Stack Empty",
+          subtitle: state.unhandledEscaped ? "Thread Crashed with Uncaught Exception" : "All frames returned",
+          badgeText: state.unhandledEscaped ? "FATAL THREAD DEATH" : "EMPTY",
+          tone: state.unhandledEscaped ? "danger" : "muted",
+          details: state.unhandledEscaped
+            ? ["UncaughtExceptionHandler invoked. Process or worker thread terminated."]
+            : ["Thread has terminated normal execution."],
+        },
+      ],
+    },
+    {
+      laneId: "java-exceptions-throwable",
+      laneTitle: `Throwable State & Suppressed Chains (${throwableCards.length} Items)`,
+      cards: throwableCards,
+    },
+    {
+      laneId: "java-exceptions-resources",
+      laneTitle: `AutoCloseable Resources & Reverse Order Cleanup (${state.resourcesAutoClosedCount} Auto-Closed)`,
+      cards: resourceCards,
     },
   ];
 }

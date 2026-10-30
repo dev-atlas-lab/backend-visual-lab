@@ -5,3 +5,4 @@ export * from "./postgres-mvcc-btree";
 export * from "./java-memory-gc";
 export * from "./java-hashmap";
 export * from "./java-virtual-threads";
+export * from "./java-exceptions";

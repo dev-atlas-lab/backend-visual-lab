@@ -907,4 +907,153 @@ FROM heap_page_items(get_raw_page('accounts', 0));`,
     sourceIds: ["postgres-page-layout", "postgres-mvcc-concurrency", "postgres-btree-nbtree"],
     questionIds: ["postgres-q1-update-ctid-internals", "postgres-q2-index-only-scan-vm"],
   },
+
+  // 7. Java Core: Exceptions, Throwable Hierarchy & Stack Unwinding
+  {
+    id: "java-exceptions-stack-unwinding",
+    slug: "java-exceptions-stack-unwinding",
+    domainId: "java",
+    title: "Java Exceptions — Throwable Hierarchy, JVM Exception Tables & Call Stack Unwinding",
+    subtitle:
+      "Deep dive into Error vs Checked vs Unchecked, bytecode athrow, Exception Table range lookups, Try-with-Resources, and Suppressed Exceptions",
+    governanceStatus: "VERIFIED",
+    estimatedMinutes: 25,
+    difficulty: "Intermediate",
+    simulationId: "java-exceptions-stack-unwinding",
+    keyTerms: [
+      {
+        term: "Throwable Hierarchy",
+        definition:
+          "The root class java.lang.Throwable branches into Error (fatal VM conditions like OutOfMemoryError, StackOverflowError) and Exception. Exception divides into Unchecked (RuntimeException subclasses) and Checked (all other Exception subclasses enforced by javac at compile time).",
+      },
+      {
+        term: "JVM Exception Table",
+        definition:
+          "Metadata stored in compiled class file method bytecodes containing entries [fromPc, toPc, targetPc, catchType]. When an exception occurs, the JVM searches this table in linear order to determine where to transfer execution control.",
+      },
+      {
+        term: "Stack Unwinding",
+        definition:
+          "The process by which the JVM discards the active stack frame and transfers control to the caller frame when no matching handler is found in the current method's Exception Table, repeating up the call chain until a matching handler is found or the thread terminates.",
+      },
+      {
+        term: "Try-with-Resources & Suppressed Exceptions",
+        definition:
+          "Introduced in Java 7, automatically invokes AutoCloseable.close() in reverse order of resource declaration. If both the try block and close() throw exceptions, the close() exception is attached as a Suppressed Exception via Throwable.addSuppressed() rather than masking the primary failure.",
+      },
+      {
+        term: "fillInStackTrace() Overhead",
+        definition:
+          "A native JVM method called during Throwable instantiation that walks the native and Java call frames to record class, method, file, and line numbers. Accounts for 90%+ of the CPU cost of throwing an exception in high-throughput backend services.",
+      },
+    ],
+    stages: {
+      what: {
+        heading: "1. Core Architectural Concepts (WHAT)",
+        paragraphs: [
+          "In the Java Virtual Machine architecture, exceptions are first-class execution events represented by object instances descending from the root class java.lang.Throwable.",
+          "The Throwable hierarchy is bifurcated into two foundational branches with distinct operational semantics: java.lang.Error and java.lang.Exception.",
+          "Error subclasses (such as OutOfMemoryError, StackOverflowError, InternalError) represent catastrophic JVM-level failures that normal application code cannot recover from. Standard backend services must never attempt to catch or suppress java.lang.Error.",
+          "Exception subclasses represent application-level conditions and are further split into Checked Exceptions (direct subclasses of Exception, enforced at compile-time by javac) and Unchecked Exceptions (subclasses of RuntimeException, such as NullPointerException, IllegalArgumentException, and IllegalStateException, indicating programming or state invariants violations).",
+        ],
+        bulletPoints: [
+          "Throwable: Root ancestor providing stack trace capture (getStackTrace(), fillInStackTrace()), cause chaining (getCause(), initCause()), and suppressed exception aggregation (addSuppressed(), getSuppressed()).",
+          "Error (Unchecked): Unrecoverable system-level failures (JVM crash, native memory exhaustion).",
+          "Exception (Checked): Anticipated environmental recoverable conditions (e.g., IOException, SQLException) requiring explicit throws declarations or try-catch enclosures.",
+          "RuntimeException (Unchecked): Unanticipated logical, state, or contract violations that can occur at any point in program execution.",
+        ],
+      },
+      why: {
+        heading: "2. The Evolution of Checked vs Unchecked in Backend Engineering (WHY)",
+        paragraphs: [
+          "Java is one of the very few industrial languages to implement Checked Exceptions. The original architectural intention of Java designers in 1995 was to force developers to deliberately consider and handle every recoverable failure mode (such as a missing file or disconnected socket) at compile time.",
+          "However, over three decades of enterprise backend evolution (Spring Framework, Hibernate, Jakarta EE, reactive engines), Checked Exceptions created severe architectural liabilities:",
+        ],
+        bulletPoints: [
+          "Interface Leaks: Declaring throws SQLException or throws IOException in clean domain interfaces (e.g., UserRepository.findById()) couples the domain API to specific infrastructure driver details.",
+          "Exception Swallowing: Frustrated developers frequently wrote empty catch blocks (catch (Exception e) {}) or generic logging without rethrowing, silently losing critical diagnostic telemetry.",
+          "Functional Programming Incompatibility: Java 8+ Stream API and Lambda functional interfaces (Function<T,R>, Predicate<T>, Consumer<T>) do not permit checked exceptions in their method signatures, requiring boilerplate unchecked wrappers.",
+          "Modern Industry Standard: Modern frameworks (Spring Boot @Transactional, JPA, Resilience4j) almost exclusively leverage Unchecked RuntimeExceptions, allowing errors to cleanly propagate up the call stack to a centralized Global Exception Handler (@RestControllerAdvice).",
+        ],
+        callout: {
+          tone: "note",
+          title: "Modern Architectural Best Practice",
+          body: "Translate low-level driver checked exceptions into strongly-typed domain unchecked exceptions at infrastructure boundaries (e.g. catch SQLException and throw OrderPersistenceException extends RuntimeException). Preserve the original cause chain!",
+        },
+      },
+      how: {
+        heading: "3. Try-with-Resources & AutoCloseable Cleanup Mechanics (HOW)",
+        paragraphs: [
+          "Prior to Java 7, resource cleanup in finally blocks was notoriously bug-prone. Closing a database ResultSet, Statement, and Connection required nested try-catch blocks in finally. If an exception occurred during the first close(), subsequent resources leaked.",
+          "Java 7 introduced the Try-with-Resources statement, binding to the java.lang.AutoCloseable interface. Any object implementing close() declared in the try header is guaranteed to be closed upon exiting the block, whether completion was normal or abrupt.",
+        ],
+        bulletPoints: [
+          "Reverse Declaration Order (LIFO): Resources declared in try (ResourceA a = ...; ResourceB b = ...) are closed in reverse order: b.close() executes first, followed by a.close(). This preserves dependency hierarchies (e.g., closing a Stream before closing its underlying FileChannel).",
+          "Suppressed Exceptions: If the try block throws an exception (e.g., QueryExecutionException) and b.close() also throws an exception (e.g., SocketCloseException), the try-block exception remains the primary thrown exception. The JVM attaches the close() failure to the primary exception via Throwable.addSuppressed().",
+        ],
+      },
+      internals: {
+        heading: "4. HotSpot JVM Internals: athrow, Exception Tables & Stack Unwinding (INTERNALS)",
+        paragraphs: [
+          "Unlike conditional branch instructions (ifeq, goto), Java exceptions do not use run-time if checks on method returns. In normal error-free execution, try-catch blocks incur ZERO execution time overhead (Zero-Cost Exception Handling model).",
+          "When an exception is thrown, the compiler emits the bytecode instruction 'athrow'. The JVM searches the compiled method's Exception Table attribute:",
+        ],
+        codeSnippet: {
+          language: "java",
+          caption: "HotSpot Compiled Bytecode Exception Table Structure",
+          code: `// Method: OrderService.processPayment(LOrder;)V
+// Code:
+//   0: aload_0
+//   1: invokevirtual #4  // Method PaymentClient.charge:()V
+//   4: return
+//   5: astore_1          // Catch block starts at PC 5
+//   6: aload_1
+//   7: invokestatic  #7  // Method logError:(LPaymentException;)V
+//   10: return
+
+Exception table:
+   from    to  target type
+      0     4       5 Class PaymentException
+      0     4      12 any  // Generated for finally block`,
+        },
+        bulletPoints: [
+          "Exception Table Resolution: HotSpot scans entries matching from <= PC < to. If the thrown object is an instance of the entry's type, PC jumps to 'target'.",
+          "Stack Unwinding: If no matching entry exists in the current method's Exception Table, HotSpot pops the current Stack Frame (deallocating local variables and operand stack) and inspects the caller frame's Exception Table at the call site PC. This repeats recursively until a handler is found or the thread terminates.",
+          "The Cost of fillInStackTrace(): When new MyException() is constructed, the JVM performs an expensive native frame-pointer traversal to populate the stack trace. In microservices processing 50,000 req/sec, throwing exceptions for business logic flow control causes severe CPU saturation.",
+        ],
+      },
+      tradeOffs: {
+        heading: "5. Technical Trade-Offs of Error Handling Paradigms (TRADE-OFFS)",
+        paragraphs: [
+          "Backend architects evaluate three competing error handling strategies across latency, type safety, and ergonomic dimensions:",
+        ],
+        bulletPoints: [
+          "Exceptions (Unchecked): Clean code separation between happy path and recovery logic. High ergonomics with centralized handlers. Trade-off: High CPU cost if used as control flow; exceptions are invisible in method signatures.",
+          "Result / Either Types (e.g., Result<T, Error>): Functional monadic approach (popular in Rust and Kotlin). Forces explicit handling of success and failure without JVM stack unwinding. Trade-off: Requires monadic flatMap chaining; verbose in standard Java.",
+          "Pre-allocated / Stackless Exceptions: Overriding Throwable.fillInStackTrace() to return 'this' without native stack walking. Reduces CPU overhead by 95% for high-frequency lightweight domain signals. Trade-off: Loss of line-number debugging context.",
+        ],
+      },
+      failureScenarios: {
+        heading: "6. Production Failure Modes & Anti-Patterns (FAILURE SCENARIOS)",
+        paragraphs: [
+          "In production distributed microservices, incorrect exception handling leads to insidious failure modes:",
+        ],
+        callout: {
+          tone: "warning",
+          title: "Critical Production Anti-Patterns",
+          body: "1. Swallowing Exceptions: 'catch (Exception e) { log.error(\"failed\"); }' without rethrowing or returning an error causes the caller to assume success, corrupting downstream transactional state.\n2. Lost Cause Chain: 'catch (SQLException e) { throw new ServiceException(\"Failed\"); }' strips the root cause. Without passing 'e' into the constructor, database root cause error codes (e.g. ORA-00060 Deadlock) are lost forever.\n3. Catching java.lang.Error: Catching Throwable or Error in application threads intercepts OutOfMemoryError and ThreadDeath, preventing the JVM or container from restarting a broken process.",
+        },
+      },
+      productionEngineering: {
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
+        paragraphs: [
+          "1. Centralized Global Exception Handling: Use Spring Boot's @RestControllerAdvice with @ExceptionHandler to map domain RuntimeExceptions into standard RFC 7807 (Problem Details for HTTP APIs) responses with uniform error codes, timestamps, and correlation IDs.",
+          "2. Diagnostic Context Propagation (MDC): Ensure correlation/trace IDs (traceId, spanId) from OpenTelemetry / SLF4J MDC are injected into every exception log entry before stack unwinding occurs.",
+          "3. Thread.setDefaultUncaughtExceptionHandler: Always register a global uncaught exception handler on application startup to ensure thread crashes in asynchronous Executors and ScheduledExecutorServices are logged with full stack traces rather than dying silently.",
+        ],
+      },
+    },
+    sourceIds: ["jvm-spec-se21", "jvms-21-exceptions"],
+    questionIds: ["java-q1-exception-table-unwinding", "java-q2-suppressed-exceptions"],
+  },
 ];

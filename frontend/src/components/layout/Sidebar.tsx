@@ -122,6 +122,18 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
           </NavLink>
 
           <NavLink
+            to="/domains/java/java-exceptions-stack-unwinding"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+            onClick={onNavigate}
+          >
+            <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
+            <div className="nav-link-content">
+              <span className="nav-link-title">Exceptions &amp; Stack</span>
+              <span className="nav-link-badge">Unwind</span>
+            </div>
+          </NavLink>
+
+          <NavLink
             to="/domains/java/java-virtual-threads-loom"
             className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
             onClick={onNavigate}

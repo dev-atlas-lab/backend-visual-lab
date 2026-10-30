@@ -105,4 +105,12 @@ export const authoritativeSources: SourceCitation[] = [
     accessedAt: "2026-10-30",
     supports: "M:N user-mode virtual threads, Continuation unmount on blocking I/O, ForkJoinPool carrier thread scheduling, and thread pinning hazards",
   },
+  {
+    id: "jvms-21-exceptions",
+    title: "Java Virtual Machine Specification (Java SE 21) — §2.10 Exceptions & §3.12 Exception Tables",
+    publisher: "Oracle Corporation & OpenJDK",
+    url: "https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-3.html#jvms-3.12",
+    accessedAt: "2026-10-30",
+    supports: "athrow bytecode instruction, JVM Exception Table lookups, Call Stack Unwinding, Try-with-Resources bytecode synthesis, and Throwable.addSuppressed()",
+  },
 ];
