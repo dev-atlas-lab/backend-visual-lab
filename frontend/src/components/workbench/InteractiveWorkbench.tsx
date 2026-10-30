@@ -1,10 +1,17 @@
-import { useId, useState, useEffect } from "react";
+import { useId, useState, useEffect, useCallback } from "react";
 import {
   type SimulationEngineSpec,
   type SimulationStepFrame,
   buildPresetTape,
 } from "../../engines/simulation";
 import type { VisualLaneProjection } from "../../engines/visualization/projectors";
+import { getMissionsForSimulation } from "../../content/missions";
+import {
+  playClick,
+  playStep,
+  playSuccess,
+  playAlert,
+} from "../../engines/audio/sound-fx";
 import {
   Play,
   Pause,
@@ -15,6 +22,11 @@ import {
   AlertTriangle,
   Sliders,
   Activity,
+  Maximize2,
+  Minimize2,
+  Target,
+  CheckCircle2,
+  Circle,
 } from "lucide-react";
 
 interface InteractiveWorkbenchProps<TConfig, TState, TCommand> {
@@ -45,6 +57,8 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
   });
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [completedMissionIds, setCompletedMissionIds] = useState<string[]>([]);
   const [activeInspectorTab, setActiveInspectorTab] = useState<
     "invariants" | "events" | "fidelity" | "state"
   >("invariants");
@@ -52,6 +66,29 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
   const selectId = useId();
   const currentFrame = frames[currentIndex] || frames[0];
   const lanes = projector(currentFrame);
+  const missions = getMissionsForSimulation(engine.id);
+
+  // Check mission completion
+  useEffect(() => {
+    if (missions.length === 0) return;
+    missions.forEach((m) => {
+      if (
+        !completedMissionIds.includes(m.id) &&
+        m.checkCompleted(currentFrame.state as unknown as Record<string, unknown>)
+      ) {
+        setCompletedMissionIds((prev) => [...prev, m.id]);
+        playSuccess();
+      }
+    });
+  }, [currentFrame.state, missions, completedMissionIds]);
+
+  // Check for any failing invariants to trigger subtle alert
+  useEffect(() => {
+    const hasFailures = currentFrame.invariants.some((inv) => !inv.passed);
+    if (hasFailures) {
+      playAlert();
+    }
+  }, [currentFrame.invariants]);
 
   // Playback Auto-Stepper
   useEffect(() => {
@@ -59,6 +96,7 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
     const timer = setInterval(() => {
       setCurrentIndex((prev) => {
         if (prev < frames.length - 1) {
+          playStep();
           return prev + 1;
         } else {
           setIsPlaying(false);
@@ -69,7 +107,8 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
     return () => clearInterval(timer);
   }, [isPlaying, frames.length]);
 
-  const handleSelectPreset = (presetId: string) => {
+  const handleSelectPreset = useCallback((presetId: string) => {
+    playClick();
     setSelectedPresetId(presetId);
     setIsPlaying(false);
     const preset = engine.presets.find((p) => p.id === presetId);
@@ -78,24 +117,71 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
       setFrames(tape);
       setCurrentIndex(0);
     }
-  };
+  }, [engine]);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
+    playClick();
     setIsPlaying(false);
     setCurrentIndex(0);
-  };
+  }, []);
 
-  const handleStepBack = () => {
+  const handleStepBack = useCallback(() => {
+    playClick();
     setIsPlaying(false);
     setCurrentIndex((prev) => Math.max(0, prev - 1));
-  };
+  }, []);
 
-  const handleStepForward = () => {
+  const handleStepForward = useCallback(() => {
+    playStep();
     setIsPlaying(false);
     setCurrentIndex((prev) => Math.min(frames.length - 1, prev + 1));
-  };
+  }, [frames.length]);
+
+  const handleTogglePlay = useCallback(() => {
+    playClick();
+    setIsPlaying((prev) => !prev);
+  }, []);
+
+  const handleToggleFullscreen = useCallback(() => {
+    playClick();
+    setIsFullscreen((prev) => !prev);
+  }, []);
+
+  // Keyboard Shortcuts Hook
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+      if (e.code === "Space") {
+        e.preventDefault();
+        handleStepForward();
+      } else if (e.key === "p" || e.key === "P") {
+        e.preventDefault();
+        handleTogglePlay();
+      } else if (e.key === "r" || e.key === "R") {
+        e.preventDefault();
+        handleReset();
+      } else if (e.key === "f" || e.key === "F") {
+        e.preventDefault();
+        handleToggleFullscreen();
+      } else if (["1", "2", "3"].includes(e.key)) {
+        const idx = parseInt(e.key, 10) - 1;
+        if (engine.presets[idx]) {
+          handleSelectPreset(engine.presets[idx].id);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleStepForward, handleTogglePlay, handleReset, handleToggleFullscreen, handleSelectPreset, engine.presets]);
 
   const handleDispatchCommand = (cmd: TCommand) => {
+    playStep();
     setIsPlaying(false);
     const activePreset =
       engine.presets.find((p) => p.id === selectedPresetId) ?? engine.presets[0];
@@ -109,7 +195,10 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
   };
 
   return (
-    <section className="workbench-container" aria-label="Interactive Simulation Lab Workbench">
+    <section
+      className={`workbench-container ${isFullscreen ? "is-fullscreen" : ""}`}
+      aria-label="Interactive Simulation Lab Workbench"
+    >
       {/* 1. Header & Transport Toolbar */}
       <div className="workbench-toolbar">
         <div className="toolbar-group">
@@ -135,7 +224,7 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
           <button
             onClick={handleReset}
             className="btn"
-            title="Reset to initial state (Tick 1)"
+            title="Reset to initial state (Tick 1) [R]"
             aria-label="Reset to initial state"
           >
             <RotateCcw size={14} />
@@ -152,9 +241,9 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
             <span>Back</span>
           </button>
           <button
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={handleTogglePlay}
             className="btn btn-primary"
-            title={isPlaying ? "Pause simulation" : "Auto-play simulation steps"}
+            title={isPlaying ? "Pause simulation [P]" : "Auto-play simulation steps [P]"}
             aria-label={isPlaying ? "Pause simulation" : "Auto-play simulation steps"}
           >
             {isPlaying ? <Pause size={14} /> : <Play size={14} />}
@@ -164,7 +253,7 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
             onClick={handleStepForward}
             className="btn"
             disabled={currentIndex === frames.length - 1}
-            title="Step Forward"
+            title="Step Forward [Space]"
             aria-label="Step Forward"
           >
             <span>Step</span>
@@ -173,8 +262,47 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
           <span className="step-indicator">
             Tick {currentIndex + 1} / {frames.length}
           </span>
+          <button
+            onClick={handleToggleFullscreen}
+            className="btn"
+            title={isFullscreen ? "Exit Fullscreen [F]" : "Enter Fullscreen Lab Mode [F]"}
+            aria-label={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen Lab Mode"}
+          >
+            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            <span>{isFullscreen ? "Exit Full" : "Fullscreen"}</span>
+          </button>
         </div>
       </div>
+
+      {/* 2. Interactive Mission Challenges HUD */}
+      {missions.length > 0 ? (
+        <div className="workbench-mission-strip">
+          <div className="mission-strip-label">
+            <Target size={14} color="var(--accent)" />
+            <span>LAB MISSIONS:</span>
+          </div>
+          <div className="mission-badges-wrap">
+            {missions.map((m) => {
+              const isDone = completedMissionIds.includes(m.id);
+              return (
+                <div
+                  key={m.id}
+                  className={`mission-badge ${isDone ? "is-completed" : ""}`}
+                  title={`${m.goal} (Hint: ${m.hint})`}
+                >
+                  {isDone ? (
+                    <CheckCircle2 size={13} className="mission-icon-done" />
+                  ) : (
+                    <Circle size={13} className="mission-icon-pending" />
+                  )}
+                  <span className="mission-title">{m.title}</span>
+                  {isDone ? <span className="mission-tag-done">SOLVED</span> : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {/* Custom Interactive Chaos / Fault Controls */}
       {renderCustomControls ? (

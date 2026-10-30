@@ -38,3 +38,5 @@ export function getQuestionsForModule(moduleId: string) {
 export function getSourceById(sourceId: string) {
   return validatedContentPack.sources.find((s) => s.id === sourceId);
 }
+
+export * from "./missions";

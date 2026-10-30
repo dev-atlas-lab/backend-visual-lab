@@ -4,6 +4,8 @@
   min-height: 100vh;
   display: flex;
   background-color: var(--surface-0);
+  background-image: radial-gradient(var(--border-subtle) 1px, transparent 1px);
+  background-size: 28px 28px;
   color: var(--text-primary);
 }
 
