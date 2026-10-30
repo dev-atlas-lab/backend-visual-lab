@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="vi" data-theme="dark" data-theme-preference="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Backend Visual Lab — Interactive Backend Engineering Platform</title>
+    <meta
+      name="description"
+      content="Interactive learning and deterministic simulation platform for Backend Engineering: Apache Kafka, PostgreSQL Internals, Redis Caching, Distributed Systems, and System Design."
+    />
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem("bvl.theme");
+          var valid = pref === "dark" || pref === "light" || pref === "system" ? pref : "dark";
+          var resolved =
+            valid === "system"
+              ? window.matchMedia("(prefers-color-scheme: light)").matches
+                ? "light"
+                : "dark"
+              : valid;
+          document.documentElement.setAttribute("data-theme-preference", valid);
+          document.documentElement.setAttribute("data-theme", resolved);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme-preference", "dark");
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

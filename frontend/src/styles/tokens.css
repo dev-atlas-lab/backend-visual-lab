@@ -1,0 +1,120 @@
+:root {
+  /* Color Palette — Dark default */
+  --surface-0: #0d1117;
+  --surface-1: #161b22;
+  --surface-2: #21262d;
+  --surface-3: #30363d;
+  --surface-inset: #090d13;
+
+  --border-subtle: #30363d;
+  --border-bold: #484f58;
+
+  --text-primary: #f0f6fc;
+  --text-secondary: #8b949e;
+  --text-tertiary: #6e7681;
+
+  --accent-primary: #38bdf8;
+  --accent-hover: #0284c7;
+  --accent-subtle: rgba(56, 189, 248, 0.12);
+
+  --status-ok: #3fb950;
+  --status-ok-subtle: rgba(63, 185, 80, 0.15);
+
+  --status-warn: #d29922;
+  --status-warn-subtle: rgba(210, 153, 34, 0.15);
+
+  --status-danger: #f85149;
+  --status-danger-subtle: rgba(248, 81, 73, 0.15);
+
+  --status-info: #58a6ff;
+  --status-info-subtle: rgba(88, 166, 255, 0.15);
+
+  --focus-ring: #38bdf8;
+
+  /* Typography & Layout Tokens */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --max-content-width: 1280px;
+  --lesson-reading-width: 76ch;
+}
+
+[data-theme="light"] {
+  --surface-0: #f6f8fa;
+  --surface-1: #ffffff;
+  --surface-2: #f1f3f5;
+  --surface-3: #e1e4e8;
+  --surface-inset: #eaeef2;
+
+  --border-subtle: #d0d7de;
+  --border-bold: #afb8c1;
+
+  --text-primary: #1f2328;
+  --text-secondary: #59636e;
+  --text-tertiary: #656d76;
+
+  --accent-primary: #0969da;
+  --accent-hover: #0550ae;
+  --accent-subtle: rgba(9, 105, 218, 0.1);
+
+  --status-ok: #1a7f37;
+  --status-ok-subtle: rgba(26, 127, 55, 0.12);
+
+  --status-warn: #9a6700;
+  --status-warn-subtle: rgba(154, 103, 0, 0.12);
+
+  --status-danger: #cf222e;
+  --status-danger-subtle: rgba(207, 34, 46, 0.12);
+
+  --status-info: #0969da;
+  --status-info-subtle: rgba(9, 105, 218, 0.12);
+
+  --focus-ring: #0969da;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--surface-0);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+code, pre {
+  font-family: var(--font-mono);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
