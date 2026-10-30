@@ -1,16 +1,15 @@
-a {
-  color: var(--accent-primary);
-  text-decoration: underline;
-}
+/* ── Shell & Navigation Layout ─────────────────────────────────────────── */
 
 .app-shell {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background-color: var(--surface-0);
+  color: var(--text-primary);
 }
 
 .topbar {
-  height: 60px;
+  height: var(--topbar-height);
   background-color: var(--surface-1);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
@@ -20,44 +19,63 @@ a {
   position: sticky;
   top: 0;
   z-index: 50;
+  backdrop-filter: blur(8px);
 }
 
 .brand-lockup {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  font-weight: 700;
-  font-size: 17px;
+  font-weight: 600;
+  font-size: var(--text-md);
   color: var(--text-primary);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+
+.brand-lockup:hover {
+  text-decoration: none;
 }
 
 .brand-badge {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
   background: var(--accent-subtle);
-  color: var(--accent-primary);
+  color: var(--accent);
+  border: 1px solid var(--border-subtle);
   font-family: var(--font-mono);
   font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .nav-links {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-2);
 }
 
 .nav-link {
   color: var(--text-secondary);
   font-weight: 500;
+  font-size: var(--text-base);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
-.nav-link:hover, .nav-link.active {
+.nav-link:hover {
   color: var(--text-primary);
   background-color: var(--surface-2);
+  text-decoration: none;
+}
+
+.nav-link.active {
+  color: var(--accent);
+  background-color: var(--surface-2);
+  border-color: var(--border-subtle);
   text-decoration: none;
 }
 
@@ -75,5 +93,15 @@ a {
   padding: var(--space-6);
   text-align: center;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.footer a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.footer a:hover {
+  color: var(--accent-hover);
 }

@@ -5,9 +5,14 @@ export const answerChoiceSchema = z.object({
   id: identifierSchema,
   /** English choice text */
   text: z.string().trim().min(1),
-  /** Vietnamese technical explanation of why this option is right or wrong */
-  explanationVi: z.string().trim().min(1),
-});
+  /** Technical rationale of why this option is right or wrong (English preferred) */
+  explanation: z.string().trim().min(1).optional(),
+  explanationEn: z.string().trim().min(1).optional(),
+  explanationVi: z.string().trim().min(1).optional(),
+}).refine(
+  (data) => Boolean(data.explanation || data.explanationEn || data.explanationVi),
+  { message: "Either explanation, explanationEn, or explanationVi must be provided" }
+);
 
 export type AnswerChoice = z.infer<typeof answerChoiceSchema>;
 
@@ -24,8 +29,10 @@ export const scenarioQuestionSchema = z
     stem: z.string().trim().min(1),
     choices: z.array(answerChoiceSchema).min(3).max(6),
     correctChoiceIds: z.array(identifierSchema).min(1),
-    /** Overall Vietnamese synthesis of the correct architectural decision */
-    correctExplanationVi: z.string().trim().min(1),
+    /** Overall synthesis of the correct architectural decision (English preferred) */
+    correctExplanation: z.string().trim().min(1).optional(),
+    correctExplanationEn: z.string().trim().min(1).optional(),
+    correctExplanationVi: z.string().trim().min(1).optional(),
     sourceIds: z.array(identifierSchema).min(1),
   })
   .superRefine((question, ctx) => {
@@ -73,6 +80,14 @@ export const scenarioQuestionSchema = z
         code: "custom",
         message: "multiple-response question must have at least 2 correctChoiceIds",
         path: ["correctChoiceIds"],
+      });
+    }
+
+    if (!question.correctExplanation && !question.correctExplanationEn && !question.correctExplanationVi) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Either correctExplanation, correctExplanationEn, or correctExplanationVi must be provided",
+        path: ["correctExplanation"],
       });
     }
   });

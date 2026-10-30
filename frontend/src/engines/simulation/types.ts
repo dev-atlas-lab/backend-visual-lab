@@ -23,8 +23,14 @@ export interface SimulationStepFrame<TState> {
   events: SimulationProtocolEvent[];
   invariants: SimulationInvariantCheck[];
   narration: {
-    summaryVi: string;
-    internalsNoteVi: string;
+    summary?: string;
+    summaryEn?: string;
+    summaryVi?: string;
+    internalsNote?: string;
+    internalsNoteEn?: string;
+    internalsNoteVi?: string;
+    productionWarning?: string;
+    productionWarningEn?: string;
     productionWarningVi?: string;
   };
   metrics: Record<string, string | number>;
@@ -34,7 +40,9 @@ export interface SimulationPreset<TConfig, TCommand> {
   id: string;
   title: string;
   badge: string;
-  descriptionVi: string;
+  description?: string;
+  descriptionEn?: string;
+  descriptionVi?: string;
   config: TConfig;
   scriptedCommands: TCommand[];
 }

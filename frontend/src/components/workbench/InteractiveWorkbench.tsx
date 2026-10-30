@@ -136,8 +136,8 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
           <button
             onClick={handleReset}
             className="btn"
-            title="Reset về Tick 0"
-            aria-label="Reset về Tick 0"
+            title="Reset to initial state (Tick 1)"
+            aria-label="Reset to initial state"
           >
             <RotateCcw size={14} /> Reset
           </button>
@@ -145,16 +145,16 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
             onClick={handleStepBack}
             className="btn"
             disabled={currentIndex === 0}
-            title="Lùi lại 1 bước"
-            aria-label="Lùi lại 1 bước"
+            title="Step Back"
+            aria-label="Step Back"
           >
             <ChevronLeft size={16} /> Step Back
           </button>
           <button
             onClick={() => setIsPlaying(!isPlaying)}
             className="btn btn-primary"
-            title={isPlaying ? "Tạm dừng" : "Tự động chạy các bước"}
-            aria-label={isPlaying ? "Tạm dừng" : "Tự động chạy các bước"}
+            title={isPlaying ? "Pause simulation" : "Auto-play simulation steps"}
+            aria-label={isPlaying ? "Pause simulation" : "Auto-play simulation steps"}
           >
             {isPlaying ? <Pause size={14} /> : <Play size={14} />}
             <span>{isPlaying ? "Pause" : "Play"}</span>
@@ -163,8 +163,8 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
             onClick={handleStepForward}
             className="btn"
             disabled={currentIndex === frames.length - 1}
-            title="Tiến lên 1 bước"
-            aria-label="Tiến lên 1 bước"
+            title="Step Forward"
+            aria-label="Step Forward"
           >
             Step <ChevronRight size={16} />
           </button>
@@ -188,7 +188,7 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
           }}
         >
           <span style={{ fontSize: "11px", fontWeight: "700", color: "var(--text-secondary)", textTransform: "uppercase" }}>
-            Tương tác can thiệp:
+            Interactive Controls:
           </span>
           {renderCustomControls(handleDispatchCommand, currentFrame.state)}
         </div>
@@ -199,12 +199,16 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
         {/* Step Narration */}
         <div className="narration-callout">
           <div className="narration-title">{currentFrame.title}</div>
-          <div className="narration-summary">{currentFrame.narration.summaryVi}</div>
-          <div className="narration-internals">{currentFrame.narration.internalsNoteVi}</div>
-          {currentFrame.narration.productionWarningVi ? (
+          <div className="narration-summary">
+            {currentFrame.narration.summaryEn || currentFrame.narration.summary || currentFrame.narration.summaryVi}
+          </div>
+          <div className="narration-internals">
+            {currentFrame.narration.internalsNoteEn || currentFrame.narration.internalsNote || currentFrame.narration.internalsNoteVi}
+          </div>
+          {(currentFrame.narration.productionWarningEn || currentFrame.narration.productionWarning || currentFrame.narration.productionWarningVi) ? (
             <div className="narration-warning">
               <AlertTriangle size={14} style={{ display: "inline", marginRight: "4px" }} />
-              {currentFrame.narration.productionWarningVi}
+              {currentFrame.narration.productionWarningEn || currentFrame.narration.productionWarning || currentFrame.narration.productionWarningVi}
             </div>
           ) : null}
         </div>
@@ -255,19 +259,19 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
             onClick={() => setActiveInspectorTab("state")}
             className={`inspector-tab-btn ${activeInspectorTab === "state" ? "active" : ""}`}
           >
-            Invariants & Kiểm định
+            Invariants & Verification
           </button>
           <button
             onClick={() => setActiveInspectorTab("events")}
             className={`inspector-tab-btn ${activeInspectorTab === "events" ? "active" : ""}`}
           >
-            Nhật ký Giao thức ({currentFrame.events.length})
+            Protocol Events ({currentFrame.events.length})
           </button>
           <button
             onClick={() => setActiveInspectorTab("fidelity")}
             className={`inspector-tab-btn ${activeInspectorTab === "fidelity" ? "active" : ""}`}
           >
-            Fidelity & Giả định Mô phỏng
+            Fidelity & Assumptions
           </button>
         </div>
 
@@ -338,11 +342,11 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
         {activeInspectorTab === "fidelity" ? (
           <div style={{ fontSize: "13px", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "10px" }}>
             <div>
-              <strong style={{ color: "var(--text-primary)" }}>Tham chiếu chuẩn thế giới thực:</strong>{" "}
+              <strong style={{ color: "var(--text-primary)" }}>Authoritative Specification:</strong>{" "}
               <code>{engine.fidelity.realWorldReference}</code>
             </div>
             <div>
-              <strong style={{ color: "var(--status-ok)" }}>&check; Hành vi chuẩn xác được mô phỏng:</strong>
+              <strong style={{ color: "var(--status-ok)" }}>&check; Faithfully Simulated Behaviors:</strong>
               <ul style={{ paddingLeft: "20px", marginTop: "4px" }}>
                 {engine.fidelity.accurateBehaviors.map((b, idx) => (
                   <li key={idx}>{b}</li>
@@ -350,7 +354,7 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
               </ul>
             </div>
             <div>
-              <strong style={{ color: "var(--status-warn)" }}>&bull; Đơn giản hóa phục vụ sư phạm:</strong>
+              <strong style={{ color: "var(--status-warn)" }}>&bull; Educational Simplifications:</strong>
               <ul style={{ paddingLeft: "20px", marginTop: "4px" }}>
                 {engine.fidelity.simplifications.map((s, idx) => (
                   <li key={idx}>{s}</li>
@@ -358,7 +362,7 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
               </ul>
             </div>
             <div>
-              <strong style={{ color: "var(--status-danger)" }}>&times; Các trường hợp biên chưa mô phỏng:</strong>
+              <strong style={{ color: "var(--status-danger)" }}>&times; Out-of-Scope Failure Modes:</strong>
               <ul style={{ paddingLeft: "20px", marginTop: "4px" }}>
                 {engine.fidelity.unsupportedEdgeCases.map((e, idx) => (
                   <li key={idx}>{e}</li>

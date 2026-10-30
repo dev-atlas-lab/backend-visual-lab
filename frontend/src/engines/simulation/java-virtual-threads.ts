@@ -1,20 +1,17 @@
 import type {
   SimulationEngineSpec,
   SimulationInvariantCheck,
-  SimulationStepFrame,
 } from "./types";
 
-export type VirtualThreadStatus =
-  | "QUEUED_RUNNABLE"
-  | "MOUNTED_RUNNING"
-  | "YIELDED_PARKED_IO"
-  | "PINNED_BLOCKED"
-  | "COMPLETED";
-
-export interface VirtualThreadTask {
+export interface JavaVirtualThread {
   id: string;
   name: string;
-  status: VirtualThreadStatus;
+  status:
+    | "QUEUED_RUNNABLE"
+    | "MOUNTED_RUNNING"
+    | "YIELDED_PARKED_IO"
+    | "PINNED_BLOCKED"
+    | "COMPLETED";
   mountedCarrierId: string | null;
   ioWaitMsRemaining: number;
   isPinned: boolean;
@@ -22,7 +19,7 @@ export interface VirtualThreadTask {
   stackSizeKb: number;
 }
 
-export interface CarrierThread {
+export interface JavaCarrierThread {
   id: string;
   name: string;
   status: "IDLE" | "BUSY" | "PINNED";
@@ -30,27 +27,27 @@ export interface CarrierThread {
   totalTasksProcessed: number;
 }
 
-export interface JavaVirtualThreadsState {
-  carrierThreads: CarrierThread[];
-  virtualThreads: VirtualThreadTask[];
-  completedCount: number;
-  totalSpawned: number;
-  carrierPoolSize: number;
-  platformThreadStackKb: number; // 1024 KB (1MB) standard
-  virtualThreadStackKb: number;  // 2 KB lightweight continuation
-  hasPinnedCarrierAlert: boolean;
+export interface JavaVirtualThreadsConfig {
+  carrierPoolSize: number; // typically equals Runtime.getRuntime().availableProcessors()
+  initialSpawnCount: number;
 }
 
-export interface JavaVirtualThreadsConfig {
+export interface JavaVirtualThreadsState {
   carrierPoolSize: number;
-  initialSpawnCount: number;
+  carrierThreads: JavaCarrierThread[];
+  virtualThreads: JavaVirtualThread[];
+  totalSpawned: number;
+  completedCount: number;
+  virtualThreadStackKb: number;
+  platformThreadStackKb: number;
+  hasPinnedCarrierAlert: boolean;
 }
 
 export type JavaVirtualThreadsCommand =
   | { type: "SPAWN_TASKS"; count: number }
   | { type: "STEP_EXECUTION" }
-  | { type: "TRIGGER_BLOCKING_IO"; targetVirtualThreadId?: string }
-  | { type: "TRIGGER_SYNCHRONIZED_PINNING"; targetVirtualThreadId?: string }
+  | { type: "TRIGGER_BLOCKING_IO" }
+  | { type: "TRIGGER_SYNCHRONIZED_PINNING" }
   | { type: "RESOLVE_IO_COMPLETION" };
 
 const defaultConfig: JavaVirtualThreadsConfig = {
@@ -76,22 +73,22 @@ function evaluateInvariants(state: JavaVirtualThreadsState): SimulationInvariant
       label: "Carrier Thread Pool Saturation (ForkJoinPool)",
       passed: noIdleCarriersWhenWorkAvailable,
       detail: noIdleCarriersWhenWorkAvailable
-        ? `Tất cả Carrier Threads đều đang làm việc hết công suất hoặc hàng đợi rảnh (${runnableCount} runnable).`
-        : `Lãng phí CPU: Có ${idleCarriers} Carrier Thread rảnh rỗi trong khi có ${runnableCount} Virtual Threads đang chờ!`,
+        ? `All Carrier Threads are fully saturated or run queue is empty (${runnableCount} runnable).`
+        : `CPU Inefficiency: ${idleCarriers} Carrier Thread(s) idle while ${runnableCount} Virtual Threads are waiting in queue!`,
     },
     {
       id: "thread-pinning-safety",
       label: "Thread Pinning Absence (No Synchronized / JNI Hold)",
       passed: pinnedCarriers === 0,
       detail: pinnedCarriers === 0
-        ? "Không có Carrier Thread nào bị ghim (pinned). Mọi thao tác I/O đều yield continuation an toàn."
-        : `CẢNH BÁO PINNING: Có ${pinnedCarriers} Carrier Thread bị khóa chặt do synchronized block, làm tê liệt khả năng điều phối!`,
+        ? "No Carrier Threads are pinned. All blocking I/O calls yield continuations safely."
+        : `PINNING ALERT: ${pinnedCarriers} Carrier Thread(s) locked by synchronized blocks, paralyzing scheduler throughput!`,
     },
     {
       id: "memory-footprint-advantage",
       label: "Memory Footprint Scale (Virtual vs Platform Threads)",
       passed: true,
-      detail: `Với ${state.virtualThreads.length} threads: Virtual Threads tiêu thụ ~${totalVirtualMemoryMb.toFixed(1)} MB (heap-allocated stack), trong khi Platform Threads sẽ ngốn ~${equivalentPlatformMemoryMb.toFixed(1)} MB bộ nhớ OS!`,
+      detail: `With ${state.virtualThreads.length} threads: Virtual Threads consume ~${totalVirtualMemoryMb.toFixed(1)} MB (heap-allocated stack), whereas Platform Threads would consume ~${equivalentPlatformMemoryMb.toFixed(1)} MB of OS virtual memory!`,
     },
   ];
 }
@@ -108,32 +105,32 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
     realWorldReference:
       "JEP 444: Virtual Threads (Java 21 LTS) & OpenJDK HotSpot Continuation Architecture",
     accurateBehaviors: [
-      "Virtual Threads là M:N user-mode threads được điều phối trên một nhóm nhỏ OS Carrier Threads (ForkJoinPool).",
-      "Khi gặp thao tác I/O chặn (Socket read/write, LockSupport.park), Continuation sẽ yield, unmount khỏi Carrier Thread ngay lập tức.",
-      "Carrier Thread được giải phóng tức thì để nhận và thực thi Virtual Thread tiếp theo từ hàng đợi.",
-      "Khi gặp khối synchronized hoặc native frame, Virtual Thread sẽ PIN Carrier Thread (không thể unmount), gây cạn kiệt tài nguyên Worker OS.",
-      "Dung lượng stack của Virtual Thread co giãn trên Heap (vài KB), thay vì stack 1MB cố định của OS Platform Thread.",
+      "Virtual Threads are M:N user-mode threads scheduled across a small pool of OS Carrier Threads (ForkJoinPool).",
+      "Upon encountering blocking I/O (Socket read/write, LockSupport.park), the Continuation yields and unmounts immediately from the Carrier Thread.",
+      "The Carrier Thread is instantly freed to mount and execute the next runnable Virtual Thread from the queue.",
+      "Inside synchronized blocks or native JNI frames, Virtual Threads pin the Carrier Thread, preventing unmounting and exhausting worker pool capacity.",
+      "Virtual Thread stack frames scale dynamically on the JVM Heap (few KB), compared to the fixed 1MB OS stack of Platform Threads.",
     ],
     simplifications: [
-      "Thời gian I/O blocking được mô phỏng theo số vòng lặp logical tick.",
-      "ForkJoinPool work-stealing giữa các hàng đợi cục bộ được biểu diễn qua hàng đợi tập trung (global run queue).",
+      "I/O blocking duration is modeled via discrete logical simulation ticks.",
+      "ForkJoinPool work-stealing across per-carrier deques is visualized via a centralized global run queue.",
     ],
     assumptions: [
-      "Ứng dụng thực thi các tác vụ I/O-bound (gọi HTTP API bên ngoài, query Database).",
-      "Hệ điều hành cung cấp cơ chế Epoll / Kqueue hỗ trợ Non-blocking I/O ngầm dưới tầng JVM.",
+      "Workloads are primarily I/O-bound (external HTTP REST calls, database queries).",
+      "The host OS provides non-blocking epoll/kqueue facilities managed by the JVM poller thread.",
     ],
     unsupportedEdgeCases: [
-      "Trường hợp CPU-bound compute chuyên sâu (Virtual Threads không mang lại lợi ích thông lượng so với Platform Threads).",
-      "Scoped Values và StructuredTaskScope deadline cascading.",
+      "Intensive CPU-bound computation loops (where Virtual Threads offer no throughput benefit over Platform Threads).",
+      "Scoped Values and StructuredTaskScope deadline cascading.",
     ],
   },
   presets: [
     {
       id: "continuation-yield-high-throughput",
-      title: "Mở rộng Tác vụ I/O & Cơ chế Continuation Yield",
+      title: "1. I/O Concurrency Scaling & Continuation Yield",
       badge: "Non-blocking Yield",
-      descriptionVi:
-        "Quan sát 8 Virtual Threads cùng thực hiện gọi Database I/O. Khi chặn, Virtual Thread unmount để Carrier Thread phục vụ ngay tác vụ kế tiếp.",
+      description:
+        "Observe 8 Virtual Threads executing Database I/O. When blocking occurs, the Virtual Thread unmounts, freeing the Carrier Thread immediately for the next task.",
       config: defaultConfig,
       scriptedCommands: [
         { type: "STEP_EXECUTION" },
@@ -146,10 +143,10 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
     },
     {
       id: "thread-pinning-synchronized-hazard",
-      title: "Cạm bẫy Thread Pinning với khối synchronized",
+      title: "2. Thread Pinning Hazard with synchronized Blocks",
       badge: "Carrier Pinning",
-      descriptionVi:
-        "Khi Virtual Thread thực hiện gọi I/O bên trong khối synchronized, Carrier Thread bị ghim (pinned) và không thể unmount, làm nghẽn toàn bộ Pool.",
+      description:
+        "When a Virtual Thread executes blocking I/O inside a synchronized block, the Carrier Thread is pinned and cannot unmount, starving the pool.",
       config: defaultConfig,
       scriptedCommands: [
         { type: "STEP_EXECUTION" },
@@ -160,56 +157,62 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
     },
   ],
 
-  createInitialFrame(config = defaultConfig): SimulationStepFrame<JavaVirtualThreadsState> {
-    const carrierThreads: CarrierThread[] = Array.from({ length: config.carrierPoolSize }, (_, i) => ({
-      id: `carrier-worker-${i + 1}`,
-      name: `ForkJoinPool-worker-${i + 1}`,
-      status: "IDLE",
-      currentVirtualThreadId: null,
-      totalTasksProcessed: 0,
-    }));
+  createInitialFrame(config = defaultConfig) {
+    const carrierThreads: JavaCarrierThread[] = [];
+    for (let i = 1; i <= config.carrierPoolSize; i++) {
+      carrierThreads.push({
+        id: `carrier-${i}`,
+        name: `ForkJoinPool-worker-${i}`,
+        status: "IDLE",
+        currentVirtualThreadId: null,
+        totalTasksProcessed: 0,
+      });
+    }
 
-    const virtualThreads: VirtualThreadTask[] = Array.from({ length: config.initialSpawnCount }, (_, i) => ({
-      id: `vt-${i + 1}`,
-      name: `VirtualThread[#${i + 1}]`,
-      status: "QUEUED_RUNNABLE",
-      mountedCarrierId: null,
-      ioWaitMsRemaining: 0,
-      isPinned: false,
-      stackSizeKb: 2,
-    }));
+    const virtualThreads: JavaVirtualThread[] = [];
+    for (let i = 1; i <= config.initialSpawnCount; i++) {
+      virtualThreads.push({
+        id: `vt-${i}`,
+        name: `VirtualThread[#${i}]`,
+        status: "QUEUED_RUNNABLE",
+        mountedCarrierId: null,
+        ioWaitMsRemaining: 0,
+        isPinned: false,
+        stackSizeKb: 2,
+      });
+    }
 
     const initialState: JavaVirtualThreadsState = {
+      carrierPoolSize: config.carrierPoolSize,
       carrierThreads,
       virtualThreads,
-      completedCount: 0,
       totalSpawned: config.initialSpawnCount,
-      carrierPoolSize: config.carrierPoolSize,
-      platformThreadStackKb: 1024,
-      virtualThreadStackKb: 2,
+      completedCount: 0,
+      virtualThreadStackKb: 2, // 2 KB heap continuation
+      platformThreadStackKb: 1024, // 1024 KB = 1 MB OS stack
       hasPinnedCarrierAlert: false,
     };
 
     return {
       tick: 0,
       phase: "INITIALIZED",
-      title: "Java 21 Virtual Threads Runtime Khởi tạo",
+      title: "Java 21 Virtual Threads Runtime Initialized",
       state: initialState,
       events: [
         {
           tick: 0,
           actor: "LoomRuntime",
           action: "BOOTSTRAP",
-          detail: `Khởi tạo ${config.carrierPoolSize} OS Carrier Threads và xếp hàng ${config.initialSpawnCount} Virtual Threads.`,
+          detail: `Initialized ${config.carrierPoolSize} OS Carrier Threads and queued ${config.initialSpawnCount} Virtual Threads.`,
           tone: "info",
         },
       ],
       invariants: evaluateInvariants(initialState),
       narration: {
-        summaryVi:
-          "JVM khởi tạo Carrier Thread Pool với 2 OS threads vật lý. 8 Virtual Threads đang xếp hàng chờ trong Run Queue.",
-        internalsNoteVi:
-          "Không giống như Platform Thread tiêu tốn 1MB bộ nhớ ảo OS cho stack, mỗi Virtual Thread ban đầu chỉ chiếm vài trăm byte đến 2KB heap memory cho Continuation frame.",
+        summary:
+          "JVM initialized the Carrier Thread Pool with 2 physical OS worker threads. 8 Virtual Threads are queued in the Run Queue.",
+        internalsNote:
+          "Unlike Platform Threads which consume 1MB of fixed OS virtual memory for stack frames, each Virtual Thread initially occupies only 1-2 KB of heap memory for its Continuation frame.",
       },
       metrics: {
         "Carrier Threads": `${config.carrierPoolSize} OS Workers`,
@@ -228,9 +231,9 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
     const events = [...currentFrame.events];
     let phase = "MUTATING";
     let title = "";
-    let summaryVi = "";
-    let internalsNoteVi = "";
-    let productionWarningVi: string | undefined;
+    let summary = "";
+    let internalsNote = "";
+    let productionWarning: string | undefined;
 
     switch (command.type) {
       case "SPAWN_TASKS": {
@@ -249,10 +252,10 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
         state.totalSpawned += command.count;
 
         phase = "TASKS_SPAWNED";
-        title = `Khởi tạo thêm +${command.count} Virtual Threads`;
-        summaryVi = `Thêm ${command.count} Virtual Threads vào hàng đợi. Tổng số tác vụ: ${state.totalSpawned}.`;
-        internalsNoteVi =
-          "Hàm Thread.ofVirtual().start(runnable) tạo ra luồng với chi phí cực thấp, không cần duy trì Thread Pool truyền thống (ExecutorService thread pooling là anti-pattern với Virtual Threads).";
+        title = `Spawned +${command.count} Virtual Threads`;
+        summary = `Added ${command.count} Virtual Threads to the run queue. Total tasks created: ${state.totalSpawned}.`;
+        internalsNote =
+          "Thread.ofVirtual().start(runnable) creates threads with near-zero overhead. Traditional thread pooling (ExecutorService fixed pools) is an anti-pattern for Virtual Threads.";
         events.push({
           tick: nextTick,
           actor: "ThreadFactory",
@@ -264,7 +267,7 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
       }
 
       case "STEP_EXECUTION": {
-        // Gán các runnable tasks vào idle carriers
+        // Schedule runnable tasks onto idle carriers
         let scheduledCount = 0;
         for (const carrier of state.carrierThreads) {
           if (carrier.status === "IDLE") {
@@ -288,15 +291,14 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
         }
 
         phase = "EXECUTION_STEP";
-        title = `Lên lịch Điều phối (Scheduled ${scheduledCount} Tasks)`;
-        summaryVi = `Carrier Thread Pool mount các Virtual Threads từ Run Queue vào thực thi trực tiếp trên CPU core.`;
-        internalsNoteVi =
-          "Quá trình Mount sao chép các con trỏ từ Heap Continuation stack vào thanh ghi CPU thật của Carrier Thread. Thời gian mount/unmount chỉ mất vài chục nano giây.";
+        title = `Carrier Scheduling Step (Mounted ${scheduledCount} Tasks)`;
+        summary = `Carrier Thread Pool mounted runnable Virtual Threads from the queue onto physical CPU cores.`;
+        internalsNote =
+          "Mounting copies frame pointers from the Heap Continuation stack into real CPU registers on the Carrier Thread. Mounting and unmounting take only tens of nanoseconds.";
         break;
       }
 
       case "TRIGGER_BLOCKING_IO": {
-        // Tìm một task đang chạy và cho nó thực hiện blocking I/O
         const runningTask = state.virtualThreads.find(
           (vt) => vt.status === "MOUNTED_RUNNING" && !vt.isPinned,
         );
@@ -304,7 +306,7 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
         if (runningTask && runningTask.mountedCarrierId) {
           const carrier = state.carrierThreads.find((c) => c.id === runningTask.mountedCarrierId);
           runningTask.status = "YIELDED_PARKED_IO";
-          runningTask.ioWaitMsRemaining = 50; // Giả lập 50ms latency I/O
+          runningTask.ioWaitMsRemaining = 50; // Simulate 50ms I/O latency
           runningTask.mountedCarrierId = null;
 
           if (carrier) {
@@ -313,10 +315,10 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
           }
 
           phase = "CONTINUATION_YIELD";
-          title = `${runningTask.name} gặp Blocking I/O -> Unmount & Yield Carrier!`;
-          summaryVi = `${runningTask.name} thực hiện truy vấn Socket/DB chặn. JVM Continuation unmount luồng này ra khỏi ${carrier?.name}. Carrier Thread được giải phóng NGAY LẬP TỨC để nhận tác vụ khác!`;
-          internalsNoteVi =
-            "Dưới JEP 444, các hàm I/O kinh điển (InputStream.read, Socket.connect, JDBC executeQuery) đã được viết lại để tự động gọi Continuation.yield() khi không có dữ liệu, chuyển epoll descriptor vào Poller thread của JVM.";
+          title = `${runningTask.name} Encounted Blocking I/O -> Unmount & Yield Carrier!`;
+          summary = `${runningTask.name} executed a blocking Socket/DB call. The JVM Continuation unmounted the thread from ${carrier?.name}. Carrier Thread freed IMMEDIATELY to serve another task!`;
+          internalsNote =
+            "Under JEP 444, standard I/O calls (InputStream.read, Socket.connect, JDBC executeQuery) were refactored to invoke Continuation.yield() automatically, delegating socket descriptors to the JVM epoll poller.";
           events.push({
             tick: nextTick,
             actor: runningTask.name,
@@ -325,8 +327,8 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
             tone: "ok",
           });
         } else {
-          summaryVi = "Không có Virtual Thread nào đang chạy ở trạng thái unpinned để yield I/O.";
-          internalsNoteVi = "Hãy nhấn Chạy bước (Step Execution) để mount tác vụ trước.";
+          summary = "No unpinned Virtual Thread currently running to yield on I/O.";
+          internalsNote = "Click Step Execution first to mount runnable tasks.";
         }
         break;
       }
@@ -345,12 +347,12 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
           state.hasPinnedCarrierAlert = true;
 
           phase = "CARRIER_PINNED";
-          title = `NGUY HIỂM: Thread Pinning xảy ra trên ${carrier?.name}!`;
-          summaryVi = `${runningTask.name} gọi I/O chặn bên trong một khối 'synchronized'. JVM KHÔNG THỂ unmount Continuation và buộc phải ghim chặt (pin) Carrier Thread ${carrier?.name}!`;
-          internalsNoteVi =
-            "Khi một Virtual Thread nằm trong synchronized block hoặc gọi native C/JNI frame, HotSpot không thể tháo rời call stack. Carrier Thread bị chiếm giữ làm mất khả năng phục vụ các tác vụ khác. GIẢI PHÁP: Thay thế synchronized bằng java.util.concurrent.locks.ReentrantLock.";
-          productionWarningVi =
-            "CẢNH BÁO SẢN XUẤT: Thread Pinning làm vô hiệu hóa lợi thế của Virtual Threads và có thể khiến ứng dụng cạn kiệt Carrier Pool (-Djdk.tracePinnedThreads=full để truy vết).";
+          title = `CRITICAL HAZARD: Thread Pinning Occurred on ${carrier?.name}!`;
+          summary = `${runningTask.name} invoked blocking I/O inside a 'synchronized' block. The JVM CANNOT unmount the Continuation and is forced to pin Carrier Thread ${carrier?.name}!`;
+          internalsNote =
+            "Inside synchronized blocks or native JNI calls, HotSpot cannot cleanly decouple call frames from the OS thread. The Carrier Thread is held hostage, starving other tasks. FIX: Replace synchronized with java.util.concurrent.locks.ReentrantLock.";
+          productionWarning =
+            "PRODUCTION HAZARD: Thread Pinning disables Virtual Thread concurrency benefits and exhausts carrier pools. Use -Djdk.tracePinnedThreads=full in production to detect pinned frames.";
           events.push({
             tick: nextTick,
             actor: carrier?.name ?? "Carrier",
@@ -363,7 +365,6 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
       }
 
       case "RESOLVE_IO_COMPLETION": {
-        // Giải phóng các I/O đang chờ
         let resolvedCount = 0;
         for (const vt of state.virtualThreads) {
           if (vt.status === "YIELDED_PARKED_IO") {
@@ -374,7 +375,7 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
               tick: nextTick,
               actor: "JVM Poller",
               action: "IO_CALLBACK",
-              detail: `${vt.name} nhận phản hồi từ Socket epoll -> unpark trở lại Runnable Queue`,
+              detail: `${vt.name} received socket epoll callback -> unparked back to Runnable Queue`,
               tone: "info",
             });
           } else if (vt.status === "PINNED_BLOCKED") {
@@ -401,10 +402,10 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
 
         state.hasPinnedCarrierAlert = state.carrierThreads.some((c) => c.status === "PINNED");
         phase = "IO_RESOLVED";
-        title = `Hoàn tất I/O Callback (${resolvedCount} Tác vụ)`;
-        summaryVi = `Dữ liệu I/O đã sẵn sàng. Các Virtual Thread được unpark và xếp trở lại Run Queue để Carrier Thread rảnh tiếp tục xử lý.`;
-        internalsNoteVi =
-          "Một Virtual Thread không bị ràng buộc với bất kỳ Carrier Thread cụ thể nào. Sau khi unpark, nó có thể được tiếp tục thực thi trên bất kỳ Carrier Thread nào khác trong pool.";
+        title = `Completed I/O Callbacks (${resolvedCount} Tasks Resolved)`;
+        summary = `I/O data ready. Virtual Threads were unparked and queued back into Run Queue for available Carrier Threads.`;
+        internalsNote =
+          "Virtual Threads have no thread affinity to specific Carrier Threads. Once unparked, execution can resume on ANY idle carrier worker in the pool.";
         break;
       }
     }
@@ -421,9 +422,9 @@ export const javaVirtualThreadsSimulation: SimulationEngineSpec<
       events,
       invariants,
       narration: {
-        summaryVi,
-        internalsNoteVi,
-        productionWarningVi,
+        summary,
+        internalsNote,
+        productionWarning,
       },
       metrics: {
         "Carrier Threads": `${state.carrierPoolSize} OS Workers`,
