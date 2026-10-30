@@ -684,4 +684,78 @@ export const questionBank: ScenarioQuestion[] = [
       "HotSpot locks escalate from Biased (zero CAS cost) to Lightweight (user-space CAS spin) and finally Heavyweight Monitor (OS kernel thread parking with context switch overhead).",
     sourceIds: ["jsr-133-jmm", "jvm-spec-se21"],
   },
+  {
+    id: "java-q11-cf-join-starvation",
+    moduleId: "java-completable-future-async",
+    domainId: "java",
+    type: "single-choice",
+    stem: "A backend engineer invokes subtaskFuture.join() inside a task submitted to ForkJoinPool.commonPool(). Under peak traffic, the service experiences severe latency spikes and worker threads freeze. What is the fundamental root cause of this failure mode?",
+    choices: [
+      {
+        id: "a",
+        text: "The task invokes blocking thread synchronization while holding a pool worker thread. Because ForkJoinPool.commonPool has a bounded default parallelism (CPU cores - 1), all worker threads become blocked waiting for subtasks that cannot be scheduled due to thread starvation.",
+        explanation:
+          "Correct: Calling blocking methods like .join() or .get() inside worker tasks ties up pool threads. In a bounded pool like commonPool(), if all worker threads are waiting on subtasks that are queued behind them, the entire pool deadlocks from thread starvation.",
+      },
+      {
+        id: "b",
+        text: "Calling .join() terminates the JVM process due to an unhandled checked InterruptedException.",
+        explanation:
+          "Incorrect: .join() throws unchecked CompletionException, not a checked InterruptedException (which is thrown by .get()). More importantly, it blocks the thread rather than killing the JVM.",
+      },
+      {
+        id: "c",
+        text: "ForkJoinPool does not support CompletableFuture pipelines and immediately throws a RejectedExecutionException upon invoking .join().",
+        explanation:
+          "Incorrect: ForkJoinPool.commonPool() is the default executor for CompletableFuture. The issue is blocking thread starvation, not lack of support.",
+      },
+      {
+        id: "d",
+        text: "The Garbage Collector freezes all threads permanently because .join() pins objects to Old Gen memory.",
+        explanation:
+          "Incorrect: GC is not responsible for worker thread starvation caused by synchronous blocking in thread pools.",
+      },
+    ],
+    correctChoiceIds: ["a"],
+    correctExplanation:
+      "Calling blocking .join() within a bounded thread pool exhausts available worker threads, creating a classic thread pool starvation deadlock.",
+    sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
+  },
+  {
+    id: "java-q12-cf-async-handoff",
+    moduleId: "java-completable-future-async",
+    domainId: "java",
+    type: "multiple-response",
+    stem: "Which TWO statements correctly describe thread execution semantics and exception propagation in Java CompletableFuture pipelines? Select TWO.",
+    choices: [
+      {
+        id: "a",
+        text: "Methods without the 'Async' suffix (e.g., .thenApply()) typically execute on whichever thread completed the preceding stage, or synchronously on the caller thread if the upstream stage is already done.",
+        explanation:
+          "Correct: Non-async completion stage callbacks run synchronously on the thread that completes the future, eliminating context-switch overhead when sequential work is lightweight.",
+      },
+      {
+        id: "b",
+        text: "Methods with the 'Async' suffix (e.g., .thenApplyAsync()) guarantee execution is dispatched to an Executor (either the specified pool or ForkJoinPool.commonPool()), decoupling stage execution from upstream threads.",
+        explanation:
+          "Correct: .thenApplyAsync() dispatches task execution to an Executor, ensuring heavy transformations do not monopolize completing threads.",
+      },
+      {
+        id: "c",
+        text: "If an upstream stage throws an unchecked exception, downstream .thenApply() stages will still execute with a null value instead of skipping to exceptionally.",
+        explanation:
+          "Incorrect: When a stage completes exceptionally, subsequent normal transformation stages are skipped; execution short-circuits directly down to .exceptionally() or .handle().",
+      },
+      {
+        id: "d",
+        text: "CompletableFuture.allOf() returns a future that resolves to an aggregated List<T> containing the resolved values of all parameter futures.",
+        explanation:
+          "Incorrect: CompletableFuture.allOf() returns CompletableFuture<Void>. Values must be extracted individually from the constituent futures after allOf completes.",
+      },
+    ],
+    correctChoiceIds: ["a", "b"],
+    correctExplanation:
+      "Non-async methods execute inline on the completing thread, while Async methods dispatch to an Executor. Unhandled exceptions bypass normal transformation stages until caught by .exceptionally() or .handle().",
+    sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
+  },
 ];

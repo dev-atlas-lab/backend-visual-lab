@@ -24,6 +24,7 @@ export const domainCatalog: DomainCatalogEntry[] = [
       "java-concurrency-jmm-locks",
       "java-streams-lazy-evaluation",
       "java-virtual-threads-loom",
+      "java-completable-future-async",
     ],
   },
   {

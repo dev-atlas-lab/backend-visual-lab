@@ -121,4 +121,12 @@ export const authoritativeSources: SourceCitation[] = [
     accessedAt: "2026-10-30",
     supports: "Java Memory Model (JMM), Happens-Before formal order, volatile load/store memory barriers, and synchronization lock inflation mechanics",
   },
+  {
+    id: "jsr-166-concurrency",
+    title: "JSR 166: Concurrency Utilities & CompletableFuture Specification",
+    publisher: "Java Community Process (JCP / Doug Lea)",
+    url: "https://jcp.org/en/jsr/detail?id=166",
+    accessedAt: "2026-10-30",
+    supports: "java.util.concurrent CompletableFuture, CompletionStage DAG orchestration, ForkJoinPool work-stealing, and non-blocking pipeline chaining",
+  },
 ];

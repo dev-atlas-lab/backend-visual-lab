@@ -8,6 +8,8 @@ import {
   javaVirtualThreadsSimulation,
   javaExceptionsSimulation,
   javaConcurrencySimulation,
+  javaStreamsEngine,
+  javaCompletableFutureEngine,
   computePartitionAssignment,
   buildPresetTape,
 } from "../engines/simulation";
@@ -562,3 +564,137 @@ describe("Java Concurrency, JMM & Lock Inflation Simulation Engine", () => {
     }
   });
 });
+
+describe("Java Streams Pipeline Simulation Engine", () => {
+  it("enforces lazy evaluation: no processing happens until terminal operation is triggered", () => {
+    const engine = javaStreamsEngine;
+    const initial = engine.createInitialFrame(engine.presets[0].config);
+
+    expect(initial.state.terminalTriggered).toBe(false);
+    expect(initial.state.totalElementsExamined).toBe(0);
+    expect(initial.state.sinkAcceptCalls).toBe(0);
+    expect(initial.invariants.find((inv) => inv.id === "lazy-evaluation-purity")?.passed).toBe(true);
+
+    const triggered = engine.applyCommand(initial, { type: "TRIGGER_TERMINAL_OP" });
+    expect(triggered.state.terminalTriggered).toBe(true);
+  });
+
+  it("executes single-pass loop fusion with 0 intermediate lists and short-circuits safely", () => {
+    const engine = javaStreamsEngine;
+    let frame = engine.createInitialFrame({
+      mode: "STREAM_LOOP_FUSION",
+      initialItems: [1, 2, 3, 4, 5, 6],
+      stages: ["FILTER_EVEN", "MAP_SQUARE", "LIMIT_2", "TERMINAL_TO_LIST"],
+      limitThreshold: 2,
+    });
+
+    // Step elements until short circuit completes
+    for (let i = 0; i < 6; i++) {
+      frame = engine.applyCommand(frame, { type: "STEP_PIPELINE" });
+      if (frame.state.isComplete) break;
+    }
+
+    expect(frame.state.isComplete).toBe(true);
+    expect(frame.state.intermediateListsAllocated).toBe(0);
+    expect(frame.state.collectedResults).toEqual([4, 16]); // 2^2 = 4, 4^2 = 16
+    expect(frame.state.shortCircuitTriggered).toBe(true);
+    // Elements 5 and 6 should be skipped
+    expect(frame.state.items[4].status).toBe("SKIPPED_SHORT_CIRCUIT");
+    expect(frame.state.items[5].status).toBe("SKIPPED_SHORT_CIRCUIT");
+  });
+
+  it("detects heap allocations in naive intermediate collection mode", () => {
+    const engine = javaStreamsEngine;
+    let frame = engine.createInitialFrame({
+      mode: "NAIVE_INTERMEDIATE_COLLECTIONS",
+      initialItems: [1, 2, 3, 4, 5, 6],
+      stages: ["FILTER_EVEN", "MAP_SQUARE", "LIMIT_2", "TERMINAL_TO_LIST"],
+      limitThreshold: 2,
+    });
+
+    frame = engine.applyCommand(frame, { type: "STEP_PIPELINE" });
+    expect(frame.state.intermediateListsAllocated).toBeGreaterThan(0);
+    expect(frame.invariants.find((inv) => inv.id === "zero-intermediate-collections")?.detail).toContain(
+      "temporary intermediate ArrayList objects",
+    );
+  });
+
+  it("handles stateful sorted() barrier and breaks single-pass loop fusion", () => {
+    const engine = javaStreamsEngine;
+    let frame = engine.createInitialFrame({
+      mode: "STREAM_LOOP_FUSION",
+      initialItems: [6, 2, 4],
+      stages: ["FILTER_EVEN", "SORTED_ASC", "MAP_SQUARE", "TERMINAL_TO_LIST"],
+      limitThreshold: 10,
+    });
+
+    frame = engine.applyCommand(frame, { type: "STEP_PIPELINE" });
+    const sortedStage = frame.state.stages.find((s) => s.opType === "SORTED_ASC");
+    expect(sortedStage?.internalBuffer).toEqual([2, 4, 6]);
+  });
+});
+
+describe("Java CompletableFuture Simulation Engine", () => {
+  it("orchestrates non-blocking multi-stage async DAG without blocking caller thread", () => {
+    const engine = javaCompletableFutureEngine;
+    let frame = engine.createInitialFrame(engine.presets[0].config);
+
+    expect(frame.state.callerThreadBlocked).toBe(false);
+    expect(frame.state.threadStarvationDetected).toBe(false);
+
+    // Step through all 4 stages
+    for (let i = 0; i < 4; i++) {
+      frame = engine.applyCommand(frame, { type: "STEP_ASYNC_DISPATCH" });
+    }
+
+    expect(frame.state.completedStageCount).toBe(4);
+    expect(frame.state.pipelineFinished).toBe(true);
+    expect(frame.state.callerThreadBlocked).toBe(false);
+    expect(frame.invariants.find((inv) => inv.id === "caller-thread-non-blocking")?.passed).toBe(true);
+  });
+
+  it("detects thread starvation deadlock when .join() is invoked inside worker thread", () => {
+    const engine = javaCompletableFutureEngine;
+    const initial = engine.createInitialFrame({
+      mode: "BLOCKING_JOIN_STARVATION",
+      workerCount: 2,
+    });
+
+    const starved = engine.applyCommand(initial, { type: "INJECT_BLOCKING_JOIN" });
+    expect(starved.state.threadStarvationDetected).toBe(true);
+    expect(starved.state.callerThreadBlocked).toBe(true);
+    expect(starved.invariants.find((inv) => inv.id === "no-thread-starvation")?.passed).toBe(false);
+  });
+
+  it("recovers gracefully from stage failure using .exceptionally() fallback", () => {
+    const engine = javaCompletableFutureEngine;
+    let frame = engine.createInitialFrame({
+      mode: "ERROR_RECOVERY_EXCEPTIONALLY",
+      workerCount: 2,
+    });
+
+    // Step 1: supplyAsync passes
+    frame = engine.applyCommand(frame, { type: "STEP_ASYNC_DISPATCH" });
+    expect(frame.state.stages[0].status).toBe("COMPLETED");
+
+    // Step 2: callRemotePayment throws
+    frame = engine.applyCommand(frame, { type: "STEP_ASYNC_DISPATCH" });
+    expect(frame.state.stages[1].status).toBe("FAILED");
+
+    // Step 3: exceptionally recovers with fallback
+    frame = engine.applyCommand(frame, { type: "STEP_ASYNC_DISPATCH" });
+    expect(frame.state.stages[2].status).toBe("COMPLETED");
+    expect(frame.state.recoveredFromError).toBe(true);
+    expect(frame.invariants.find((inv) => inv.id === "exceptionally-circuit-resilience")?.passed).toBe(true);
+  });
+
+  it("resolves CompletableFuture.allOf() coordination barrier", () => {
+    const engine = javaCompletableFutureEngine;
+    const initial = engine.createInitialFrame(engine.presets[0].config);
+
+    const barrierResolved = engine.applyCommand(initial, { type: "TRIGGER_ALL_OF_BARRIER" });
+    expect(barrierResolved.state.pipelineFinished).toBe(true);
+    expect(barrierResolved.state.completedStageCount).toBe(barrierResolved.state.stages.length);
+  });
+});
+

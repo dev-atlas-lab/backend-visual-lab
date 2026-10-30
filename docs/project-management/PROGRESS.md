@@ -46,3 +46,53 @@
 - [x] **Engineering Shortcuts HUD**: Added keyboard controls (`Space` to Step, `P` to Play/Pause, `R` to Reset, `F` for Fullscreen Lab, `1-3` for Scenario Presets) and keyboard shortcuts modal.
 - [x] **Competency Radar & Engineer Mastery**: Built pure SVG 6-axis Competency Hexagon, Experience Point (XP) leveling progression, and 6 Engineering Mastery Badges on `ProgressPage.tsx`.
 - [x] **Blueprint Dot-Grid Aesthetic**: Applied subtle `radial-gradient` engineering background grid, card hover glows, and tabular figures for telemetry readability.
+
+## Phase 7 — Java Core Curriculum Completion & Interactive Lab Guidance (2026-10-30)
+- [x] **Fixed Cross-Domain Navigation Blank Screen Bug**:
+  - Identified root cause: synchronous visual projector invocation with stale previous-module state frames when routing between modules.
+  - Hardened with 4 defense layers:
+    1. Defensive array/state guards across all 10 projector functions in `frontend/src/engines/visualization/projectors.ts`.
+    2. Enforced unique React component keys (`key={moduleData.slug}` and `key={moduleData.simulationId}`) in `ModuleReaderPage.tsx`.
+    3. Added `ErrorBoundary.tsx` wrapping router `<Outlet />` in `AppShell.tsx` for graceful render crash interception.
+    4. Added engine change detection inside `InteractiveWorkbench.tsx` to automatically reinitialize frame tapes.
+- [x] **Built Interactive Lab Guidance & Tooltip System**:
+  - Added dismissible first-time onboarding banner (`.lab-welcome-callout`) in `InteractiveWorkbench.tsx` introducing transport controls and fault injection.
+  - Added dedicated toolbar `[How to Use?]` button with keyboard hints.
+  - Built full `LabGuideModal` explaining:
+    1. *Controls & Shortcuts*: `Space` (step), `P` (play), `R` (reset), `F` (fullscreen), `1-3` (presets).
+    2. *Visual Tone Codes*: Green (normal/in-sync), Amber (warning/rebalance), Red (starvation/deadlock/exception), Blue (active inspection).
+    3. *Fault Injection & Actions*: Domain buttons pushing commands into the state machine.
+    4. *Lab Missions*: Goal descriptions and automated completion detection.
+- [x] **Implemented Java Stream API Simulation Engine** (`java-streams-pipeline`):
+  - Created `frontend/src/engines/simulation/java-streams.ts` modeling:
+    - Lazy evaluation: zero elements traversed until terminal operation is invoked.
+    - Loop fusion: single-pass element traversal across `filter` and `map` with zero intermediate `List` allocations.
+    - Short-circuiting: `limit(n)` early termination via `Sink.cancellationRequested()`.
+    - Stateful barrier: `sorted()` interrupting loop fusion by requiring upstream buffering before downstream emission.
+  - Added visual lane projector `projectJavaStreamsFrameToLanes`.
+  - Added custom workbench controls and 2 lab missions in `missions.ts`.
+- [x] **Implemented Java CompletableFuture Simulation Engine** (`java-completable-future`):
+  - Created `frontend/src/engines/simulation/java-completable-future.ts` modeling:
+    - CompletionStage DAG asynchronous orchestration across `ForkJoinPool.commonPool()` and custom thread pools.
+    - Thread handoff semantics: non-async inline execution vs `.thenApplyAsync()` executor handoffs.
+    - Anti-pattern: `.join()` / `.get()` thread pool starvation deadlock.
+    - Exception propagation & `.exceptionally()` fallback circuit resilience.
+    - `CompletableFuture.allOf()` non-blocking branch barrier.
+  - Added 7-stage learning module `java-completable-future-async` in `modules.ts`.
+  - Added 2 scenario assessment questions in `questions.ts`.
+  - Added visual lane projector `projectJavaCompletableFutureFrameToLanes`.
+  - Added custom workbench controls and 2 lab missions in `missions.ts`.
+- [x] **Sequenced Java Core Curriculum in Sidebar**:
+  - 1. JVM Memory & GC (`java-memory-heap-stack-gc`)
+  - 2. Exceptions & Stack (`java-exceptions-stack-unwinding`)
+  - 3. HashMap Treeification (`java-hashmap-treeification`)
+  - 4. JMM & Lock Upgrades (`java-concurrency-jmm-locks`)
+  - 5. Stream API & Fusion (`java-streams-lazy-evaluation`)
+  - 6. Virtual Threads (`java-virtual-threads-loom`)
+  - 7. CompletableFuture (`java-completable-future-async`)
+- [x] **Full Quality Verification**:
+  - Vitest: 37/37 unit tests passing (0 failures).
+  - Playwright E2E: 4/4 suites passing, including automated cross-domain navigation without page reload and modal testing.
+  - Strict TypeScript (`tsc -b`): 0 errors.
+  - Strict ESLint: 0 warnings, 0 errors.
+  - Production build (`vite build`): clean bundle output.

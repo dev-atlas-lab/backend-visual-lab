@@ -7,3 +7,5 @@ export * from "./java-hashmap";
 export * from "./java-virtual-threads";
 export * from "./java-exceptions";
 export * from "./java-concurrency";
+export * from "./java-streams";
+export * from "./java-completable-future";
