@@ -141,3 +141,41 @@
   - TypeScript (`tsc -b`): 0 errors.
   - ESLint: 0 warnings, 0 errors.
   - Production build: clean bundle output.
+
+## Phase 9 — Java Deep-Dive: ThreadLocal, WeakReference & Memory Leaks in Thread Pools (2026-10-30)
+- [x] **Implemented ThreadLocal & Java Reference Types Simulation Engine** (`java-threadlocal-leak`):
+  - Created `frontend/src/engines/simulation/java-threadlocal.ts` modeling:
+    - `Thread.threadLocals` table structure: `Entry extends WeakReference<ThreadLocal<?>>` with weak key and strong value.
+    - Thread Pool Memory Leak Hazard: Worker threads live indefinitely in pool; when outer strong key reference drops, GC clears the weak key (`key == null`), leaving `Entry.value` strongly reachable indefinitely via `Thread (GC Root) -> threadLocals -> table -> Entry -> value`.
+    - Mandatory Remedy: Strict `try { ... } finally { threadLocal.remove(); }` lifecycle completely scrubbing table entries.
+    - Reference Types Hierarchy & Reachability:
+      1. `StrongReference`: Never collected while reachable from GC root.
+      2. `SoftReference`: Survives normal GC; collected only under memory pressure / OutOfMemory hazard.
+      3. `WeakReference`: Cleared eagerly on next Garbage Collection cycle once strong references disappear.
+      4. `PhantomReference`: Target collected immediately; reference is enqueued in `ReferenceQueue` for post-mortem native/off-heap cleanup.
+  - Added visual lane projector `projectJavaThreadLocalFrameToLanes`:
+    1. *Worker Threads & ThreadLocalMap*: Visual table showing slots, weak key status (`LIVE` vs `NULL (COLLECTED)`), strong value references, and GC root paths.
+    2. *Reference Types Reachability Graph*: Comparing Strong vs Soft vs Weak vs Phantom references and `ReferenceQueue` state.
+    3. *Memory Leak Sentinel & GC Telemetry*: Real-time leaked heap meter, stale entries counter, and OOM warning alert.
+  - Added 7-stage learning module `java-references-threadlocal-leaks` in `modules.ts`.
+  - Added 2 scenario assessment questions (`java-q19-threadlocal-memory-leak-mechanics`, `java-q20-java-reference-types-reachability`) in `questions.ts`.
+  - Added custom controls and 2 lab missions in `missions.ts`.
+- [x] **Curriculum Integration & Sidebar Sequence (11 Sequential Lessons)**:
+  - 1. JVM Memory & GC (`java-memory-heap-stack-gc`)
+  - 2. Exceptions & Stack Unwinding (`java-exceptions-stack-unwinding`)
+  - 3. HashMap Treeification (`java-hashmap-treeification`)
+  - 4. ConcurrentHashMap (`java-concurrenthashmap-locking`)
+  - 5. Java Optional (`java-optional-functional-patterns`)
+  - 6. JMM & Lock Upgrades (`java-concurrency-jmm-locks`)
+  - 7. ThreadPoolExecutor (`java-thread-pool-executor`)
+  - 8. Stream API & Fusion (`java-streams-lazy-evaluation`)
+  - 9. Virtual Threads (`java-virtual-threads-loom`)
+  - 10. CompletableFuture (`java-completable-future-async`)
+  - 11. References & ThreadLocal (`java-references-threadlocal-leaks`)
+- [x] **Quality Verification**:
+  - Vitest: 48/48 unit tests passing (100% pass rate).
+  - Playwright E2E: 4/4 passing.
+  - TypeScript (`tsc -b`): 0 errors.
+  - ESLint: 0 warnings, 0 errors.
+  - Production build: clean bundle output.
+

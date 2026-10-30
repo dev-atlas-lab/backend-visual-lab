@@ -228,6 +228,18 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
               <span className="nav-link-badge">Async DAG</span>
             </div>
           </NavLink>
+
+          <NavLink
+            to="/domains/java/java-references-threadlocal-leaks"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+            onClick={onNavigate}
+          >
+            <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
+            <div className="nav-link-content">
+              <span className="nav-link-title">11. References &amp; ThreadLocal</span>
+              <span className="nav-link-badge">WeakRef/Leak</span>
+            </div>
+          </NavLink>
         </div>
 
         {/* Navigation Group: Pedagogy & Architecture */}

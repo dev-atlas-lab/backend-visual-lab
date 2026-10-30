@@ -21,6 +21,7 @@ import {
   javaConcurrentHashMapEngine,
   javaOptionalEngine,
   javaThreadPoolEngine,
+  javaThreadLocalEngine,
 } from "../engines/simulation";
 import {
   projectKafkaFrameToLanes,
@@ -36,6 +37,7 @@ import {
   projectJavaConcurrentHashMapFrameToLanes,
   projectJavaOptionalFrameToLanes,
   projectJavaThreadPoolFrameToLanes,
+  projectJavaThreadLocalFrameToLanes,
 } from "../engines/visualization/projectors";
 import { recordSimulationInteraction } from "../engines/progress/progress-store";
 import {
@@ -1138,6 +1140,54 @@ function SimulationWorkbenchHost({
                 className="btn"
               >
                 Expire Idle Non-Core
+              </button>
+            </>
+          )}
+        />
+      );
+
+    case "java-threadlocal-leak":
+      return (
+        <InteractiveWorkbench
+          engine={javaThreadLocalEngine}
+          projector={projectJavaThreadLocalFrameToLanes}
+          onCommandDispatched={onInteraction}
+          renderCustomControls={(dispatch, state) => (
+            <>
+              <button
+                onClick={() =>
+                  dispatch({
+                    type: "SUBMIT_HTTP_REQUEST",
+                    payloadName: `TenantSecurityContext#${state.requestsProcessed + 1}`,
+                  })
+                }
+                className="btn btn-primary"
+              >
+                Submit HTTP Request (Set ThreadLocal)
+              </button>
+              <button
+                onClick={() => dispatch({ type: "RELEASE_STRONG_KEY_REF" })}
+                className="btn btn-warning"
+              >
+                Local Var Out-of-Scope (Stack Pop)
+              </button>
+              <button
+                onClick={() => dispatch({ type: "TRIGGER_GARBAGE_COLLECTION" })}
+                className="btn btn-danger"
+              >
+                Trigger GC (Clear Weak Key)
+              </button>
+              <button
+                onClick={() => dispatch({ type: "EXECUTE_FINALLY_REMOVE" })}
+                className="btn"
+              >
+                finally &#123; remove(); &#125;
+              </button>
+              <button
+                onClick={() => dispatch({ type: "TRIGGER_LOW_HEAP_PRESSURE" })}
+                className="btn"
+              >
+                Simulate Low Memory Pressure
               </button>
             </>
           )}

@@ -12,6 +12,7 @@ import type {
   JavaConcurrentHashMapState,
   JavaOptionalState,
   JavaThreadPoolState,
+  JavaThreadLocalState,
   SimulationStepFrame,
 } from "../simulation";
 
@@ -1293,6 +1294,115 @@ export function projectJavaThreadPoolFrameToLanes(
     {
       laneId: "tp-telemetry",
       laneTitle: "Saturation & Rejection Telemetry",
+      cards: telemetryCards,
+    },
+  ];
+}
+
+export function projectJavaThreadLocalFrameToLanes(
+  frame: SimulationStepFrame<JavaThreadLocalState>,
+): VisualLaneProjection[] {
+  const { state } = frame;
+  if (!state || !Array.isArray(state.workers) || !Array.isArray(state.references)) {
+    return [];
+  }
+
+  // Lane 1: ThreadLocalMap Table on Worker Threads
+  const workerCards: VisualNodeCard[] = state.workers.map((w) => {
+    const staleCount = w.threadLocalsTable.filter((e) => e.isKeyCleared).length;
+    let tone: VisualNodeCard["tone"] = "healthy";
+    if (staleCount > 0) tone = "danger";
+    else if (w.threadLocalsTable.length > 0) tone = "warning";
+
+    const details: string[] = [
+      `Current In-Flight Request: ${w.currentRequestId || "Idle in Pool"}`,
+      `ThreadLocalMap Entries Count: ${w.threadLocalsTable.length}`,
+      ...w.threadLocalsTable.map(
+        (e) =>
+          `[Slot #${e.slotIndex}] Key: ${e.isKeyCleared ? "NULL (STALE WEAK REF!)" : e.threadLocalKeyName} | Value: ${e.valuePayload} (${e.valueSizeMb} MB)`,
+      ),
+    ];
+
+    return {
+      id: w.id,
+      title: w.name,
+      subtitle: staleCount > 0 ? `${staleCount} STALE LEAKED ENTRIES` : "Clean ThreadLocal Context",
+      badgeText: staleCount > 0 ? "MEMORY LEAK" : w.threadLocalsTable.length > 0 ? "ACTIVE MAP" : "IDLE",
+      tone,
+      details,
+    };
+  });
+
+  // Lane 2: Java Reference Reachability Graph
+  const referenceCards: VisualNodeCard[] = state.references.map((ref) => {
+    let tone: VisualNodeCard["tone"] = "healthy";
+    if (ref.isCollected) tone = "muted";
+    else if (!ref.hasStrongRef && ref.type === "WEAK") tone = "danger";
+    else if (ref.type === "SOFT") tone = "info";
+
+    const details: string[] = [
+      `Referent Object: ${ref.targetObject} (${ref.sizeMb} MB)`,
+      `Strong Root Link: ${ref.hasStrongRef ? "Active (GCRoots connected)" : "Detached (Candidate for reclamation)"}`,
+      `GC Status: ${ref.isCollected ? "COLLECTED BY GC" : "Retained on Heap"}`,
+    ];
+    if (ref.isEnqueuedInRefQueue) {
+      details.push("Enqueued in ReferenceQueue for native cleanup");
+    }
+
+    return {
+      id: ref.id,
+      title: ref.name,
+      subtitle: `Type: java.lang.ref.${ref.type === "STRONG" ? "Strong" : ref.type === "SOFT" ? "SoftReference" : ref.type === "WEAK" ? "WeakReference" : "PhantomReference"}`,
+      badgeText: ref.isCollected ? "CLEARED" : ref.hasStrongRef ? "REACHABLE" : "WEAK/DETACHED",
+      tone,
+      details,
+    };
+  });
+
+  // Lane 3: Memory Leak Sentinel & Heap Telemetry
+  const telemetryCards: VisualNodeCard[] = [
+    {
+      id: "threadlocal-leak-sentinel",
+      title: "ThreadPool Memory Leak Sentinel",
+      subtitle: "Thread -> ThreadLocalMap -> Entry.value Link",
+      badgeText: state.memoryLeakAlert ? "CRITICAL MEMORY LEAK" : "ZERO LEAKS",
+      tone: state.memoryLeakAlert ? "danger" : "healthy",
+      details: [
+        `Total Leaked Memory: ${state.totalLeakedMb} MB`,
+        `Stale Entries (key == null): ${state.staleEntriesCount}`,
+        state.memoryLeakAlert
+          ? "CRITICAL: Value retained by permanent worker thread because remove() was omitted in finally block!"
+          : "Compliant try-finally { threadLocal.remove(); } lifecycle active.",
+      ],
+    },
+    {
+      id: "gc-sweep-telemetry",
+      title: "Garbage Collector Cycle Telemetry",
+      subtitle: "WeakReference vs SoftReference Reclaim",
+      badgeText: `${state.gcRunsCount} GC RUNS`,
+      tone: "info",
+      details: [
+        `Total GC sweeps: ${state.gcRunsCount}`,
+        `HTTP Requests Processed: ${state.requestsProcessed}`,
+        "WeakReference keys cleared on next GC; SoftReferences purged under heap pressure.",
+      ],
+    },
+  ];
+
+  return [
+    {
+      laneId: "tl-workers",
+      laneTitle: `Worker Threads & ThreadLocalMap (${state.workers.length} Pooled Threads)`,
+      cards: workerCards,
+    },
+    {
+      laneId: "tl-references",
+      laneTitle: "Java Reference Types Reachability Graph",
+      cards: referenceCards,
+    },
+    {
+      laneId: "tl-telemetry",
+      laneTitle: "Memory Leak & GC Telemetry",
       cards: telemetryCards,
     },
   ];
