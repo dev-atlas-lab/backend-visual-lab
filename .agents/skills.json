@@ -1,0 +1,19 @@
+{
+  "entries": [
+    {
+      "path": ".agents/skills/engineering"
+    },
+    {
+      "path": ".agents/skills/domains"
+    },
+    {
+      "path": ".agents/skills/learning"
+    },
+    {
+      "path": ".agents/skills/quality"
+    },
+    {
+      "path": ".agents/skills/workflows"
+    }
+  ]
+}
