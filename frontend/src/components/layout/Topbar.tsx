@@ -1,6 +1,7 @@
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
 import { Link } from "react-router-dom";
-import { Menu, Sun, Moon } from "lucide-react";
+import { Menu, Sun, Moon, Volume2, VolumeX, Keyboard, X } from "lucide-react";
+import { isSoundEnabled, toggleSound, playClick } from "../../engines/audio/sound-fx";
 
 interface TopbarProps {
   navOpen: boolean;
@@ -21,6 +22,19 @@ export function Topbar({
   theme,
   onToggleTheme,
 }: TopbarProps) {
+  const [soundActive, setSoundActive] = useState(() => isSoundEnabled());
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+
+  const handleToggleSound = () => {
+    const next = toggleSound();
+    setSoundActive(next);
+  };
+
+  const handleOpenShortcuts = () => {
+    playClick();
+    setShowShortcutsModal(true);
+  };
+
   return (
     <header className="topbar">
       <div className="topbar-start">
@@ -65,6 +79,32 @@ export function Topbar({
           <span className="engine-text">Simulation Mode: Offline</span>
         </div>
 
+        {/* Keyboard Shortcuts Button */}
+        <button
+          type="button"
+          className="icon-button"
+          onClick={handleOpenShortcuts}
+          aria-label="Keyboard Shortcuts"
+          title="Keyboard Shortcuts (Space, R, P, F, 1-3)"
+        >
+          <Keyboard size={16} strokeWidth={1.8} />
+        </button>
+
+        {/* Sound FX Toggle Button */}
+        <button
+          type="button"
+          className="icon-button"
+          onClick={handleToggleSound}
+          aria-label={soundActive ? "Mute audio feedback" : "Enable audio feedback"}
+          title={soundActive ? "Audio Feedback: ON (Click to Mute)" : "Audio Feedback: OFF (Click to Enable)"}
+        >
+          {soundActive ? (
+            <Volume2 size={16} strokeWidth={1.8} color="var(--accent)" />
+          ) : (
+            <VolumeX size={16} strokeWidth={1.8} />
+          )}
+        </button>
+
         {/* GitHub link */}
         <a
           href="https://github.com/dev-atlas-lab/backend-visual-lab"
@@ -105,6 +145,108 @@ export function Topbar({
           )}
         </button>
       </div>
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcutsModal ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Keyboard Shortcuts"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(6px)",
+            display: "grid",
+            placeItems: "center",
+            padding: "var(--space-4)",
+          }}
+          onClick={() => setShowShortcutsModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "var(--surface-1)",
+              border: "1px solid var(--border-bold)",
+              borderRadius: "var(--radius-xl)",
+              maxWidth: "480px",
+              width: "100%",
+              padding: "var(--space-6)",
+              boxShadow: "var(--shadow-lg)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: "var(--space-4)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Keyboard size={20} color="var(--accent)" />
+                <h3 style={{ margin: 0, fontSize: "var(--text-lg)", fontWeight: 700 }}>
+                  Engineering Shortcuts HUD
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setShowShortcutsModal(false)}
+                aria-label="Close shortcuts modal"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: "var(--text-xs)", color: "var(--text-secondary)", marginBottom: "var(--space-4)" }}>
+              Control any active simulation workbench using your keyboard like a native desktop observability cockpit:
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+              {[
+                { key: "Space", desc: "Step forward 1 tick in current simulation" },
+                { key: "P", desc: "Play / Pause automatic tick stepping" },
+                { key: "R", desc: "Reset simulation to initial state (Tick 1)" },
+                { key: "F", desc: "Toggle Fullscreen Focus Lab Mode" },
+                { key: "1 - 3", desc: "Instantly switch scenario fault presets" },
+              ].map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "8px 12px",
+                    backgroundColor: "var(--surface-2)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border-subtle)",
+                  }}
+                >
+                  <span style={{ fontSize: "var(--text-sm)", color: "var(--text-primary)" }}>
+                    {item.desc}
+                  </span>
+                  <kbd
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      backgroundColor: "var(--surface-1)",
+                      border: "1px solid var(--border-bold)",
+                      padding: "2px 8px",
+                      borderRadius: "var(--radius-xs)",
+                      color: "var(--accent-strong)",
+                    }}
+                  >
+                    {item.key}
+                  </kbd>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </header>
   );
 }
