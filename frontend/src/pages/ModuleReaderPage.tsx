@@ -40,6 +40,10 @@ import {
   projectJavaThreadLocalFrameToLanes,
 } from "../engines/visualization/projectors";
 import { recordSimulationInteraction } from "../engines/progress/progress-store";
+import { JavaMemoryVisualStage } from "../components/visualizations/JavaMemoryVisualStage";
+import { KafkaVisualStage } from "../components/visualizations/KafkaVisualStage";
+import { PostgresVisualStage } from "../components/visualizations/PostgresVisualStage";
+import { RedisVisualStage } from "../components/visualizations/RedisVisualStage";
 import {
   ArrowLeft,
   Clock,
@@ -239,28 +243,28 @@ export function ModuleReaderPage() {
         </div>
       ) : null}
 
-      {/* Sticky 7-Stage Pedagogy Stepper Strip */}
-      <nav className="pedagogy-stepper" aria-label="7-Stage Pedagogy Progression">
-        {STAGES.map((s, idx) => (
-          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            <button
-              type="button"
-              className={`pedagogy-stepper-btn ${activeStageId === s.id ? "active" : ""}`}
-              onClick={() => scrollToStage(s.id)}
-            >
-              <span>{s.label}</span>
-            </button>
-            {idx < STAGES.length - 1 ? (
-              <span className="pedagogy-stepper-sep">&rarr;</span>
-            ) : null}
-          </div>
-        ))}
-      </nav>
-
       {/* Main Content Layout Container */}
       <div className={`cockpit-layout ${viewMode === "split" && moduleData.simulationId ? "mode-split" : ""}`}>
         {/* Left Column: Lesson Stream */}
         <article className="cockpit-lesson-pane">
+          {/* Sticky 7-Stage Pedagogy Stepper Strip (Scoped to Lesson Stream) */}
+          <nav className="pedagogy-stepper" aria-label="7-Stage Pedagogy Progression">
+            {STAGES.map((s, idx) => (
+              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <button
+                  type="button"
+                  className={`pedagogy-stepper-btn ${activeStageId === s.id ? "active" : ""}`}
+                  onClick={() => scrollToStage(s.id)}
+                >
+                  <span>{s.label}</span>
+                </button>
+                {idx < STAGES.length - 1 ? (
+                  <span className="pedagogy-stepper-sep">&rarr;</span>
+                ) : null}
+              </div>
+            ))}
+          </nav>
+
           {/* Essential Key Terms */}
           <section className="key-terms-section" aria-labelledby="key-terms-heading">
             <div className="section-label" id="key-terms-heading">
@@ -498,6 +502,7 @@ function SimulationWorkbenchHost({
         <InteractiveWorkbench
           engine={kafkaConsumerGroupSimulation}
           projector={projectKafkaFrameToLanes}
+          renderVisualStage={(frame) => <KafkaVisualStage frame={frame} />}
           onCommandDispatched={onInteraction}
           renderCustomControls={(dispatch, state) => (
             <>
@@ -544,6 +549,7 @@ function SimulationWorkbenchHost({
         <InteractiveWorkbench
           engine={redisStampedeSimulation}
           projector={projectRedisFrameToLanes}
+          renderVisualStage={(frame) => <RedisVisualStage frame={frame} />}
           onCommandDispatched={onInteraction}
           renderCustomControls={(dispatch, state) => (
             <>
@@ -577,6 +583,7 @@ function SimulationWorkbenchHost({
         <InteractiveWorkbench
           engine={postgresMvccBtreeSimulation}
           projector={projectPostgresFrameToLanes}
+          renderVisualStage={(frame) => <PostgresVisualStage frame={frame} />}
           onCommandDispatched={onInteraction}
           renderCustomControls={(dispatch, state) => (
             <>
@@ -632,6 +639,7 @@ function SimulationWorkbenchHost({
         <InteractiveWorkbench
           engine={javaMemoryGcSimulation}
           projector={projectJavaMemoryFrameToLanes}
+          renderVisualStage={(frame) => <JavaMemoryVisualStage frame={frame} />}
           onCommandDispatched={onInteraction}
           renderCustomControls={(dispatch, state) => (
             <>

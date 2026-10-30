@@ -238,15 +238,9 @@ export function CatalogPage() {
           return (
             <div key={domain.id} className="domain-card">
               <div className="domain-card-body">
-                <div className="domain-card-header">
-                  <div className="domain-card-brand">
-                    <div className="domain-icon-wrapper">
-                      {domainIcons[domain.id] || <Layers size={22} />}
-                    </div>
-                    <div className="domain-title-wrap">
-                      <h2 className="domain-title">{domain.title}</h2>
-                      <span className="domain-tagline">{domain.tagline}</span>
-                    </div>
+                <div className="domain-card-topbar">
+                  <div className="domain-icon-wrapper">
+                    {domainIcons[domain.id] || <Layers size={22} />}
                   </div>
 
                   {hasActiveLabs && (
@@ -255,6 +249,11 @@ export function CatalogPage() {
                       Interactive Lab
                     </span>
                   )}
+                </div>
+
+                <div className="domain-card-heading">
+                  <h2 className="domain-title">{domain.title}</h2>
+                  <span className="domain-tagline">{domain.tagline}</span>
                 </div>
 
                 <div style={{ marginTop: "var(--space-4)" }}>

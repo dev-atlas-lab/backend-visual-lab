@@ -19,7 +19,7 @@
 .workbench-toolbar {
   background-color: var(--surface-2);
   border-bottom: 1px solid var(--border-subtle);
-  padding: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-4);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -31,6 +31,71 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+.toolbar-scenario-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-width: 220px;
+}
+
+.toolbar-actions-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.transport-controls-cluster {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+
+.btn-transport {
+  padding: 4px 10px;
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.btn-transport:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.btn-transport.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.toolbar-utility-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.btn-utility {
+  padding: 5px 10px;
+  font-size: var(--text-xs);
+  background: var(--surface-1);
+}
+
+.btn-guide {
+  padding: 5px 10px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  background-color: var(--accent-quiet);
+  border-color: var(--accent-subtle);
+  color: var(--accent-strong);
+  white-space: nowrap;
 }
 
 /* Transport Buttons */
@@ -47,6 +112,7 @@
   background-color: var(--surface-1);
   color: var(--text-primary);
   cursor: pointer;
+  white-space: nowrap;
   transition: all var(--duration-fast) var(--ease-out);
 }
 
