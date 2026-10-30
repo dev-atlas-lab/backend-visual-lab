@@ -10,11 +10,17 @@ import {
   kafkaConsumerGroupSimulation,
   redisStampedeSimulation,
   postgresMvccBtreeSimulation,
+  javaMemoryGcSimulation,
+  javaHashMapSimulation,
+  javaVirtualThreadsSimulation,
 } from "../engines/simulation";
 import {
   projectKafkaFrameToLanes,
   projectRedisFrameToLanes,
   projectPostgresFrameToLanes,
+  projectJavaMemoryFrameToLanes,
+  projectJavaHashMapFrameToLanes,
+  projectJavaVirtualThreadsFrameToLanes,
 } from "../engines/visualization/projectors";
 import { recordSimulationInteraction } from "../engines/progress/progress-store";
 import { ArrowLeft, Clock, ExternalLink, Zap } from "lucide-react";
@@ -187,164 +193,307 @@ export function ModuleReaderPage() {
       </section>
 
       {/* EMBEDDED INTERACTIVE SIMULATION WORKBENCH */}
-      <div style={{ margin: "var(--space-8) 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "var(--space-2)" }}>
-          <Zap size={18} color="var(--accent-primary)" />
-          <h2 style={{ fontSize: "18px", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Phòng Thí nghiệm Tương tác (Interactive Workbench)
-          </h2>
+      {moduleData.simulationId ? (
+        <div style={{ margin: "var(--space-8) 0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "var(--space-2)" }}>
+            <Zap size={18} color="var(--accent-primary)" />
+            <h2 style={{ fontSize: "18px", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Phòng Thí nghiệm Tương tác (Interactive Workbench)
+            </h2>
+          </div>
+          <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "var(--space-3)" }}>
+            Thực thi máy trạng thái thuần (Pure TypeScript State Machine). Nhấn Play hoặc từng bước Step Back/Forward để quan sát biến động state và các bất biến giao thức.
+          </p>
+
+          {moduleData.simulationId === "kafka-consumer-group" ? (
+            <InteractiveWorkbench
+              engine={kafkaConsumerGroupSimulation}
+              projector={projectKafkaFrameToLanes}
+              onCommandDispatched={handleSimInteraction}
+              renderCustomControls={(dispatch, state) => (
+                <>
+                  <button
+                    onClick={() => dispatch({ type: "PRODUCE_AND_POLL", messagesPerPartition: 5 })}
+                    className="btn"
+                  >
+                    Gửi +5 Msg &amp; Poll
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "KILL_CONSUMER",
+                        consumerId: "consumer-3",
+                        reason: "heartbeat_timeout",
+                      })
+                    }
+                    className="btn btn-danger"
+                    disabled={!state.consumers.some((c) => c.id === "consumer-3" && c.status === "ACTIVE")}
+                  >
+                    Kill Consumer C3
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "ADD_CONSUMER" })}
+                    className="btn"
+                    disabled={state.consumers.filter((c) => c.status === "ACTIVE").length >= 6}
+                  >
+                    + Add Consumer
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "COORDINATOR_COMPLETE_JOIN_SYNC" })}
+                    className="btn btn-primary"
+                    disabled={state.groupState !== "PreparingRebalance"}
+                  >
+                    Hoàn tất Join/Sync
+                  </button>
+                </>
+              )}
+            />
+          ) : null}
+
+          {moduleData.simulationId === "redis-stampede" ? (
+            <InteractiveWorkbench
+              engine={redisStampedeSimulation}
+              projector={projectRedisFrameToLanes}
+              onCommandDispatched={handleSimInteraction}
+              renderCustomControls={(dispatch, state) => (
+                <>
+                  <button
+                    onClick={() => dispatch({ type: "BURST_READ_REQUESTS" })}
+                    className="btn btn-primary"
+                  >
+                    Burst 8 Concurrent Reads
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "ADVANCE_TTL_TO_EXPIRY" })}
+                    className="btn btn-danger"
+                    disabled={state.ttlRemainingMs === 0}
+                  >
+                    Expire TTL (0ms)
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "COMPLETE_DB_RECOMPUTE_AND_SET" })}
+                    className="btn"
+                    disabled={state.dbActiveConnections === 0}
+                  >
+                    Refill Cache từ DB
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "SWITCH_STRATEGY",
+                        strategy:
+                          state.strategy === "naive-cache-aside"
+                            ? "mutex-singleflight-lock"
+                            : state.strategy === "mutex-singleflight-lock"
+                              ? "logical-ttl-early-refresh"
+                              : "naive-cache-aside",
+                      })
+                    }
+                    className="btn"
+                  >
+                    Đổi Chiến Lược ({state.strategy})
+                  </button>
+                </>
+              )}
+            />
+          ) : null}
+
+          {moduleData.simulationId === "postgres-mvcc-btree" ? (
+            <InteractiveWorkbench
+              engine={postgresMvccBtreeSimulation}
+              projector={projectPostgresFrameToLanes}
+              onCommandDispatched={handleSimInteraction}
+              renderCustomControls={(dispatch, state) => (
+                <>
+                  <button
+                    onClick={() => dispatch({ type: "EXECUTE_READER_SELECT" })}
+                    className="btn btn-primary"
+                  >
+                    Execute Reader SELECT
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({ type: "WRITER_UPDATE_ACCOUNT_BALANCE", newBalanceUsd: 950 })
+                    }
+                    className="btn btn-danger"
+                    disabled={state.heapTuples.some((t) => t.ctid === "(0,3)")}
+                  >
+                    Writer UPDATE balance = $950
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "WRITER_COMMIT_TRANSACTION" })}
+                    className="btn"
+                    disabled={state.writerCommitted || !state.heapTuples.some((t) => t.ctid === "(0,3)")}
+                  >
+                    Writer COMMIT Tx 202
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "RUN_VACUUM_UPDATE_VISIBILITY_MAP" })}
+                    className="btn"
+                    disabled={!state.writerCommitted || state.visibilityMapAllVisible}
+                  >
+                    Run VACUUM &amp; Update VM
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "SWITCH_ISOLATION_OR_SCAN",
+                        isolationLevel:
+                          state.isolationLevel === "READ COMMITTED" ? "REPEATABLE READ" : "READ COMMITTED",
+                        scanType: state.scanType,
+                      })
+                    }
+                    className="btn"
+                  >
+                    Đổi Level ({state.isolationLevel})
+                  </button>
+                </>
+              )}
+            />
+          ) : null}
+
+          {moduleData.simulationId === "java-memory-gc" ? (
+            <InteractiveWorkbench
+              engine={javaMemoryGcSimulation}
+              projector={projectJavaMemoryFrameToLanes}
+              onCommandDispatched={handleSimInteraction}
+              renderCustomControls={(dispatch, state) => (
+                <>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "ALLOCATE_OBJECT",
+                        className: "OrderPayload",
+                        varName: "order",
+                      })
+                    }
+                    className="btn btn-primary"
+                    disabled={state.oomTriggered}
+                  >
+                    + Cấp phát new Order()
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "CALL_METHOD",
+                        methodName: "orderService.process()",
+                      })
+                    }
+                    className="btn"
+                  >
+                    Push Frame (Gọi hàm)
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "RETURN_METHOD" })}
+                    className="btn"
+                    disabled={state.threadStack.length <= 1}
+                  >
+                    Pop Frame (Return)
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "TRIGGER_MINOR_GC" })}
+                    className="btn"
+                    disabled={state.oomTriggered}
+                  >
+                    Kích hoạt Minor GC
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "TRIGGER_MAJOR_GC" })}
+                    className="btn btn-danger"
+                    disabled={state.oomTriggered}
+                  >
+                    Major / Full GC
+                  </button>
+                </>
+              )}
+            />
+          ) : null}
+
+          {moduleData.simulationId === "java-hashmap-treeification" ? (
+            <InteractiveWorkbench
+              engine={javaHashMapSimulation}
+              projector={projectJavaHashMapFrameToLanes}
+              onCommandDispatched={handleSimInteraction}
+              renderCustomControls={(dispatch, state) => (
+                <>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "PUT",
+                        key: `user_${state.size + 1}`,
+                        value: `data_${state.size + 1}`,
+                      })
+                    }
+                    className="btn btn-primary"
+                  >
+                    + Put Entry
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "BURST_COLLIDING_KEYS",
+                        count: 5,
+                        targetBucketIndex: 3,
+                      })
+                    }
+                    className="btn btn-danger"
+                  >
+                    Va chạm +5 Keys (Slot #3)
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "TRIGGER_RESIZE_DOUBLING" })}
+                    className="btn"
+                  >
+                    Resize Nhân đôi x2
+                  </button>
+                </>
+              )}
+            />
+          ) : null}
+
+          {moduleData.simulationId === "java-virtual-threads" ? (
+            <InteractiveWorkbench
+              engine={javaVirtualThreadsSimulation}
+              projector={projectJavaVirtualThreadsFrameToLanes}
+              onCommandDispatched={handleSimInteraction}
+              renderCustomControls={(dispatch) => (
+                <>
+                  <button
+                    onClick={() => dispatch({ type: "SPAWN_TASKS", count: 6 })}
+                    className="btn"
+                  >
+                    + Spawn 6 Virtual Threads
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "STEP_EXECUTION" })}
+                    className="btn btn-primary"
+                  >
+                    Chạy bước (Mount Carrier)
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "TRIGGER_BLOCKING_IO" })}
+                    className="btn"
+                  >
+                    Blocking I/O (Unmount Yield)
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "TRIGGER_SYNCHRONIZED_PINNING" })}
+                    className="btn btn-danger"
+                  >
+                    Pinning synchronized!
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "RESOLVE_IO_COMPLETION" })}
+                    className="btn"
+                  >
+                    I/O Hoàn tất (Callback)
+                  </button>
+                </>
+              )}
+            />
+          ) : null}
         </div>
-        <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "var(--space-3)" }}>
-          Thực thi máy trạng thái thuần (Pure TypeScript State Machine). Nhấn Play hoặc từng bước Step Back/Forward để quan sát biến động state và các bất biến giao thức.
-        </p>
-
-        {moduleData.simulationId === "kafka-consumer-group" ? (
-          <InteractiveWorkbench
-            engine={kafkaConsumerGroupSimulation}
-            projector={projectKafkaFrameToLanes}
-            onCommandDispatched={handleSimInteraction}
-            renderCustomControls={(dispatch, state) => (
-              <>
-                <button
-                  onClick={() => dispatch({ type: "PRODUCE_AND_POLL", messagesPerPartition: 5 })}
-                  className="btn"
-                >
-                  Gửi +5 Msg &amp; Poll
-                </button>
-                <button
-                  onClick={() =>
-                    dispatch({
-                      type: "KILL_CONSUMER",
-                      consumerId: "consumer-3",
-                      reason: "heartbeat_timeout",
-                    })
-                  }
-                  className="btn btn-danger"
-                  disabled={!state.consumers.some((c) => c.id === "consumer-3" && c.status === "ACTIVE")}
-                >
-                  Kill Consumer C3
-                </button>
-                <button
-                  onClick={() => dispatch({ type: "ADD_CONSUMER" })}
-                  className="btn"
-                  disabled={state.consumers.filter((c) => c.status === "ACTIVE").length >= 6}
-                >
-                  + Add Consumer
-                </button>
-                <button
-                  onClick={() => dispatch({ type: "COORDINATOR_COMPLETE_JOIN_SYNC" })}
-                  className="btn btn-primary"
-                  disabled={state.groupState !== "PreparingRebalance"}
-                >
-                  Hoàn tất Join/Sync
-                </button>
-              </>
-            )}
-          />
-        ) : null}
-
-        {moduleData.simulationId === "redis-stampede" ? (
-          <InteractiveWorkbench
-            engine={redisStampedeSimulation}
-            projector={projectRedisFrameToLanes}
-            onCommandDispatched={handleSimInteraction}
-            renderCustomControls={(dispatch, state) => (
-              <>
-                <button
-                  onClick={() => dispatch({ type: "BURST_READ_REQUESTS" })}
-                  className="btn btn-primary"
-                >
-                  Burst 8 Concurrent Reads
-                </button>
-                <button
-                  onClick={() => dispatch({ type: "ADVANCE_TTL_TO_EXPIRY" })}
-                  className="btn btn-danger"
-                  disabled={state.ttlRemainingMs === 0}
-                >
-                  Expire TTL (0ms)
-                </button>
-                <button
-                  onClick={() => dispatch({ type: "COMPLETE_DB_RECOMPUTE_AND_SET" })}
-                  className="btn"
-                  disabled={state.dbActiveConnections === 0}
-                >
-                  Refill Cache từ DB
-                </button>
-                <button
-                  onClick={() =>
-                    dispatch({
-                      type: "SWITCH_STRATEGY",
-                      strategy:
-                        state.strategy === "naive-cache-aside"
-                          ? "mutex-singleflight-lock"
-                          : state.strategy === "mutex-singleflight-lock"
-                            ? "logical-ttl-early-refresh"
-                            : "naive-cache-aside",
-                    })
-                  }
-                  className="btn"
-                >
-                  Đổi Chiến Lược ({state.strategy})
-                </button>
-              </>
-            )}
-          />
-        ) : null}
-
-        {moduleData.simulationId === "postgres-mvcc-btree" ? (
-          <InteractiveWorkbench
-            engine={postgresMvccBtreeSimulation}
-            projector={projectPostgresFrameToLanes}
-            onCommandDispatched={handleSimInteraction}
-            renderCustomControls={(dispatch, state) => (
-              <>
-                <button
-                  onClick={() => dispatch({ type: "EXECUTE_READER_SELECT" })}
-                  className="btn btn-primary"
-                >
-                  Execute Reader SELECT
-                </button>
-                <button
-                  onClick={() =>
-                    dispatch({ type: "WRITER_UPDATE_ACCOUNT_BALANCE", newBalanceUsd: 950 })
-                  }
-                  className="btn btn-danger"
-                  disabled={state.heapTuples.some((t) => t.ctid === "(0,3)")}
-                >
-                  Writer UPDATE balance = $950
-                </button>
-                <button
-                  onClick={() => dispatch({ type: "WRITER_COMMIT_TRANSACTION" })}
-                  className="btn"
-                  disabled={state.writerCommitted || !state.heapTuples.some((t) => t.ctid === "(0,3)")}
-                >
-                  Writer COMMIT Tx 202
-                </button>
-                <button
-                  onClick={() => dispatch({ type: "RUN_VACUUM_UPDATE_VISIBILITY_MAP" })}
-                  className="btn"
-                  disabled={!state.writerCommitted || state.visibilityMapAllVisible}
-                >
-                  Run VACUUM &amp; Update VM
-                </button>
-                <button
-                  onClick={() =>
-                    dispatch({
-                      type: "SWITCH_ISOLATION_OR_SCAN",
-                      isolationLevel:
-                        state.isolationLevel === "READ COMMITTED" ? "REPEATABLE READ" : "READ COMMITTED",
-                      scanType: state.scanType,
-                    })
-                  }
-                  className="btn"
-                >
-                  Đổi Level ({state.isolationLevel})
-                </button>
-              </>
-            )}
-          />
-        ) : null}
-      </div>
+      ) : null}
 
       {/* Stage 3: HOW */}
       <section style={{ marginBottom: "var(--space-6)" }}>

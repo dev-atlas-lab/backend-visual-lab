@@ -17,3 +17,19 @@
   - [x] 8 Reusable Workflow Skills (`research-topic`, `design-learning-module`, `design-visualization`, `implement-feature`, `review-architecture`, `review-technical-accuracy`, `run-quality-checks`, `update-documentation`).
 - [x] Created `docker-compose.yml` (PostgreSQL 17, Redis 7.4, Apache Kafka 3.8 KRaft) and `backend/` Java 21 + Spring Boot 3.4 Modular Monolith scaffold.
 - [x] Created `frontend/` React 19 + TypeScript 5.9 + Vite 6 application with decoupled Simulation Engine, Visualization Workbench, 3 interactive labs (Kafka Consumer Groups, Redis Cache Stampede, PostgreSQL B-Tree & MVCC), Assessment Engine, and Progress Tracking.
+
+## Phase 5 — Java Core & JVM Internals Curriculum (2026-10-30)
+- [x] Designed and integrated the **Java Core & JVM Internals** (`java`) domain into catalog and type definitions.
+- [x] Implemented 4 comprehensive 7-stage learning modules:
+  - **Module 1**: `java-memory-heap-stack-gc` (Stack Frames, Young Gen Eden & Survivor S0/S1, Tenuring Age Threshold, GC Roots reachability, and Minor/Full GC).
+  - **Module 2**: `java-hashmap-treeification` (Bitwise perturbation `(h ^ (h >>> 16))`, `(n - 1) & hash` slot mapping, collision handling, `TREEIFY_THRESHOLD = 8`, and power-of-two resize doubling).
+  - **Module 3**: `java-streams-lazy-evaluation` (Stream API pipeline architecture, Spliterator, Lazy evaluation, Loop Fusion, short-circuiting, and `ForkJoinPool.commonPool()` thread starvation pitfalls).
+  - **Module 4**: `java-virtual-threads-loom` (Java 21 JEP 444 Project Loom, M:N user-mode threads, Continuation yield on blocking socket/DB I/O, OS Carrier thread scheduling, and `synchronized` block Thread Pinning hazards).
+- [x] Created 3 pure, deterministic in-browser TypeScript simulation state machines:
+  - `frontend/src/engines/simulation/java-memory-gc.ts`
+  - `frontend/src/engines/simulation/java-hashmap.ts`
+  - `frontend/src/engines/simulation/java-virtual-threads.ts`
+- [x] Created visual lane projectors in `frontend/src/engines/visualization/projectors.ts` and interactive workbench controls in `frontend/src/pages/ModuleReaderPage.tsx`.
+- [x] Authored 8 scenario-based assessment questions with English stems/choices and detailed Vietnamese rationales.
+- [x] Verified full Vitest unit test coverage (22 passing tests), strict TypeScript compilation (`tsc -b`), and zero-defect ESLint production build.
+- [x] Evaluated API requirements: All simulations execute 100% deterministically in the client browser (Mode A), eliminating unnecessary backend sandbox endpoints while delivering instantaneous, zero-latency interactivity.

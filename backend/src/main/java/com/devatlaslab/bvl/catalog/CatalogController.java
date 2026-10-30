@@ -33,6 +33,7 @@ public class CatalogController {
                 System.getProperty("java.version", "21"),
                 Instant.now(),
                 List.of(
+                        new DomainSummaryDto("java", "Java Core & JVM Internals", "VERIFIED", 4),
                         new DomainSummaryDto("messaging", "Messaging & Event Streaming", "VERIFIED", 1),
                         new DomainSummaryDto("caching", "Caching & Redis", "VERIFIED", 1),
                         new DomainSummaryDto("databases", "Databases (PostgreSQL)", "VERIFIED", 1),
