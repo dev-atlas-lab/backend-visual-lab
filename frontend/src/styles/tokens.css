@@ -1,7 +1,7 @@
 /*
  * Design Tokens — Backend Visual Lab
- * Inherited from Dev Atlas Lab Claude Associate aesthetic:
- * Terracotta (#e2a173) & Warm Charcoal / Paper palette with Inter & JetBrains Mono
+ * Modern Engineering Laboratory & Observability Platform
+ * Signature Anthropic Warm Charcoal & Terracotta Palette
  */
 
 :root {
@@ -14,9 +14,9 @@
   --text-base: 0.875rem;  /* 14px */
   --text-md: 0.9375rem;   /* 15px */
   --text-lg: 1.0625rem;   /* 17px */
-  --text-xl: 1.3125rem;   /* 21px */
+  --text-xl: 1.25rem;     /* 20px */
   --text-2xl: 1.625rem;   /* 26px */
-  --text-3xl: 2.125rem;   /* 34px */
+  --text-3xl: 2.25rem;    /* 36px */
 
   --leading-tight: 1.25;
   --leading-snug: 1.45;
@@ -36,19 +36,18 @@
   --space-16: 4rem;
 
   /* Border Radii */
+  --radius-xs: 4px;
   --radius-sm: 6px;
-  --radius-md: 9px;
-  --radius-lg: 13px;
-  --radius-xl: 18px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
   --radius-full: 9999px;
 
   /* Layout geometry */
-  --sidebar-width: 264px;
-  --topbar-height: 58px;
-  --max-content-width: 1200px;
-  --content-max: 1200px;
-  --lesson-reading-width: 76ch;
-  --lesson-column: 76ch;
+  --topbar-height: 60px;
+  --max-content-width: 1360px;
+  --lesson-reading-width: 82ch;
+  --lesson-column: 82ch;
 
   /* Transitions */
   --ease-out: cubic-bezier(0.22, 0.68, 0.3, 1);
@@ -66,92 +65,97 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --surface-0: #0e0f12;
-  --surface-1: #14161a;
-  --surface-2: #191b20;
-  --surface-3: #202329;
-  --surface-inset: #111317;
+  --surface-0: #0b0c0e;
+  --surface-1: #121418;
+  --surface-2: #181a20;
+  --surface-3: #20232a;
+  --surface-inset: #0e1014;
+  --surface-glass: rgba(18, 20, 24, 0.85);
 
-  --border-subtle: #24272e;
-  --border-bold: #353941;
-  --border-strong: #353941;
+  --border-subtle: #22252c;
+  --border-bold: #31353f;
+  --border-strong: #383c47;
 
   --text-primary: #ecebe7;
   --text-secondary: #a9aab1;
-  --text-tertiary: #82858e;
+  --text-tertiary: #7d808a;
 
   /* Signature Anthropic Terracotta */
   --accent: #e2a173;
   --accent-primary: #e2a173;
   --accent-strong: #f2bb90;
   --accent-hover: #f2bb90;
-  --accent-subtle: rgba(226, 161, 115, 0.14);
-  --accent-quiet: rgba(226, 161, 115, 0.12);
-  --accent-contrast: #1b120b;
-  --accent-glow: 0 0 28px rgba(226, 161, 115, 0.16);
+  --accent-subtle: rgba(226, 161, 115, 0.12);
+  --accent-quiet: rgba(226, 161, 115, 0.08);
+  --accent-contrast: #140d07;
+  --accent-glow: 0 0 28px rgba(226, 161, 115, 0.18);
 
   /* Status Colors */
   --status-ok: #8dc7a9;
   --status-ok-subtle: rgba(141, 199, 169, 0.14);
   --ok: #8dc7a9;
-  --ok-quiet: rgba(141, 199, 169, 0.12);
+  --ok-quiet: rgba(141, 199, 169, 0.1);
 
   --status-warn: #e2c583;
   --status-warn-subtle: rgba(226, 197, 131, 0.14);
   --warn: #e2c583;
-  --warn-quiet: rgba(226, 197, 131, 0.12);
+  --warn-quiet: rgba(226, 197, 131, 0.1);
 
   --status-danger: #e79b92;
   --status-danger-subtle: rgba(231, 155, 146, 0.14);
   --danger: #e79b92;
-  --danger-quiet: rgba(231, 155, 146, 0.12);
+  --danger-quiet: rgba(231, 155, 146, 0.1);
 
   --status-info: #93bde6;
   --status-info-subtle: rgba(147, 189, 230, 0.14);
   --info: #93bde6;
-  --info-quiet: rgba(147, 189, 230, 0.12);
+  --info-quiet: rgba(147, 189, 230, 0.1);
 
   --focus-ring: #f2bb90;
   --selection: rgba(226, 161, 115, 0.28);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
-  --shadow-md: 0 10px 30px -12px rgba(0, 0, 0, 0.65);
-  --shadow-lg: 0 20px 40px -15px rgba(0, 0, 0, 0.8);
-  --overlay: rgba(6, 7, 9, 0.65);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 16px 36px -12px rgba(0, 0, 0, 0.75);
+  --overlay: rgba(5, 6, 8, 0.7);
+
+  /* Blueprint Grid Pattern */
+  --bg-grid-color: rgba(255, 255, 255, 0.04);
 }
 
 [data-theme="light"] {
   /* Light theme — Warm Paper-like */
   color-scheme: light;
 
-  --surface-0: #f7f6f3;
+  --surface-0: #f6f5f1;
   --surface-1: #ffffff;
-  --surface-2: #f0eee9;
-  --surface-3: #e6e3dc;
-  --surface-inset: #edeae4;
+  --surface-2: #eeece6;
+  --surface-3: #e3e0d7;
+  --surface-inset: #eae7df;
+  --surface-glass: rgba(255, 255, 255, 0.88);
 
-  --border-subtle: #ded9d0;
-  --border-bold: #c8c2b7;
-  --border-strong: #c8c2b7;
+  --border-subtle: #dcd7ce;
+  --border-bold: #c7c1b5;
+  --border-strong: #b8b1a4;
 
-  --text-primary: #1e1e20;
-  --text-secondary: #585960;
-  --text-tertiary: #84858d;
+  --text-primary: #18191b;
+  --text-secondary: #56575e;
+  --text-tertiary: #83848c;
 
   /* Signature Anthropic Terracotta for light background */
-  --accent: #a95c2b;
-  --accent-primary: #a95c2b;
-  --accent-strong: #8c471c;
-  --accent-hover: #8c471c;
-  --accent-subtle: rgba(169, 92, 43, 0.12);
-  --accent-quiet: rgba(169, 92, 43, 0.1);
+  --accent: #b05a26;
+  --accent-primary: #b05a26;
+  --accent-strong: #944619;
+  --accent-hover: #944619;
+  --accent-subtle: rgba(176, 90, 38, 0.12);
+  --accent-quiet: rgba(176, 90, 38, 0.08);
   --accent-contrast: #ffffff;
-  --accent-glow: 0 0 24px rgba(169, 92, 43, 0.15);
+  --accent-glow: 0 0 24px rgba(176, 90, 38, 0.16);
 
   /* Status Colors */
-  --status-ok: #23784c;
-  --status-ok-subtle: rgba(35, 120, 76, 0.12);
-  --ok: #23784c;
-  --ok-quiet: rgba(35, 120, 76, 0.1);
+  --status-ok: #1f7a4d;
+  --status-ok-subtle: rgba(31, 122, 77, 0.12);
+  --ok: #1f7a4d;
+  --ok-quiet: rgba(31, 122, 77, 0.1);
 
   --status-warn: #966708;
   --status-warn-subtle: rgba(150, 103, 8, 0.12);
@@ -163,17 +167,20 @@
   --danger: #b3392b;
   --danger-quiet: rgba(179, 57, 43, 0.1);
 
-  --status-info: #1f64a8;
-  --status-info-subtle: rgba(31, 100, 168, 0.12);
-  --info: #1f64a8;
-  --info-quiet: rgba(31, 100, 168, 0.1);
+  --status-info: #1b62a5;
+  --status-info-subtle: rgba(27, 98, 165, 0.12);
+  --info: #1b62a5;
+  --info-quiet: rgba(27, 98, 165, 0.1);
 
-  --focus-ring: #a95c2b;
-  --selection: rgba(169, 92, 43, 0.22);
+  --focus-ring: #b05a26;
+  --selection: rgba(176, 90, 38, 0.22);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 10px 24px -10px rgba(0, 0, 0, 0.12);
-  --shadow-lg: 0 20px 36px -12px rgba(0, 0, 0, 0.16);
-  --overlay: rgba(30, 30, 32, 0.4);
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 16px 36px -12px rgba(0, 0, 0, 0.16);
+  --overlay: rgba(24, 25, 27, 0.4);
+
+  /* Blueprint Grid Pattern */
+  --bg-grid-color: rgba(0, 0, 0, 0.04);
 }
 
 /* Global Reset & Base Styles */
@@ -185,6 +192,11 @@ body {
   margin: 0;
   padding: 0;
   background-color: var(--surface-0);
+  background-image:
+    radial-gradient(circle at 50% 0%, var(--accent-quiet) 0%, transparent 60%),
+    radial-gradient(var(--bg-grid-color) 1px, transparent 1px);
+  background-size: 100% 600px, 24px 24px;
+  background-repeat: no-repeat, repeat;
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--text-base);

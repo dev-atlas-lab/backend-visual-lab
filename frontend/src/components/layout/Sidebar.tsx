@@ -26,8 +26,8 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
             className="brand-mark"
             src="/brand/app-icon.svg"
             alt="Dev Atlas Lab Icon"
-            width={36}
-            height={36}
+            width={34}
+            height={34}
             decoding="async"
           />
           <div className="brand-copy">
@@ -93,7 +93,7 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
             <Database size={16} strokeWidth={1.8} aria-hidden="true" />
             <div className="nav-link-content">
               <span className="nav-link-title">PostgreSQL Storage</span>
-              <span className="nav-link-badge">MVCC &amp; B-Tree</span>
+              <span className="nav-link-badge">MVCC</span>
             </div>
           </NavLink>
 
@@ -105,7 +105,7 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
             <Zap size={16} strokeWidth={1.8} aria-hidden="true" />
             <div className="nav-link-content">
               <span className="nav-link-title">Redis &amp; Caching</span>
-              <span className="nav-link-badge">Stampede Lock</span>
+              <span className="nav-link-badge">Stampede</span>
             </div>
           </NavLink>
 
@@ -148,7 +148,7 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
 
         {/* Navigation Group: Pedagogy & Architecture */}
         <div className="nav-group">
-          <p className="nav-heading">Architecture</p>
+          <p className="nav-heading">Pedagogy Flow</p>
           <div className="pedagogy-chip-list">
             <span className="pedagogy-step">WHAT</span>
             <span className="pedagogy-arrow">&rarr;</span>
