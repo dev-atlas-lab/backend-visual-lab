@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Dev Atlas Lab — asset render sheet</title>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  body { display: flex; flex-direction: column; align-items: flex-start; gap: 40px; padding: 40px; }
+  .asset { flex: none; }
+  .asset img { display: block; width: 100%; height: 100%; }
+
+  #avatar-1024 { width: 1024px; height: 1024px; background: #0a0b0e; }
+  #icon-512 { width: 512px; height: 512px; background: #0a0b0e; }
+  #icon-192 { width: 192px; height: 192px; background: #0a0b0e; }
+  #apple-touch-icon-180 { width: 180px; height: 180px; background: #0a0b0e; }
+  #favicon-32 { width: 32px; height: 32px; }
+  #favicon-16 { width: 16px; height: 16px; }
+  #mark-1024 { width: 1024px; height: 1024px; }
+  #lockup-horizontal-1200, #lockup-horizontal-light-1200 { width: 1200px; height: 382.3px; }
+
+  /* ---------- social preview ---------- */
+  #social-1280x640 {
+    position: relative;
+    width: 1280px;
+    height: 640px;
+    overflow: hidden;
+    background: #0e0f12;
+    color: #ecebe7;
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  #social-1280x640 .dots {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+  #social-1280x640 .contours {
+    position: absolute;
+    right: -300px;
+    bottom: -340px;
+    width: 900px;
+    height: 900px;
+    opacity: 0.55;
+  }
+  #social-1280x640 .contours circle {
+    fill: none;
+    stroke: #e2a173;
+    stroke-opacity: 0.11;
+    stroke-width: 1;
+  }
+  #social-1280x640 .vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(80% 90% at 50% 40%, transparent 30%, rgba(10, 11, 14, 0.85) 100%);
+  }
+  #social-1280x640 .frame {
+    position: absolute;
+    inset: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 6px;
+  }
+  #social-1280x640 .meta {
+    position: absolute;
+    font-family: "JetBrains Mono", ui-monospace, Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: #82858e;
+  }
+  #social-1280x640 .meta--tl { top: 56px; left: 64px; }
+  #social-1280x640 .meta--tr { top: 56px; right: 64px; color: #a8754f; }
+  #social-1280x640 .meta--bl { bottom: 56px; left: 64px; }
+  #social-1280x640 .meta--br { bottom: 56px; right: 64px; }
+
+  #social-1280x640 .center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    padding-bottom: 10px;
+  }
+  #social-1280x640 .lockup { width: 520px; height: auto; display: block; }
+  #social-1280x640 .rule { width: 64px; height: 1px; background: rgba(226, 161, 115, 0.55); }
+  #social-1280x640 .tagline {
+    font-family: "JetBrains Mono", ui-monospace, Consolas, monospace;
+    font-size: 13px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: #a9aab1;
+  }
+</style>
+</head>
+<body>
+
+  <div class="asset" id="avatar-1024"><img src="../svg/avatar.svg" alt="" /></div>
+  <div class="asset" id="icon-512"><img src="../svg/app-icon.svg" alt="" /></div>
+  <div class="asset" id="icon-192"><img src="../svg/app-icon.svg" alt="" /></div>
+  <div class="asset" id="apple-touch-icon-180"><img src="../svg/app-icon.svg" alt="" /></div>
+  <div class="asset" id="favicon-32"><img src="../svg/favicon.svg" alt="" /></div>
+  <div class="asset" id="favicon-16"><img src="../svg/favicon.svg" alt="" /></div>
+  <div class="asset" id="mark-1024"><img src="../svg/mark.svg" alt="" /></div>
+  <div class="asset" id="lockup-horizontal-1200"><img src="../svg/lockup-horizontal.svg" alt="" /></div>
+  <div class="asset" id="lockup-horizontal-light-1200"><img src="../svg/lockup-horizontal-light.svg" alt="" /></div>
+
+  <div class="asset" id="social-1280x640">
+    <div class="dots"></div>
+    <svg class="contours" viewBox="0 0 1000 1000" aria-hidden="true">
+      <circle cx="500" cy="500" r="150" />
+      <circle cx="500" cy="500" r="240" />
+      <circle cx="500" cy="500" r="330" />
+      <circle cx="500" cy="500" r="420" />
+    </svg>
+    <div class="vignette"></div>
+    <div class="frame"></div>
+
+    <span class="meta meta--tl">Dev Atlas Lab</span>
+    <span class="meta meta--tr">Brand system 1.0</span>
+
+    <div class="center">
+      <img class="lockup" src="../svg/lockup-horizontal.svg" alt="Dev Atlas Lab" />
+      <span class="rule"></span>
+      <span class="tagline">Software · DevOps · Architecture · AI · Cloud</span>
+    </div>
+
+    <span class="meta meta--bl">github.com/dev-atlas-lab</span>
+    <span class="meta meta--br">Knowledge atlas for builders</span>
+  </div>
+
+</body>
+</html>

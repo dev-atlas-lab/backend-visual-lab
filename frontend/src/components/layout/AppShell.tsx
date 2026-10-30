@@ -1,8 +1,16 @@
-import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet } from "react-router-dom";
-import { Layers, Moon, Sun } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Outlet, useLocation } from "react-router-dom";
+import { Sidebar } from "./Sidebar";
+import { Topbar } from "./Topbar";
+import { getModuleBySlug } from "../../content";
 
 export function AppShell() {
+  const location = useLocation();
+  const [navOpen, setNavOpen] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const wasOpenRef = useRef(false);
+
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     try {
       const stored = localStorage.getItem("bvl.theme");
@@ -26,75 +34,141 @@ export function AppShell() {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
+  // Close drawer on navigation
+  const handleNavigate = () => {
+    setNavOpen(false);
+  };
+
+  // Mobile drawer keyboard focus trap and Escape handler
+  useEffect(() => {
+    if (!navOpen) return;
+
+    wasOpenRef.current = true;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setNavOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const sidebar = document.getElementById("primary-navigation");
+      const focusable = Array.from(
+        sidebar?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? [],
+      );
+
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [navOpen]);
+
+  useEffect(() => {
+    if (wasOpenRef.current && !navOpen) {
+      wasOpenRef.current = false;
+      toggleButtonRef.current?.focus();
+    }
+  }, [navOpen]);
+
+  // Compute breadcrumbs
+  const getBreadcrumb = () => {
+    const pathname = location.pathname;
+    if (pathname === "/" || pathname === "") {
+      return { prefix: "Backend Visual Lab", current: "Catalog & Roadmap" };
+    }
+    if (pathname.startsWith("/progress")) {
+      return { prefix: "Learning Dashboard", current: "Progress & Mastery" };
+    }
+    if (pathname.includes("/domains/")) {
+      const parts = pathname.split("/");
+      const moduleSlug = parts[parts.length - 1];
+      const domainId = parts[2];
+      const mod = getModuleBySlug(moduleSlug);
+      const domainName =
+        domainId === "messaging"
+          ? "Messaging & Streaming"
+          : domainId === "databases"
+          ? "Databases & Storage"
+          : domainId === "caching"
+          ? "Caching & Redis"
+          : domainId === "java"
+          ? "Java Core & JVM"
+          : domainId;
+
+      return {
+        prefix: domainName,
+        current: mod ? mod.title.split("—")[0].trim() : "Interactive Lab",
+      };
+    }
+    return { prefix: "Backend Visual Lab", current: "Interactive Engineering" };
+  };
+
+  const breadcrumb = getBreadcrumb();
+
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <Link to="/" className="brand-lockup">
-          <Layers size={20} color="var(--accent)" />
-          <span>Backend Visual Lab</span>
-          <span className="brand-badge">Dev Atlas</span>
-        </Link>
+    <div className={`app-shell ${navOpen ? "nav-is-open" : ""}`}>
+      {/* Sidebar Drawer Backdrop (Mobile only) */}
+      {navOpen && (
+        <div
+          className="drawer-backdrop"
+          onClick={() => setNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
-        <nav className="nav-links">
-          <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
-            Catalog
-          </NavLink>
-          <NavLink
-            to="/domains/messaging/kafka-consumer-groups-rebalance"
-            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
-          >
-            Kafka
-          </NavLink>
-          <NavLink
-            to="/domains/caching/redis-cache-stampede-ttl"
-            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
-          >
-            Redis
-          </NavLink>
-          <NavLink
-            to="/domains/databases/postgres-btree-mvcc-visibility"
-            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
-          >
-            PostgreSQL
-          </NavLink>
-          <NavLink
-            to="/domains/java/java-memory-heap-stack-gc"
-            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
-          >
-            Java Core
-          </NavLink>
-          <NavLink
-            to="/progress"
-            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
-          >
-            Progress
-          </NavLink>
+      {/* Primary Sidebar */}
+      <Sidebar
+        onClose={() => setNavOpen(false)}
+        onNavigate={handleNavigate}
+        closeButtonRef={closeButtonRef}
+      />
 
-          <button
-            onClick={toggleTheme}
-            className="btn"
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-            title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-          >
-            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-            <span>{theme === "dark" ? "Light" : "Dark"}</span>
-          </button>
-        </nav>
-      </header>
+      {/* Main Content Scaffold */}
+      <div className="app-main">
+        <Topbar
+          navOpen={navOpen}
+          onOpenNav={() => setNavOpen(true)}
+          toggleButtonRef={toggleButtonRef}
+          breadcrumbPrefix={breadcrumb.prefix}
+          breadcrumbCurrent={breadcrumb.current}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
 
-      <main className="main-content">
-        <Outlet />
-      </main>
+        <main className="main-content" id="main-content">
+          <Outlet />
+        </main>
 
-      <footer className="footer">
-        <p>
-          Backend Visual Lab — Dev Atlas Lab (
-          <a href="https://github.com/dev-atlas-lab/backend-visual-lab" target="_blank" rel="noreferrer">
-            GitHub
-          </a>
-          ). 7-Stage Engineering Pedagogy &bull; Deterministic Browser Simulations &bull; Spring Boot Sandbox.
-        </p>
-      </footer>
+        <footer className="footer">
+          <div className="footer-content">
+            <p className="footer-title">
+              <strong>Backend Visual Lab</strong> &bull; Dev Atlas Lab
+            </p>
+            <p className="footer-desc">
+              Deterministic Simulation &bull; 7-Stage Engineering Pedagogy &bull; Mode A Offline Browser + Mode B Spring Boot Sandbox
+            </p>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }

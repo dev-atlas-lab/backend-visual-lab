@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 226 72" width="226" height="72" role="img" aria-labelledby="dalLockupTitle">
+  <title id="dalLockupTitle">Dev Atlas Lab</title>
+  <defs>
+    <linearGradient id="dalLockupCopper" x1="0" y1="14" x2="0" y2="49" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F6C6A0"/>
+      <stop offset="1" stop-color="#D08553"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(-11.6 4.75)">
+    <path d="M15 49 32 14 49 49M21.3 36h21.4" fill="none" stroke="url(#dalLockupCopper)" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="15" cy="49" r="3.4" fill="#F2BB90"/>
+    <circle cx="49" cy="49" r="3.4" fill="#F2BB90"/>
+  </g>
+
+  <text x="62.8" y="46" font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="29" letter-spacing="-0.02em"><tspan font-weight="300" fill="#A9AAB1">dev </tspan><tspan font-weight="600" fill="#F4F1EA">atlas</tspan></text>
+
+  <path d="M176.2 42 180.6 28" stroke="#E2A173" stroke-opacity="0.5" stroke-width="1.4" stroke-linecap="round"/>
+
+  <text x="187.5" y="46" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="15" font-weight="500" letter-spacing="0.16em" fill="#E2A173">LAB</text>
+</svg>

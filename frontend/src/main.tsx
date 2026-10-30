@@ -7,6 +7,7 @@ import { ProgressPage } from "./pages/ProgressPage";
 
 import "./styles/tokens.css";
 import "./styles/layout.css";
+import "./styles/catalog.css";
 import "./styles/workbench.css";
 
 export function AppRouter() {
@@ -26,7 +27,5 @@ export function AppRouter() {
 
 const rootElement = document.getElementById("root");
 if (rootElement) {
-  ReactDOM.createRoot(rootElement).render(
-    <AppRouter />,
-  );
+  ReactDOM.createRoot(rootElement).render(<AppRouter />);
 }

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="dalMarkTitle">
+  <title id="dalMarkTitle">Dev Atlas Lab</title>
+  <defs>
+    <linearGradient id="dalMarkCopper" x1="0" y1="14" x2="0" y2="49" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F6C6A0"/>
+      <stop offset="1" stop-color="#D08553"/>
+    </linearGradient>
+  </defs>
+  <!-- The A is drawn as a route: two legs meeting at the summit, a crossbar stage,
+       and one waypoint node at each base camp. -->
+  <path d="M15 49 32 14 49 49M21.3 36h21.4" fill="none" stroke="url(#dalMarkCopper)" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="15" cy="49" r="3.4" fill="#F2BB90"/>
+  <circle cx="49" cy="49" r="3.4" fill="#F2BB90"/>
+</svg>
