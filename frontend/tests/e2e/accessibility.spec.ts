@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
-import AxeBuilder from "@axe-core/playwright";
+import axe from "axe-core";
 
 test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
-  test("renders Catalog page and passes axe accessibility audit", async ({ page }) => {
+  test("renders Catalog page and passes accessibility checks", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/Backend Visual Lab/i);
     await expect(page.locator("h1")).toContainText("Backend Engineering Interactive Laboratory");
@@ -12,9 +12,13 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
     await expect(page.locator("text=Caching & Redis")).toBeVisible();
     await expect(page.locator("text=Databases (PostgreSQL Internals)")).toBeVisible();
 
-    // Axe audit in dark mode
-    const accessibilityScanResults = await new AxeBuilder({ page }).analyze();
-    expect(accessibilityScanResults.violations).toEqual([]);
+    // In-page axe injection
+    await page.evaluate(axe.source);
+    const results = await page.evaluate(async () => {
+      // @ts-expect-error axe is injected globally
+      return await window.axe.run();
+    });
+    expect(results.violations).toEqual([]);
   });
 
   test("runs Kafka Consumer Group simulation and interacts with playback controls", async ({ page }) => {
@@ -33,9 +37,13 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
     await page.locator("button[aria-label*='theme']").click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 
-    // Axe audit in light mode
-    const lightAxeScan = await new AxeBuilder({ page }).analyze();
-    expect(lightAxeScan.violations).toEqual([]);
+    // In-page axe injection for light theme
+    await page.evaluate(axe.source);
+    const results = await page.evaluate(async () => {
+      // @ts-expect-error axe is injected globally
+      return await window.axe.run();
+    });
+    expect(results.violations).toEqual([]);
   });
 
   test("completes a knowledge check quiz and inspects explanations", async ({ page }) => {

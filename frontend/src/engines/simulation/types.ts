@@ -48,7 +48,7 @@ export interface SimulationEngineSpec<TConfig, TState, TCommand> {
   applyCommand: (
     currentFrame: SimulationStepFrame<TState>,
     command: TCommand,
-    config: TConfig,
+    config?: TConfig,
   ) => SimulationStepFrame<TState>;
 }
 

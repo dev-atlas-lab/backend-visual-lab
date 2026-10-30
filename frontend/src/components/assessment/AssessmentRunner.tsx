@@ -5,7 +5,6 @@ import {
   scoreModuleAssessment,
 } from "../../engines/assessment/scorer";
 import { recordModuleQuizSubmission } from "../../engines/progress/progress-store";
-import { CheckCircle2, AlertCircle, HelpCircle, ArrowRight } from "lucide-react";
 
 interface AssessmentRunnerProps {
   moduleSlug: string;
