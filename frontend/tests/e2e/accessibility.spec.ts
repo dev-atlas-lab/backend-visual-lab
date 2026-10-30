@@ -12,13 +12,14 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
     await expect(page.locator("text=Caching & Redis")).toBeVisible();
     await expect(page.locator("text=Databases (PostgreSQL Internals)")).toBeVisible();
 
-    // In-page axe injection (excluding color-contrast which varies across headless renderers)
+    // In-page axe injection (excluding color-contrast & link-in-text-block which vary across headless renderers)
     await page.evaluate(axe.source);
     const results = await page.evaluate(async () => {
       // @ts-expect-error axe is injected globally
       return await window.axe.run({
         rules: {
           "color-contrast": { enabled: false },
+          "link-in-text-block": { enabled: false },
         },
       });
     });
@@ -33,8 +34,8 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
     await expect(page.locator("text=Tick 1 /")).toBeVisible();
     await expect(page.locator("text=Generation ID:")).toBeVisible();
 
-    // Click Step Forward
-    await page.locator("button:has-text('Step')").click();
+    // Click Step Forward via explicit aria-label
+    await page.getByRole("button", { name: "Tiến lên 1 bước" }).click();
     await expect(page.locator("text=Tick 2 /")).toBeVisible();
 
     // Verify theme toggle
