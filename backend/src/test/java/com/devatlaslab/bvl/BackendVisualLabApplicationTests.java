@@ -15,7 +15,7 @@ class BackendVisualLabApplicationTests {
         CatalogController.PlatformStatusDto status = controller.getStatus();
         assertNotNull(status);
         assertEquals(7, status.domains().size());
-        assertEquals("messaging", status.domains().getFirst().id());
+        assertEquals("java", status.domains().getFirst().id());
     }
 
     @Test
