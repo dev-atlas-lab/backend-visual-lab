@@ -9,6 +9,9 @@ import type {
   JavaConcurrencyState,
   JavaStreamsState,
   JavaCompletableFutureState,
+  JavaConcurrentHashMapState,
+  JavaOptionalState,
+  JavaThreadPoolState,
   SimulationStepFrame,
 } from "../simulation";
 
@@ -1006,6 +1009,290 @@ export function projectJavaCompletableFutureFrameToLanes(
     {
       laneId: "cf-telemetry",
       laneTitle: "Non-blocking & Starvation Telemetry",
+      cards: telemetryCards,
+    },
+  ];
+}
+
+export function projectJavaConcurrentHashMapFrameToLanes(
+  frame: SimulationStepFrame<JavaConcurrentHashMapState>,
+): VisualLaneProjection[] {
+  const { state } = frame;
+  if (!state || !Array.isArray(state.bins) || !Array.isArray(state.threads)) {
+    return [];
+  }
+
+  // Lane 1: Table Bins
+  const binCards: VisualNodeCard[] = state.bins.map((bin) => {
+    let tone: VisualNodeCard["tone"] = "muted";
+    let badge = "EMPTY";
+
+    if (bin.isForwardingNode) {
+      tone = "warning";
+      badge = "FORWARDING (-1)";
+    } else if (bin.isLocked) {
+      tone = "danger";
+      badge = `LOCKED (${bin.lockingThreadId})`;
+    } else if (bin.nodes.length > 1) {
+      tone = "warning";
+      badge = `CHAIN (${bin.nodes.length})`;
+    } else if (bin.nodes.length === 1) {
+      tone = "healthy";
+      badge = "SINGLE NODE";
+    }
+
+    return {
+      id: `bin-${bin.index}`,
+      title: `Bin #${bin.index}`,
+      subtitle: bin.isForwardingNode
+        ? "ForwardingNode (hash = -1 / MOVED)"
+        : `Items: ${bin.nodes.length}`,
+      badgeText: badge,
+      tone,
+      details: bin.nodes.map((n) => `[hash: ${n.hash % 1000}] ${n.key} -> ${n.value}`),
+    };
+  });
+
+  // Lane 2: Worker Threads
+  const threadCards: VisualNodeCard[] = state.threads.map((th) => {
+    let tone: VisualNodeCard["tone"] = "healthy";
+    if (th.status === "BLOCKED_ON_BIN") tone = "danger";
+    else if (th.status === "SYNCHRONIZED_LOCKED") tone = "warning";
+    else if (th.status === "HELPING_TRANSFER") tone = "info";
+
+    return {
+      id: th.id,
+      title: th.name,
+      subtitle: `Status: ${th.status}`,
+      badgeText: th.status,
+      tone,
+      details: [
+        `Target Bin: ${th.targetBinIndex !== null ? `Bin #${th.targetBinIndex}` : "None"}`,
+        `Target Key: ${th.targetKey || "None"}`,
+      ],
+    };
+  });
+
+  // Lane 3: Locking & Scalability Telemetry
+  const telemetryCards: VisualNodeCard[] = [
+    {
+      id: "cas-empty-bins-metric",
+      title: "Lock-Free CAS Insertions",
+      subtitle: "casTabAt on Empty Buckets",
+      badgeText: `${state.totalCasOperations} CAS OPS`,
+      tone: "healthy",
+      details: [
+        `Total atomic CAS successes: ${state.totalCasOperations}`,
+        "Zero monitor acquisition cost when inserting into unpopulated bins.",
+      ],
+    },
+    {
+      id: "bin-striped-locks-metric",
+      title: "Striped Bin Locking",
+      subtitle: "synchronized(binHead) on Collisions",
+      badgeText: `${state.totalSynchronizedLocks} BIN LOCKS`,
+      tone: state.totalContentionEvents > 0 ? "warning" : "healthy",
+      details: [
+        `Total bin locks acquired: ${state.totalSynchronizedLocks}`,
+        `Contention wait events: ${state.totalContentionEvents}`,
+        "Only the collided bucket is held; all other bins accept concurrent operations.",
+      ],
+    },
+  ];
+
+  return [
+    {
+      laneId: "chm-bins",
+      laneTitle: `Hash Table Bins (${state.tableCapacity} Bins)`,
+      cards: binCards,
+    },
+    {
+      laneId: "chm-threads",
+      laneTitle: `Worker Threads (${state.threads.length} Threads)`,
+      cards: threadCards,
+    },
+    {
+      laneId: "chm-telemetry",
+      laneTitle: "Concurrency & Lock Striping Telemetry",
+      cards: telemetryCards,
+    },
+  ];
+}
+
+export function projectJavaOptionalFrameToLanes(
+  frame: SimulationStepFrame<JavaOptionalState>,
+): VisualLaneProjection[] {
+  const { state } = frame;
+  if (!state || !Array.isArray(state.stages)) {
+    return [];
+  }
+
+  // Lane 1: Optional Container Box
+  const boxCards: VisualNodeCard[] = [
+    {
+      id: "opt-box",
+      title: `Optional<${state.isPresent ? "PresentValue" : "Empty"}>`,
+      subtitle: `Heap Container: ${state.heapBytesAllocated} bytes overhead`,
+      badgeText: state.isPresent ? "PRESENT" : "EMPTY",
+      tone: state.isPresent ? "healthy" : "warning",
+      details: [
+        `Payload Reference: ${state.wrappedValue ? `'${state.wrappedValue}'` : "null"}`,
+        "Intended for method return types representing absent values.",
+        "Non-serializable: Not permitted as JPA Entity / DTO fields.",
+      ],
+    },
+  ];
+
+  // Lane 2: Monadic Pipeline Stages
+  const stageCards: VisualNodeCard[] = state.stages.map((st) => {
+    let tone: VisualNodeCard["tone"] = "muted";
+    if (st.status === "COMPLETED" || st.status === "PASSED") tone = "healthy";
+    else if (st.status === "FILTERED_EMPTY") tone = "warning";
+
+    return {
+      id: st.id,
+      title: st.name,
+      subtitle: `Op Type: ${st.operationType}`,
+      badgeText: st.status,
+      tone,
+      details: [
+        `Current Stream State: ${st.currentValue || (st.status === "FILTERED_EMPTY" ? "Optional.empty()" : "Pending")}`,
+      ],
+    };
+  });
+
+  // Lane 3: Eager vs Lazy Evaluation Telemetry
+  const telemetryCards: VisualNodeCard[] = [
+    {
+      id: "evaluation-mode-metric",
+      title: "Evaluation Strategy",
+      subtitle: state.mode === "OR_ELSE_EAGER_HAZARD" ? "orElse(...) [Eager Hazard]" : "orElseGet(...) [Lazy Optimal]",
+      badgeText: state.mode,
+      tone: state.mode === "OR_ELSE_EAGER_HAZARD" ? "danger" : "healthy",
+      details: [
+        `Database Queries Executed: ${state.dbQueryExecuted ? "1 (WASTED RPC!)" : "0 (SAVED)"}`,
+        `CPU Cycles Burned: ${state.cpuCyclesBurned}`,
+        state.mode === "OR_ELSE_EAGER_HAZARD"
+          ? "CRITICAL: orElse() evaluated argument eagerly before presence check!"
+          : "Lazy Supplier was skipped because Optional was already present.",
+      ],
+    },
+    {
+      id: "anti-pattern-sentinel",
+      title: "Code Smell Sentinel",
+      subtitle: "opt.isPresent() + opt.get() Check",
+      badgeText: state.antiPatternDetected ? "ANTI-PATTERN DETECTED" : "IDIOMATIC MONAD",
+      tone: state.antiPatternDetected ? "danger" : "healthy",
+      details: [
+        state.antiPatternDetected
+          ? "Raw .get() call detected! Defeats functional safety and risks NoSuchElementException."
+          : "Clean monadic composition via .map(), .filter(), and .orElseGet().",
+      ],
+    },
+  ];
+
+  return [
+    {
+      laneId: "opt-box-lane",
+      laneTitle: "JVM Heap Optional Object",
+      cards: boxCards,
+    },
+    {
+      laneId: "opt-stages-lane",
+      laneTitle: `Monadic Pipeline Stages (${state.stages.length} Stages)`,
+      cards: stageCards,
+    },
+    {
+      laneId: "opt-telemetry-lane",
+      laneTitle: "Evaluation & Resource Telemetry",
+      cards: telemetryCards,
+    },
+  ];
+}
+
+export function projectJavaThreadPoolFrameToLanes(
+  frame: SimulationStepFrame<JavaThreadPoolState>,
+): VisualLaneProjection[] {
+  const { state } = frame;
+  if (!state || !Array.isArray(state.workers) || !Array.isArray(state.queue)) {
+    return [];
+  }
+
+  // Lane 1: Worker Thread Pool
+  const workerCards: VisualNodeCard[] = state.workers.map((w) => {
+    let tone: VisualNodeCard["tone"] = "healthy";
+    if (w.status === "BUSY") tone = "info";
+    else if (w.status === "EXPIRED") tone = "muted";
+
+    return {
+      id: w.id,
+      title: w.name,
+      subtitle: w.isCore ? "Core Pool Worker" : "Non-Core Temporary Worker",
+      badgeText: w.status,
+      tone,
+      details: [
+        `Assignment: ${w.currentTaskId || "Idle (Polling Queue)"}`,
+        `Completed Tasks: ${w.tasksCompletedCount}`,
+      ],
+    };
+  });
+
+  // Lane 2: BlockingQueue Buffer
+  const queueCards: VisualNodeCard[] = [
+    {
+      id: "work-queue-status",
+      title: `BlockingQueue (${state.queue.length} / ${state.queueCapacity})`,
+      subtitle: state.queue.length >= state.queueCapacity ? "QUEUE SATURATED (BURST SPIKE)" : "QUEUE AVAILABLE",
+      badgeText: `${state.queue.length} QUEUED`,
+      tone: state.queue.length >= state.queueCapacity ? "danger" : state.queue.length > 0 ? "warning" : "healthy",
+      details: state.queue.map((t) => `${t.name} (submitted at tick ${t.submittedAtTick})`),
+    },
+  ];
+
+  // Lane 3: Saturation & Rejection Telemetry
+  const telemetryCards: VisualNodeCard[] = [
+    {
+      id: "dispatch-4step-metric",
+      title: "4-Step Dispatch Algorithm Status",
+      subtitle: "corePool -> workQueue -> maxPool -> handler",
+      badgeText: state.saturationEventTriggered ? "SATURATED" : "ACCEPTING",
+      tone: state.saturationEventTriggered ? "danger" : "healthy",
+      details: [
+        `Core Workers: ${state.workers.filter((w) => w.isCore).length} / ${state.corePoolSize}`,
+        `Non-Core Workers: ${state.workers.filter((w) => !w.isCore).length} / ${state.maximumPoolSize - state.corePoolSize}`,
+        `Submitted Tasks: ${state.totalTasksSubmitted}`,
+        `Completed Tasks: ${state.totalTasksCompleted}`,
+      ],
+    },
+    {
+      id: "rejection-policy-metric",
+      title: `Saturation Policy: ${state.rejectionPolicy}`,
+      subtitle: state.callerRunsActive ? "Caller Thread Absorbing Load" : "Policy Armed",
+      badgeText: `${state.totalTasksRejected} REJECTED`,
+      tone: state.totalTasksRejected > 0 ? "danger" : "healthy",
+      details: [
+        `Rejection Count: ${state.totalTasksRejected}`,
+        state.callerRunsActive
+          ? "CallerRunsPolicy active: Main caller thread executing tasks directly, applying natural backpressure."
+          : `Current handler policy: ${state.rejectionPolicy}`,
+      ],
+    },
+  ];
+
+  return [
+    {
+      laneId: "tp-workers",
+      laneTitle: `Worker Thread Pool (${state.workers.length} / ${state.maximumPoolSize} Workers)`,
+      cards: workerCards,
+    },
+    {
+      laneId: "tp-queue",
+      laneTitle: `Work Queue Buffer (${state.queue.length} / ${state.queueCapacity} Tasks)`,
+      cards: queueCards,
+    },
+    {
+      laneId: "tp-telemetry",
+      laneTitle: "Saturation & Rejection Telemetry",
       cards: telemetryCards,
     },
   ];

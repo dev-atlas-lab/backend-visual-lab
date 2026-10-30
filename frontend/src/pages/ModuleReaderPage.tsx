@@ -18,6 +18,9 @@ import {
   javaConcurrencySimulation,
   javaStreamsEngine,
   javaCompletableFutureEngine,
+  javaConcurrentHashMapEngine,
+  javaOptionalEngine,
+  javaThreadPoolEngine,
 } from "../engines/simulation";
 import {
   projectKafkaFrameToLanes,
@@ -30,6 +33,9 @@ import {
   projectJavaConcurrencyFrameToLanes,
   projectJavaStreamsFrameToLanes,
   projectJavaCompletableFutureFrameToLanes,
+  projectJavaConcurrentHashMapFrameToLanes,
+  projectJavaOptionalFrameToLanes,
+  projectJavaThreadPoolFrameToLanes,
 } from "../engines/visualization/projectors";
 import { recordSimulationInteraction } from "../engines/progress/progress-store";
 import {
@@ -994,6 +1000,144 @@ function SimulationWorkbenchHost({
                 disabled={state.stages.some((s) => s.status === "FAILED")}
               >
                 Inject Stage Exception
+              </button>
+            </>
+          )}
+        />
+      );
+
+    case "java-concurrenthashmap":
+      return (
+        <InteractiveWorkbench
+          engine={javaConcurrentHashMapEngine}
+          projector={projectJavaConcurrentHashMapFrameToLanes}
+          onCommandDispatched={onInteraction}
+          renderCustomControls={(dispatch) => (
+            <>
+              <button
+                onClick={() => dispatch({ type: "DISPATCH_PARALLEL_PUTS_DISTINCT_BINS" })}
+                className="btn btn-primary"
+              >
+                Parallel CAS Puts (Distinct Bins)
+              </button>
+              <button
+                onClick={() => dispatch({ type: "DISPATCH_COLLIDED_PUTS_SAME_BIN" })}
+                className="btn btn-warning"
+              >
+                Collided Puts (Synchronized Bin #3)
+              </button>
+              <button
+                onClick={() => dispatch({ type: "TRIGGER_CONCURRENT_RESIZE" })}
+                className="btn btn-danger"
+              >
+                Trigger Concurrent Resize
+              </button>
+              <button
+                onClick={() => dispatch({ type: "STEP_HELP_TRANSFER" })}
+                className="btn"
+              >
+                Step helpTransfer()
+              </button>
+              <button
+                onClick={() => dispatch({ type: "LOCK_FREE_READ", key: "user-101" })}
+                className="btn"
+              >
+                Lock-Free Read (user-101)
+              </button>
+            </>
+          )}
+        />
+      );
+
+    case "java-optional-patterns":
+      return (
+        <InteractiveWorkbench
+          engine={javaOptionalEngine}
+          projector={projectJavaOptionalFrameToLanes}
+          onCommandDispatched={onInteraction}
+          renderCustomControls={(dispatch, state) => (
+            <>
+              <button
+                onClick={() => dispatch({ type: "RUN_OR_ELSE_EAGER" })}
+                className="btn btn-danger"
+              >
+                Run .orElse() (Eager Hazard)
+              </button>
+              <button
+                onClick={() => dispatch({ type: "RUN_OR_ELSE_GET_LAZY" })}
+                className="btn btn-primary"
+              >
+                Run .orElseGet() (Lazy Optimal)
+              </button>
+              <button
+                onClick={() => dispatch({ type: "STEP_MONADIC_PIPELINE" })}
+                className="btn"
+                disabled={state.pipelineCompleted}
+              >
+                Step Monadic Pipeline
+              </button>
+              <button
+                onClick={() => dispatch({ type: "TRIGGER_GET_ANTIPATTERN" })}
+                className="btn btn-warning"
+              >
+                Call .get() (Anti-Pattern)
+              </button>
+              <button
+                onClick={() => dispatch({ type: "CLEAR_VALUE_TO_EMPTY" })}
+                className="btn"
+              >
+                Set to Optional.empty()
+              </button>
+            </>
+          )}
+        />
+      );
+
+    case "java-thread-pool-executor":
+      return (
+        <InteractiveWorkbench
+          engine={javaThreadPoolEngine}
+          projector={projectJavaThreadPoolFrameToLanes}
+          onCommandDispatched={onInteraction}
+          renderCustomControls={(dispatch, state) => (
+            <>
+              <button
+                onClick={() => dispatch({ type: "SUBMIT_SINGLE_TASK" })}
+                className="btn btn-primary"
+              >
+                Submit Single Task
+              </button>
+              <button
+                onClick={() => dispatch({ type: "BURST_SUBMIT_TASKS", count: 8 })}
+                className="btn btn-danger"
+              >
+                Burst Spike (8 Tasks)
+              </button>
+              <button
+                onClick={() => dispatch({ type: "WORKER_TICK_EXECUTE" })}
+                className="btn"
+              >
+                Worker Tick (Complete & Poll)
+              </button>
+              <button
+                onClick={() =>
+                  dispatch({
+                    type: "SET_REJECTION_POLICY",
+                    policy:
+                      state.rejectionPolicy === "CallerRunsPolicy"
+                        ? "AbortPolicy"
+                        : "CallerRunsPolicy",
+                  })
+                }
+                className="btn btn-warning"
+              >
+                Policy: {state.rejectionPolicy}
+              </button>
+              <button
+                onClick={() => dispatch({ type: "EXPIRE_IDLE_NON_CORE_WORKERS" })}
+                className="btn"
+              >
+                Expire Idle Non-Core
               </button>
             </>
           )}

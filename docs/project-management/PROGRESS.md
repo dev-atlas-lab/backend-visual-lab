@@ -96,3 +96,48 @@
   - Strict TypeScript (`tsc -b`): 0 errors.
   - Strict ESLint: 0 warnings, 0 errors.
   - Production build (`vite build`): clean bundle output.
+
+## Phase 8 — Java Core Finalization: ConcurrentHashMap, Optional & ThreadPoolExecutor (2026-10-30)
+- [x] **Implemented ConcurrentHashMap Simulation Engine** (`java-concurrenthashmap`):
+  - Created `frontend/src/engines/simulation/java-concurrenthashmap.ts` modeling:
+    - Lock-free atomic `casTabAt` insertions on unpopulated bins with zero monitor overhead.
+    - Fine-grained striped bucket locking (`synchronized(binHead)`) on hash collisions while keeping all (N - 1) peer bins 100% accessible.
+    - Multi-threaded cooperative table resizing via `ForwardingNode` (`hash = -1 / MOVED`) and `helpTransfer()`.
+    - Completely lock-free read operations (`get()`) traversing `volatile Node.val` and `Node.next` references.
+  - Added visual lane projector `projectJavaConcurrentHashMapFrameToLanes`.
+  - Added 7-stage learning module `java-concurrenthashmap-locking` and 2 assessment questions.
+  - Added custom controls and 2 lab missions in `missions.ts`.
+- [x] **Implemented Java Optional Simulation Engine** (`java-optional-patterns`):
+  - Created `frontend/src/engines/simulation/java-optional.ts` modeling:
+    - The Eager Evaluation Hazard: `orElse(expensiveDbQuery())` evaluates unconditionally on cache hits vs lazy `orElseGet(() -> expensiveDbQuery())`.
+    - Monadic functional composition (`.map()`, `.filter()`, `.flatMap()`, `.orElseGet()`) eliminating nested null-check pyramids.
+    - Code smell sentinel: detecting and flagging `opt.isPresent()` + `opt.get()` anti-pattern.
+    - Heap memory footprint: 16-24 byte wrapper box allocation and non-serializable constraint.
+  - Added visual lane projector `projectJavaOptionalFrameToLanes`.
+  - Added 7-stage learning module `java-optional-functional-patterns` and 2 assessment questions.
+  - Added custom controls and 2 lab missions in `missions.ts`.
+- [x] **Implemented ThreadPoolExecutor Simulation Engine** (`java-thread-pool-executor`):
+  - Created `frontend/src/engines/simulation/java-thread-pool.ts` modeling:
+    - Invariant 4-step task dispatching algorithm: Core Worker spawn -> BlockingQueue buffer -> Non-Core Worker spawn -> Saturation Rejection.
+    - Saturation Rejection Policies: `AbortPolicy` (fails fast with exception), `CallerRunsPolicy` (natural backpressure on submitting thread), `DiscardPolicy`, `DiscardOldestPolicy`.
+    - Worker thread lifecycle: `Worker.runWorker()`, queue polling, and non-core worker termination via `keepAliveTime`.
+  - Added visual lane projector `projectJavaThreadPoolFrameToLanes`.
+  - Added 7-stage learning module `java-thread-pool-executor` and 2 assessment questions.
+  - Added custom controls and 2 lab missions in `missions.ts`.
+- [x] **Complete 10-Lesson Sequenced Java Core Curriculum in Sidebar**:
+  - 1. JVM Memory & GC (`java-memory-heap-stack-gc`)
+  - 2. Exceptions & Stack Unwinding (`java-exceptions-stack-unwinding`)
+  - 3. HashMap Treeification (`java-hashmap-treeification`)
+  - 4. ConcurrentHashMap (`java-concurrenthashmap-locking`)
+  - 5. Java Optional (`java-optional-functional-patterns`)
+  - 6. JMM & Lock Upgrades (`java-concurrency-jmm-locks`)
+  - 7. ThreadPoolExecutor (`java-thread-pool-executor`)
+  - 8. Stream API & Fusion (`java-streams-lazy-evaluation`)
+  - 9. Virtual Threads (`java-virtual-threads-loom`)
+  - 10. CompletableFuture (`java-completable-future-async`)
+- [x] **Quality Verification**:
+  - Vitest: 45/45 unit tests passing (100% pass rate).
+  - Playwright E2E: 4/4 passing.
+  - TypeScript (`tsc -b`): 0 errors.
+  - ESLint: 0 warnings, 0 errors.
+  - Production build: clean bundle output.

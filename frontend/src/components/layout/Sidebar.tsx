@@ -146,14 +146,50 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
           </NavLink>
 
           <NavLink
+            to="/domains/java/java-concurrenthashmap-locking"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+            onClick={onNavigate}
+          >
+            <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
+            <div className="nav-link-content">
+              <span className="nav-link-title">4. ConcurrentHashMap</span>
+              <span className="nav-link-badge">CAS/BinLock</span>
+            </div>
+          </NavLink>
+
+          <NavLink
+            to="/domains/java/java-optional-functional-patterns"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+            onClick={onNavigate}
+          >
+            <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
+            <div className="nav-link-content">
+              <span className="nav-link-title">5. Java Optional</span>
+              <span className="nav-link-badge">Null-Safe</span>
+            </div>
+          </NavLink>
+
+          <NavLink
             to="/domains/java/java-concurrency-jmm-locks"
             className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
             onClick={onNavigate}
           >
             <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
             <div className="nav-link-content">
-              <span className="nav-link-title">4. JMM &amp; Lock Upgrades</span>
+              <span className="nav-link-title">6. JMM &amp; Lock Upgrades</span>
               <span className="nav-link-badge">Volatile</span>
+            </div>
+          </NavLink>
+
+          <NavLink
+            to="/domains/java/java-thread-pool-executor"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+            onClick={onNavigate}
+          >
+            <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
+            <div className="nav-link-content">
+              <span className="nav-link-title">7. ThreadPoolExecutor</span>
+              <span className="nav-link-badge">4-Step Policy</span>
             </div>
           </NavLink>
 
@@ -164,7 +200,7 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
           >
             <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
             <div className="nav-link-content">
-              <span className="nav-link-title">5. Stream API &amp; Fusion</span>
+              <span className="nav-link-title">8. Stream API &amp; Fusion</span>
               <span className="nav-link-badge">Lazy Sink</span>
             </div>
           </NavLink>
@@ -176,7 +212,7 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
           >
             <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
             <div className="nav-link-content">
-              <span className="nav-link-title">6. Virtual Threads</span>
+              <span className="nav-link-title">9. Virtual Threads</span>
               <span className="nav-link-badge">Loom J21</span>
             </div>
           </NavLink>
@@ -188,7 +224,7 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
           >
             <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
             <div className="nav-link-content">
-              <span className="nav-link-title">7. CompletableFuture</span>
+              <span className="nav-link-title">10. CompletableFuture</span>
               <span className="nav-link-badge">Async DAG</span>
             </div>
           </NavLink>

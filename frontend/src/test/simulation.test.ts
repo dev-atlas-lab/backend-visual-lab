@@ -10,6 +10,9 @@ import {
   javaConcurrencySimulation,
   javaStreamsEngine,
   javaCompletableFutureEngine,
+  javaConcurrentHashMapEngine,
+  javaOptionalEngine,
+  javaThreadPoolEngine,
   computePartitionAssignment,
   buildPresetTape,
 } from "../engines/simulation";
@@ -697,4 +700,156 @@ describe("Java CompletableFuture Simulation Engine", () => {
     expect(barrierResolved.state.completedStageCount).toBe(barrierResolved.state.stages.length);
   });
 });
+
+describe("Java ConcurrentHashMap Simulation Engine", () => {
+  it("performs lock-free atomic CAS insertions on distinct empty bins", () => {
+    const engine = javaConcurrentHashMapEngine;
+    const initial = engine.createInitialFrame(engine.presets[0].config);
+
+    const inserted = engine.applyCommand(initial, { type: "DISPATCH_PARALLEL_PUTS_DISTINCT_BINS" });
+    expect(inserted.state.totalCasOperations).toBe(3);
+    expect(inserted.state.totalSynchronizedLocks).toBe(0);
+    expect(inserted.state.bins[1].status).toBe("SINGLE_NODE");
+    expect(inserted.state.bins[3].status).toBe("SINGLE_NODE");
+    expect(inserted.state.bins[5].status).toBe("SINGLE_NODE");
+    expect(inserted.invariants.find((inv) => inv.id === "lock-free-cas-on-empty")?.passed).toBe(true);
+  });
+
+  it("isolates lock contention strictly to collided bucket without locking peer bins", () => {
+    const engine = javaConcurrentHashMapEngine;
+    const initial = engine.createInitialFrame(engine.presets[0].config);
+
+    // Collision put: Thread 1 acquires lock on Bin 3; Thread 2 blocks waiting
+    const contested = engine.applyCommand(initial, { type: "DISPATCH_COLLIDED_PUTS_SAME_BIN" });
+    expect(contested.state.bins[3].isLocked).toBe(true);
+    expect(contested.state.threads[0].status).toBe("SYNCHRONIZED_LOCKED");
+    expect(contested.state.threads[1].status).toBe("BLOCKED_ON_BIN");
+    // Verify peer bins (0, 1, 2, 4-7) are NOT locked!
+    expect(contested.state.bins[0].isLocked).toBe(false);
+    expect(contested.state.bins[1].isLocked).toBe(false);
+    expect(contested.state.bins[2].isLocked).toBe(false);
+    expect(contested.state.bins[4].isLocked).toBe(false);
+    expect(contested.invariants.find((inv) => inv.id === "bin-level-lock-striping")?.passed).toBe(true);
+
+    // Second step releases lock and appends node
+    const released = engine.applyCommand(contested, { type: "DISPATCH_COLLIDED_PUTS_SAME_BIN" });
+    expect(released.state.bins[3].isLocked).toBe(false);
+    expect(released.state.bins[3].nodes.length).toBeGreaterThan(0);
+  });
+
+  it("migrates buckets with ForwardingNodes during concurrent table resizing", () => {
+    const engine = javaConcurrentHashMapEngine;
+    const initial = engine.createInitialFrame(engine.presets[0].config);
+
+    const resizing = engine.applyCommand(initial, { type: "TRIGGER_CONCURRENT_RESIZE" });
+    expect(resizing.state.isResizing).toBe(true);
+    expect(resizing.state.bins[0].isForwardingNode).toBe(true);
+    expect(resizing.state.bins[0].status).toBe("FORWARDING_MOVED");
+    expect(resizing.state.transferredBinsCount).toBe(4);
+
+    const completed = engine.applyCommand(resizing, { type: "STEP_HELP_TRANSFER" });
+    expect(completed.state.isResizing).toBe(false);
+    expect(completed.state.transferredBinsCount).toBe(8);
+  });
+});
+
+describe("Java Optional Simulation Engine", () => {
+  it("exposes the eager orElse() evaluation hazard executing DB query on cache hit", () => {
+    const engine = javaOptionalEngine;
+    const initial = engine.createInitialFrame({
+      mode: "OR_ELSE_EAGER_HAZARD",
+      initialValue: "CachedUser(id=42)",
+    });
+
+    const evaluated = engine.applyCommand(initial, { type: "RUN_OR_ELSE_EAGER" });
+    expect(evaluated.state.dbQueryExecuted).toBe(true); // WASTED DB QUERY!
+    expect(evaluated.state.cpuCyclesBurned).toBeGreaterThan(1000);
+    expect(evaluated.invariants.find((inv) => inv.id === "lazy-supplier-evaluation")?.passed).toBe(true);
+  });
+
+  it("verifies zero DB queries with lazy orElseGet() Supplier on cache hit", () => {
+    const engine = javaOptionalEngine;
+    const initial = engine.createInitialFrame({
+      mode: "OR_ELSE_GET_LAZY_OPTIMAL",
+      initialValue: "CachedUser(id=42)",
+    });
+
+    const evaluated = engine.applyCommand(initial, { type: "RUN_OR_ELSE_GET_LAZY" });
+    expect(evaluated.state.dbQueryExecuted).toBe(false); // SAVED!
+    expect(evaluated.state.resultOutput).toBe("CachedUser(id=42)");
+  });
+
+  it("executes monadic pipeline transformations (.filter, .map) without null checks", () => {
+    const engine = javaOptionalEngine;
+    let frame = engine.createInitialFrame({
+      mode: "MONADIC_PIPELINE",
+      initialValue: "RawUser(id=99, verified=true)",
+    });
+
+    // Step filter
+    frame = engine.applyCommand(frame, { type: "STEP_MONADIC_PIPELINE" });
+    expect(frame.state.stages[1].status).toBe("PASSED");
+
+    // Step map
+    frame = engine.applyCommand(frame, { type: "STEP_MONADIC_PIPELINE" });
+    expect(frame.state.stages[2].status).toBe("COMPLETED");
+
+    // Step fallback
+    frame = engine.applyCommand(frame, { type: "STEP_MONADIC_PIPELINE" });
+    expect(frame.state.pipelineCompleted).toBe(true);
+    expect(frame.state.resultOutput).toContain("BILLING_OPERATOR");
+  });
+});
+
+describe("Java ThreadPoolExecutor Simulation Engine", () => {
+  it("enforces 4-step dispatching: core workers -> workQueue -> non-core workers -> saturation", () => {
+    const engine = javaThreadPoolEngine;
+    let frame = engine.createInitialFrame({
+      corePoolSize: 2,
+      maximumPoolSize: 4,
+      queueCapacity: 4,
+      rejectionPolicy: "CallerRunsPolicy",
+    });
+
+    // Submit 2 tasks: absorbed directly by Core Workers (0 in queue)
+    frame = engine.applyCommand(frame, { type: "SUBMIT_SINGLE_TASK" });
+    frame = engine.applyCommand(frame, { type: "SUBMIT_SINGLE_TASK" });
+    expect(frame.state.workers.filter((w) => w.isCore && w.status === "BUSY").length).toBe(2);
+    expect(frame.state.queue.length).toBe(0);
+
+    // Submit 4 tasks: buffered into workQueue
+    for (let i = 0; i < 4; i++) {
+      frame = engine.applyCommand(frame, { type: "SUBMIT_SINGLE_TASK" });
+    }
+    expect(frame.state.queue.length).toBe(4); // Queue is now 100% full!
+    expect(frame.state.workers.length).toBe(2); // Still only core workers!
+
+    // Submit 2 more tasks: queue is full, so spawns Non-Core Workers up to maximumPoolSize (4)
+    frame = engine.applyCommand(frame, { type: "SUBMIT_SINGLE_TASK" });
+    frame = engine.applyCommand(frame, { type: "SUBMIT_SINGLE_TASK" });
+    expect(frame.state.workers.length).toBe(4);
+    expect(frame.state.workers.filter((w) => !w.isCore).length).toBe(2);
+
+    // Submit 9th task: Both queue (4) and maxPool (4) are full -> activates CallerRunsPolicy!
+    frame = engine.applyCommand(frame, { type: "SUBMIT_SINGLE_TASK" });
+    expect(frame.state.callerRunsActive).toBe(true);
+    expect(frame.state.totalTasksRejected).toBe(1);
+  });
+
+  it("fails fast with AbortPolicy on traffic spike", () => {
+    const engine = javaThreadPoolEngine;
+    const initial = engine.createInitialFrame({
+      corePoolSize: 2,
+      maximumPoolSize: 4,
+      queueCapacity: 4,
+      rejectionPolicy: "AbortPolicy",
+    });
+
+    const burst = engine.applyCommand(initial, { type: "BURST_SUBMIT_TASKS", count: 9 });
+    expect(burst.state.saturationEventTriggered).toBe(true);
+    expect(burst.state.totalTasksRejected).toBeGreaterThan(0);
+    expect(burst.state.callerRunsActive).toBe(false); // Did not run on caller thread
+  });
+});
+
 

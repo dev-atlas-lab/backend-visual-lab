@@ -247,6 +247,71 @@ export const labMissions: Record<string, LabMission[]> = {
       checkCompleted: (state) => Boolean(state.threadStarvationDetected),
     },
   ],
+  "java-concurrenthashmap": [
+    {
+      id: "chm-mission-1",
+      simulationId: "java-concurrenthashmap",
+      title: "Execute Lock-Free CAS on Distinct Bins",
+      goal: "Simultaneously insert into 3 unpopulated bins using atomic casTabAt with zero monitor lock acquisition.",
+      hint: "Select preset 'Lock-Free Atomic CAS' or click 'Parallel CAS Puts'.",
+      checkCompleted: (state) => Number(state.totalCasOperations ?? 0) >= 3,
+    },
+    {
+      id: "chm-mission-2",
+      simulationId: "java-concurrenthashmap",
+      title: "Isolate Striped Bin Lock Contention",
+      goal: "Simulate concurrent writes to the same bin to observe synchronized(binHead) locking without affecting peer bins.",
+      hint: "Click 'Collided Puts (Synchronized Bin #3)'.",
+      checkCompleted: (state) =>
+        Number(state.totalSynchronizedLocks ?? 0) >= 1 &&
+        Number(state.totalContentionEvents ?? 0) >= 1,
+    },
+  ],
+  "java-optional-patterns": [
+    {
+      id: "opt-mission-1",
+      simulationId: "java-optional-patterns",
+      title: "Expose Eager orElse() DB Evaluation Hazard",
+      goal: "Observe how orElse(expensiveDbQuery()) evaluates the database query unconditionally even on a cached value hit.",
+      hint: "Select preset 'The Eager orElse() Pitfall' or click 'Run .orElse()'.",
+      checkCompleted: (state) =>
+        Boolean(state.dbQueryExecuted) && state.mode === "OR_ELSE_EAGER_HAZARD",
+    },
+    {
+      id: "opt-mission-2",
+      simulationId: "java-optional-patterns",
+      title: "Verify Zero DB Queries with Lazy orElseGet()",
+      goal: "Demonstrate that passing a Supplier lambda to orElseGet() defers execution, performing 0 redundant database calls.",
+      hint: "Select preset 'The Lazy orElseGet() Remedy' or click 'Run .orElseGet()'.",
+      checkCompleted: (state) =>
+        !state.dbQueryExecuted &&
+        Boolean(state.pipelineCompleted) &&
+        state.mode === "OR_ELSE_GET_LAZY_OPTIMAL",
+    },
+  ],
+  "java-thread-pool-executor": [
+    {
+      id: "tp-mission-1",
+      simulationId: "java-thread-pool-executor",
+      title: "Spawn Emergency Non-Core Workers",
+      goal: "Saturate the BlockingQueue with burst tasks to trigger the creation of non-core worker threads up to maximumPoolSize.",
+      hint: "Click 'Burst Spike (8 Tasks)' or select preset 2.",
+      checkCompleted: (state) => {
+        const workers = (state.workers as Array<{ isCore?: boolean }>) || [];
+        return workers.filter((w) => !w.isCore).length >= 1;
+      },
+    },
+    {
+      id: "tp-mission-2",
+      simulationId: "java-thread-pool-executor",
+      title: "Activate Saturation Rejection Handler",
+      goal: "Overwhelm both the workQueue and maximumPoolSize to trigger the configured RejectedExecutionHandler.",
+      hint: "Trigger a burst spike when pool and queue are already full.",
+      checkCompleted: (state) =>
+        Number(state.totalTasksRejected ?? 0) >= 1 &&
+        Boolean(state.saturationEventTriggered),
+    },
+  ],
 };
 
 export function getMissionsForSimulation(simulationId: string): LabMission[] {

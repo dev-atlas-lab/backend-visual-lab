@@ -129,4 +129,12 @@ export const authoritativeSources: SourceCitation[] = [
     accessedAt: "2026-10-30",
     supports: "java.util.concurrent CompletableFuture, CompletionStage DAG orchestration, ForkJoinPool work-stealing, and non-blocking pipeline chaining",
   },
+  {
+    id: "java-lang-optional-api",
+    title: "Java SE 8+ java.util.Optional Specification & API Design Guidelines",
+    publisher: "Oracle Corporation & OpenJDK (Brian Goetz)",
+    url: "https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Optional.html",
+    accessedAt: "2026-10-30",
+    supports: "Value-based class semantics, eager orElse vs lazy orElseGet evaluation, monadic map/flatMap/filter chaining, and non-serializable return type constraints",
+  },
 ];

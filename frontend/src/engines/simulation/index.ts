@@ -9,3 +9,6 @@ export * from "./java-exceptions";
 export * from "./java-concurrency";
 export * from "./java-streams";
 export * from "./java-completable-future";
+export * from "./java-concurrenthashmap";
+export * from "./java-optional";
+export * from "./java-thread-pool";
