@@ -1056,4 +1056,147 @@ Exception table:
     sourceIds: ["jvm-spec-se21", "jvms-21-exceptions"],
     questionIds: ["java-q1-exception-table-unwinding", "java-q2-suppressed-exceptions"],
   },
+
+  // 8. Java Core: Concurrency, Java Memory Model & Lock Inflation
+  {
+    id: "java-concurrency-jmm-locks",
+    slug: "java-concurrency-jmm-locks",
+    domainId: "java",
+    title: "Java Concurrency — Java Memory Model (JMM), Volatile Visibility & Synchronized Lock Upgrades",
+    subtitle:
+      "Deep dive into CPU cache coherency, Happens-Before, StoreLoad memory barriers, and HotSpot Mark Word lock inflation (Biased -> CAS -> Heavyweight)",
+    governanceStatus: "VERIFIED",
+    estimatedMinutes: 30,
+    difficulty: "Senior / Staff",
+    simulationId: "java-concurrency-jmm-locks",
+    keyTerms: [
+      {
+        term: "Java Memory Model (JMM / JSR-133)",
+        definition:
+          "The formal specification defining how threads interact through memory, dictating when writes by one thread become visible to reads by another, and defining the legal boundaries of compiler and hardware instruction reordering.",
+      },
+      {
+        term: "Happens-Before Relationship",
+        definition:
+          "A partial ordering constraint in the JMM: if action A happens-before action B, the memory effects of A are guaranteed to be visible to B. Includes Program Order, Volatile Variable Rule, and Monitor Lock Rule.",
+      },
+      {
+        term: "Volatile Memory Barrier",
+        definition:
+          "Low-level CPU instructions (e.g., mfence, lock addl on x86, dmb on ARM) emitted by HotSpot to enforce memory ordering. Prevents reordering around volatile reads/writes and forces CPU store buffers to drain into main memory.",
+      },
+      {
+        term: "HotSpot Mark Word",
+        definition:
+          "The 64-bit header of every Java object instance. Encodes object hashcode, GC generational age (4 bits), bias epoch, and the 2-bit tag defining lock status: 001 (Unlocked), 101 (Biased), 00 (Lightweight), 10 (Heavyweight).",
+      },
+      {
+        term: "Lock Inflation / Escalation",
+        definition:
+          "HotSpot's progressive optimization: starts with zero-cost Biased Locking for single-threaded usage, escalates to user-space CAS spin (Lightweight Lock) under light contention, and inflates to an OS Mutex (Heavyweight ObjectMonitor) under heavy contention.",
+      },
+    ],
+    stages: {
+      what: {
+        heading: "1. Core Architectural Concepts (WHAT)",
+        paragraphs: [
+          "In modern multi-core server hardware architectures, CPUs do not read and write directly to physical RAM for every instruction. Each CPU core possesses private ultra-fast L1 and L2 caches, Store Buffers, and Invalidate Queues.",
+          "When multiple Java threads execute concurrently across different CPU cores, reading and modifying shared state without explicit synchronization creates severe visibility and ordering anomalies: a thread running on Core 1 may write a new value into its local Store Buffer, while Core 2 continues reading a stale value from its local L1 cache indefinitely.",
+          "To provide reliable cross-platform multithreading guarantees without sacrificing native hardware optimization, Java introduces the Java Memory Model (JMM, standardized in JSR-133) and the HotSpot Object Synchronization Engine.",
+        ],
+        bulletPoints: [
+          "Shared Main Memory vs Thread Local Cache: Heap memory represents shared state, but threads operate on local copies in CPU registers and cache lines.",
+          "Instruction Reordering: Compilers (javac, HotSpot C1/C2 JIT) and CPUs reorder instructions to maximize pipeline utilization unless constrained by Memory Barriers.",
+          "Synchronization Primitives: 'volatile' guarantees visibility and ordering without mutual exclusion; 'synchronized' and Locks guarantee atomicity, mutual exclusion, and visibility.",
+        ],
+      },
+      why: {
+        heading: "2. Why the Java Memory Model (JSR-133) is Essential (WHY)",
+        paragraphs: [
+          "Without the formal Happens-Before rules defined by JSR-133, multi-threaded Java applications would suffer from catastrophic, non-deterministic bugs that only manifest under heavy production load:",
+        ],
+        bulletPoints: [
+          "Infinite Loops from Stale Caches: A background worker thread executing 'while (!stopped)' may never terminate if 'stopped' is a non-volatile boolean, because the JIT compiler hoists the read outside the loop (loop invariant hoisting: if (!stopped) while(true)).",
+          "Partially Initialized Objects (Double-Checked Locking bug): In 'if (instance == null) { synchronized { if (instance == null) instance = new Singleton(); } }', the instruction sequence (1. allocate memory, 2. invoke constructor, 3. assign pointer to instance) can be reordered by the CPU into (1, 3, 2). Another thread can observe a non-null pointer before the constructor finishes, crashing on uninitialized fields! Declaring 'private static volatile Singleton instance;' prevents this reordering.",
+          "Word Tearing: JMM guarantees that 32-bit primitive reads/writes are atomic, but unaligned 64-bit values (long and double) were historically susceptible to split 32-bit tearing unless declared volatile.",
+        ],
+        callout: {
+          tone: "note",
+          title: "The JMM Happens-Before Invariants",
+          body: "1. Monitor Lock Rule: An unlock on a monitor lock happens-before every subsequent lock on the same monitor.\n2. Volatile Variable Rule: A write to a volatile variable happens-before every subsequent read of that same volatile variable.",
+        },
+      },
+      how: {
+        heading: "3. How HotSpot Optimizes Locks: The Lock Inflation Pathway (HOW)",
+        paragraphs: [
+          "Acquiring a traditional operating system mutex (pthread_mutex on Linux) requires transitioning from CPU user mode (Ring 3) to kernel mode (Ring 0). This causes a full context switch, saving and restoring CPU registers, flushing TLB caches, and costing 1,000 to 5,000 CPU cycles (1-5 microseconds).",
+          "Because 80%+ of Java synchronized blocks in real applications are executed by only a single thread or experience zero contention, HotSpot implements an adaptive 4-stage Lock Escalation state machine recorded inside the 64-bit Mark Word of the object header:",
+        ],
+        bulletPoints: [
+          "1. UNLOCKED (001): Normal uncontested object. Mark Word stores Identity HashCode, 4-bit GC age, and biased lock flag = 0.",
+          "2. BIASED LOCKING (101): Object is biased toward the first thread that acquires it. HotSpot writes the thread ID into the Mark Word. Subsequent synchronizations by the same thread incur ZERO atomic instructions (0 nanoseconds overhead).",
+          "3. LIGHTWEIGHT LOCK (00): When a second thread attempts to acquire the biased lock, the bias is revoked. The thread allocates a BasicObjectLock record on its own Call Stack and uses atomic CAS (cmpxchg) to swap the Mark Word pointer. If uncontested, locking takes ~10-15 ns.",
+          "4. HEAVYWEIGHT MONITOR (10): If contention is high and user-space CAS spin loops exceed threshold (Adaptive Spinning), the lock inflates into a native ObjectMonitor. Contending threads are parked into OS wait queues (futex/mutex), incurring context switches.",
+        ],
+      },
+      internals: {
+        heading: "4. HotSpot JVM Internals: Mark Word Layout & Memory Barriers (INTERNALS)",
+        paragraphs: [
+          "The internal representation of synchronization state in OpenJDK HotSpot 64-bit architecture is encoded within the Mark Word:",
+        ],
+        codeSnippet: {
+          language: "c++",
+          caption: "OpenJDK HotSpot 64-bit Mark Word Bit Layout (markWord.hpp)",
+          code: `//  64-bit Mark Word bit patterns:
+//  [-------------------------------------------------------------|---|--]
+//  [                     Unused (25 bits) | HashCode (31) | Age (4) | 0 | 01]  -> UNLOCKED
+//  [     ThreadID (54 bits) | Epoch (2)   | Unused (4)    | Age (4) | 1 | 01]  -> BIASED
+//  [        Pointer to BasicObjectLock record in Thread Stack      | 00]  -> LIGHTWEIGHT (CAS)
+//  [        Pointer to native ObjectMonitor in Native C++ Heap     | 10]  -> HEAVYWEIGHT (Mutex)
+//  [        Pointer to Forwarding Address during GC Evacuation     | 11]  -> MARKED (GC)
+
+// Hardware Memory Barriers generated by JIT compiler for volatile:
+// Volatile Write: StoreStore Barrier -> [volatile store] -> StoreLoad Barrier (lock addl $0,(%rsp))
+// Volatile Read:  [volatile load]   -> LoadLoad Barrier  -> LoadStore Barrier`,
+        },
+        bulletPoints: [
+          "Adaptive Spinning: When a thread fails to acquire a Lightweight Lock, it doesn't sleep immediately. It executes a loop of CPU 'PAUSE' instructions in user space. HotSpot adaptively adjusts the spin count based on whether previous spins succeeded.",
+          "Monitorenter and Monitorexit Bytecode: javac translates synchronized(obj) into monitorenter at entry and duplicate monitorexit instructions (one on normal exit, one on exception handler table) to ensure locks are never leaked.",
+          "Lock Deflation: In HotSpot, once a lock inflates to Heavyweight (10), it almost never deflates back to Lightweight during normal application execution; deflation occurs only during Stop-The-World Safepoints during Garbage Collection.",
+        ],
+      },
+      tradeOffs: {
+        heading: "5. Technical Trade-Offs of Synchronization Paradigms (TRADE-OFFS)",
+        paragraphs: [
+          "Backend engineers choose between three concurrency models based on latency and contention profiles:",
+        ],
+        bulletPoints: [
+          "Synchronized Blocks: Reentrant, built-in JVM runtime optimizations (Lock Elision via Escape Analysis, Lock Coarsening). Trade-off: Cannot specify timeouts; cannot be interrupted while waiting (lock acquisition is uninterruptible).",
+          "java.util.concurrent.locks.ReentrantLock: Advanced features (tryLock with timeout, lockInterruptibly, fair scheduling, multiple Condition queues). Trade-off: Requires manual 'try { ... } finally { lock.unlock(); }'; slightly higher heap overhead.",
+          "Lock-Free CAS (AtomicInteger, VarHandle, StampedLock optimistic reads): Highest throughput under low-to-medium contention; zero thread parking. Trade-off: High CPU consumption under heavy contention due to busy spin retry loops; vulnerable to the ABA problem unless using AtomicStampedReference.",
+        ],
+      },
+      failureScenarios: {
+        heading: "6. Production Failure Modes & Anti-Patterns (FAILURE SCENARIOS)",
+        paragraphs: [
+          "Concurrency bugs in distributed backend services are notoriously difficult to reproduce in development environments:",
+        ],
+        callout: {
+          tone: "warning",
+          title: "Critical Production Concurrency Hazards",
+          body: "1. Lock Contention Cascades: A single heavily contended synchronized block (e.g. synchronized access to a legacy cache) inflates to Heavyweight Monitor, parking hundreds of Tomcat worker threads. Thread pool starvation triggers HTTP 504 Gateway Timeouts across the entire cluster.\n2. Volatile Compound Mutation Race: 'volatile int count; count++;' is NOT atomic! 'count++' is a read-modify-write (3 bytecodes: getfield, iadd, putfield). Two threads executing count++ concurrently will overwrite each other's increments. Must use AtomicInteger.incrementAndGet().\n3. Deadlock via Lock Inversion: Thread A acquires Lock 1 then attempts Lock 2; Thread B acquires Lock 2 then attempts Lock 1. Both threads freeze forever. Always acquire locks in a globally consistent order.",
+        },
+      },
+      productionEngineering: {
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
+        paragraphs: [
+          "1. Diagnose Lock Contention via JFR and async-profiler: Run JDK Flight Recorder with 'jdk.JavaMonitorEnter' events to measure total lock wait duration and identify offending monitor addresses.",
+          "2. Minimize Lock Scope: Keep critical sections as small as possible. Never invoke remote network RPCs, database queries, or disk I/O inside a synchronized block or lock.",
+          "3. Modern Java 21 Consideration (Virtual Threads): In Java 21 LTS, a Virtual Thread executing a 'synchronized' block that performs blocking I/O will PIN its OS Carrier Thread, degrading scalability. Migrate blocking synchronized blocks to ReentrantLock to allow Virtual Threads to unmount cleanly.",
+        ],
+      },
+    },
+    sourceIds: ["jvm-spec-se21", "jsr-133-jmm"],
+    questionIds: ["java-q1-volatile-jmm-visibility", "java-q2-hotspot-lock-inflation"],
+  },
 ];

@@ -14,6 +14,7 @@ import {
   javaHashMapSimulation,
   javaVirtualThreadsSimulation,
   javaExceptionsSimulation,
+  javaConcurrencySimulation,
 } from "../engines/simulation";
 import {
   projectKafkaFrameToLanes,
@@ -23,6 +24,7 @@ import {
   projectJavaHashMapFrameToLanes,
   projectJavaVirtualThreadsFrameToLanes,
   projectJavaExceptionsFrameToLanes,
+  projectJavaConcurrencyFrameToLanes,
 } from "../engines/visualization/projectors";
 import { recordSimulationInteraction } from "../engines/progress/progress-store";
 import {
@@ -543,6 +545,87 @@ export function ModuleReaderPage() {
                     disabled={state.activeThrowable === null && !state.unhandledEscaped}
                   >
                     Step Stack Unwind (athrow)
+                  </button>
+                </>
+              )}
+            />
+          ) : null}
+
+          {moduleData.simulationId === "java-concurrency-jmm-locks" ? (
+            <InteractiveWorkbench
+              engine={javaConcurrencySimulation}
+              projector={projectJavaConcurrencyFrameToLanes}
+              onCommandDispatched={handleSimInteraction}
+              renderCustomControls={(dispatch, state) => (
+                <>
+                  <button
+                    onClick={() =>
+                      dispatch({ type: "THREAD_ACQUIRE_LOCK", threadId: "thread-1" })
+                    }
+                    className="btn btn-primary"
+                    disabled={state.markWord.ownerThreadId === "thread-1"}
+                  >
+                    T1 Acquire Lock
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({ type: "THREAD_ACQUIRE_LOCK", threadId: "thread-2" })
+                    }
+                    className="btn"
+                    disabled={state.markWord.ownerThreadId === "thread-2"}
+                  >
+                    T2 Acquire (Contend)
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "THREAD_RELEASE_LOCK",
+                        threadId: state.markWord.ownerThreadId ?? "thread-1",
+                      })
+                    }
+                    className="btn"
+                    disabled={state.markWord.ownerThreadId === null}
+                  >
+                    Release Lock ({state.markWord.ownerThreadId ?? "None"})
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "WRITE_SHARED_VARIABLE",
+                        threadId: "thread-1",
+                        newValue: state.sharedMainMemoryValue + 1,
+                      })
+                    }
+                    className="btn"
+                  >
+                    T1 Write (+1)
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({ type: "READ_SHARED_VARIABLE", threadId: "thread-2" })
+                    }
+                    className="btn"
+                  >
+                    T2 Read Cache
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({
+                        type: "TOGGLE_VOLATILE",
+                        isVolatile: !state.isVolatileVariable,
+                      })
+                    }
+                    className="btn"
+                  >
+                    Toggle Volatile ({state.isVolatileVariable ? "ON" : "OFF"})
+                  </button>
+                  <button
+                    onClick={() =>
+                      dispatch({ type: "SIMULATE_CONTENTION", threadCount: 3 })
+                    }
+                    className="btn btn-danger"
+                  >
+                    Heavy Contention (Inflate Mutex)
                   </button>
                 </>
               )}

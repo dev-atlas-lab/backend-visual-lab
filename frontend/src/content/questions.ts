@@ -608,4 +608,80 @@ export const questionBank: ScenarioQuestion[] = [
       "Under Java Try-with-Resources, the primary try-block exception propagates normally, while any secondary exceptions arising from AutoCloseable.close() are chained via Throwable.addSuppressed() to avoid masking critical failure diagnostics.",
     sourceIds: ["jvms-21-exceptions"],
   },
+
+  // Java Core: Concurrency, JMM & Lock Upgrades Questions
+  {
+    id: "java-q1-volatile-jmm-visibility",
+    moduleId: "java-concurrency-jmm-locks",
+    domainId: "java",
+    type: "single-choice",
+    stem: "A Java service has a shared field 'private volatile int requestCount = 0;'. Two threads simultaneously execute 'requestCount++;' 1,000 times each without external locking. What is the expected final value of requestCount, and why?",
+    choices: [
+      {
+        id: "a",
+        text: "Exactly 2,000, because the 'volatile' modifier guarantees that every read and write operation is executed atomically as a unified CPU transaction.",
+        explanation:
+          "Incorrect: Volatile guarantees only visibility and instruction ordering, NOT compound atomicity. 'count++' is a multi-step read-modify-write operation.",
+      },
+      {
+        id: "b",
+        text: "Likely less than 2,000 (e.g. 1,600-1,950), because 'requestCount++' is not atomic: it compiles into three distinct bytecodes (getfield, iadd, putfield). Two threads can read the same value concurrently and overwrite each other's updates.",
+        explanation:
+          "Correct: In the Java Memory Model, 'volatile' enforces visibility across CPU caches and prevents instruction reordering via memory barriers, but it does NOT provide mutual exclusion or compound atomicity. 'count++' requires an atomic primitive like AtomicInteger.incrementAndGet() or a synchronized block.",
+      },
+      {
+        id: "c",
+        text: "Exactly 1,000, because the second thread detects the volatile lock and aborts execution.",
+        explanation:
+          "Incorrect: Volatile variables do not possess locks and never reject or abort concurrent writes.",
+      },
+      {
+        id: "d",
+        text: "The JVM throws a ConcurrentModificationException at runtime as soon as simultaneous writes are detected.",
+        explanation:
+          "Incorrect: ConcurrentModificationException is thrown by collection fail-fast iterators (like ArrayList / HashMap), not by primitive variable memory access.",
+      },
+    ],
+    correctChoiceIds: ["b"],
+    correctExplanation:
+      "Volatile ensures visibility and ordering, but 'count++' is a compound read-modify-write operation (getfield, iadd, putfield). Without synchronization or AtomicInteger, race conditions cause lost updates.",
+    sourceIds: ["jsr-133-jmm", "jvm-spec-se21"],
+  },
+  {
+    id: "java-q2-hotspot-lock-inflation",
+    moduleId: "java-concurrency-jmm-locks",
+    domainId: "java",
+    type: "multiple-response",
+    stem: "Which TWO statements accurately describe the HotSpot JVM Object Header (Mark Word) lock escalation pathway and mechanics? Select TWO.",
+    choices: [
+      {
+        id: "a",
+        text: "Biased Locking (tag 101) optimizes for single-threaded locks by storing the owner's Thread ID directly in the Mark Word, requiring zero atomic CAS instructions on subsequent entries by that thread.",
+        explanation:
+          "Correct: Biased locking establishes a zero-cost fast path for uncontested single-thread synchronization. HotSpot checks that the Mark Word's Thread ID matches the current thread, avoiding atomic CAS instructions.",
+      },
+      {
+        id: "b",
+        text: "When lock contention is detected, HotSpot immediately inflates the lock to a Heavyweight OS Mutex and never attempts user-space CAS spinning.",
+        explanation:
+          "Incorrect: HotSpot first attempts Lightweight Locking using atomic CAS in user space, including adaptive spinning loops (PAUSE instructions), before escalating to an OS mutex.",
+      },
+      {
+        id: "c",
+        text: "A Heavyweight Lock (tag 10) allocates an ObjectMonitor structure where contending threads are parked via OS kernel primitives (futex/mutex), incurring CPU context switches.",
+        explanation:
+          "Correct: Heavyweight Monitor inflation transitions lock management to an allocated native ObjectMonitor. Blocked threads are put into the OS wait queue (context switch ~1-5 μs) until unparked by the releasing thread.",
+      },
+      {
+        id: "d",
+        text: "Once inflated to a Heavyweight Lock, HotSpot automatically deflates the lock back to Biased Locking immediately after the thread exits the synchronized block.",
+        explanation:
+          "Incorrect: In HotSpot, lock deflation almost never happens on block exit; it is an expensive operation performed only during Safepoint phases of Garbage Collection.",
+      },
+    ],
+    correctChoiceIds: ["a", "c"],
+    correctExplanation:
+      "HotSpot locks escalate from Biased (zero CAS cost) to Lightweight (user-space CAS spin) and finally Heavyweight Monitor (OS kernel thread parking with context switch overhead).",
+    sourceIds: ["jsr-133-jmm", "jvm-spec-se21"],
+  },
 ];

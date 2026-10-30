@@ -7,6 +7,7 @@ import {
   javaHashMapSimulation,
   javaVirtualThreadsSimulation,
   javaExceptionsSimulation,
+  javaConcurrencySimulation,
   computePartitionAssignment,
   buildPresetTape,
 } from "../engines/simulation";
@@ -438,5 +439,126 @@ describe("Java Exceptions, Throwable & Stack Unwinding Simulation Engine", () =>
     expect(fatal.state.stackUnwindingPhase).toBe("FATAL_UNCAUGHT_TERMINATION");
     const liveness = fatal.invariants.find((inv) => inv.id === "uncaught-thread-termination");
     expect(liveness?.passed).toBe(false);
+  });
+});
+
+describe("Java Concurrency, JMM & Lock Inflation Simulation Engine", () => {
+  it("escalates lock state from UNLOCKED -> BIASED -> LIGHTWEIGHT (CAS) -> HEAVYWEIGHT (Mutex)", () => {
+    const engine = javaConcurrencySimulation;
+    const initial = engine.createInitialFrame({ maxSpinAttempts: 3, enableBiasedLocking: true });
+
+    expect(initial.state.markWord.lockState).toBe("UNLOCKED");
+    expect(initial.state.markWord.ownerThreadId).toBeNull();
+
+    // Thread 1 acquires uncontested: Biased Lock
+    const biased = engine.applyCommand(initial, {
+      type: "THREAD_ACQUIRE_LOCK",
+      threadId: "thread-1",
+    });
+    expect(biased.state.markWord.lockState).toBe("BIASED");
+    expect(biased.state.markWord.ownerThreadId).toBe("thread-1");
+
+    // Thread 2 attempts acquire: Revocation of Bias -> Lightweight Lock with CAS spinning
+    const spinning = engine.applyCommand(biased, {
+      type: "THREAD_ACQUIRE_LOCK",
+      threadId: "thread-2",
+    });
+    expect(spinning.state.markWord.lockState).toBe("LIGHTWEIGHT");
+    expect(spinning.state.totalCasOperations).toBeGreaterThan(0);
+    const t2 = spinning.state.threads.find((t) => t.id === "thread-2");
+    expect(t2?.status).toBe("SPINNING_CAS");
+
+    // Trigger Heavy Contention: Exceed spin threshold -> Inflates to Heavyweight OS Mutex
+    const inflated = engine.applyCommand(spinning, {
+      type: "SIMULATE_CONTENTION",
+      threadCount: 3,
+    });
+    expect(inflated.state.markWord.lockState).toBe("HEAVYWEIGHT");
+    expect(inflated.state.markWord.monitorWaitQueue.length).toBeGreaterThan(0);
+    expect(inflated.state.contextSwitchesCount).toBeGreaterThan(0);
+  });
+
+  it("models JMM visibility: non-volatile causes stale cache read whereas volatile triggers memory barrier", () => {
+    const engine = javaConcurrencySimulation;
+    const initial = engine.createInitialFrame({ maxSpinAttempts: 4, enableBiasedLocking: true });
+
+    // Non-volatile write by Thread 1
+    const t1Write = engine.applyCommand(initial, {
+      type: "WRITE_SHARED_VARIABLE",
+      threadId: "thread-1",
+      newValue: 42,
+    });
+    expect(t1Write.state.sharedMainMemoryValue).toBe(42);
+    expect(t1Write.state.threads.find((t) => t.id === "thread-1")?.localCachedValue).toBe(42);
+
+    // Thread 2 reads without memory barrier: sees stale value (10) and triggers race condition flag
+    const t2StaleRead = engine.applyCommand(t1Write, {
+      type: "READ_SHARED_VARIABLE",
+      threadId: "thread-2",
+    });
+    expect(t2StaleRead.state.threads.find((t) => t.id === "thread-2")?.localCachedValue).toBe(10);
+    expect(t2StaleRead.state.raceConditionDetected).toBe(true);
+
+    // Enable volatile keyword (StoreLoad / LoadLoad barrier)
+    const volatileOn = engine.applyCommand(t2StaleRead, {
+      type: "TOGGLE_VOLATILE",
+      isVolatile: true,
+    });
+    expect(volatileOn.state.isVolatileVariable).toBe(true);
+
+    // Thread 1 writes new volatile value
+    const t1VolatileWrite = engine.applyCommand(volatileOn, {
+      type: "WRITE_SHARED_VARIABLE",
+      threadId: "thread-1",
+      newValue: 99,
+    });
+    expect(t1VolatileWrite.state.memoryBarrierActive).toBe("STORE_LOAD");
+
+    // Thread 2 reads volatile value: must see fresh 99 due to Happens-Before
+    const t2FreshRead = engine.applyCommand(t1VolatileWrite, {
+      type: "READ_SHARED_VARIABLE",
+      threadId: "thread-2",
+    });
+    expect(t2FreshRead.state.threads.find((t) => t.id === "thread-2")?.localCachedValue).toBe(99);
+    expect(t2FreshRead.state.raceConditionDetected).toBe(false);
+  });
+
+  it("wakes parked thread from ObjectMonitor WaitSet when lock is released", () => {
+    const engine = javaConcurrencySimulation;
+    const initial = engine.createInitialFrame({ maxSpinAttempts: 2, enableBiasedLocking: true });
+
+    // Inflate lock with Thread 1 owning and Thread 2 parked
+    const t1Acquire = engine.applyCommand(initial, {
+      type: "THREAD_ACQUIRE_LOCK",
+      threadId: "thread-1",
+    });
+    const contested = engine.applyCommand(t1Acquire, {
+      type: "SIMULATE_CONTENTION",
+      threadCount: 2,
+    });
+
+    expect(contested.state.markWord.lockState).toBe("HEAVYWEIGHT");
+    expect(contested.state.markWord.ownerThreadId).toBe("thread-1");
+    expect(contested.state.markWord.monitorWaitQueue).toContain("thread-2");
+
+    // Thread 1 releases lock: Thread 2 is dequeued from WaitSet and granted ownership
+    const released = engine.applyCommand(contested, {
+      type: "THREAD_RELEASE_LOCK",
+      threadId: "thread-1",
+    });
+    expect(released.state.markWord.ownerThreadId).toBe("thread-2");
+    expect(released.state.markWord.monitorWaitQueue).not.toContain("thread-2");
+    const t2 = released.state.threads.find((t) => t.id === "thread-2");
+    expect(t2?.status).toBe("RUNNING");
+    expect(t2?.holdingLock).toBe(true);
+  });
+
+  it("builds preset tapes deterministically", () => {
+    for (const preset of javaConcurrencySimulation.presets) {
+      const tape = buildPresetTape(javaConcurrencySimulation, preset);
+      expect(tape.length).toBe(preset.scriptedCommands.length + 1);
+      expect(tape[0].state).toBeDefined();
+      expect(tape[tape.length - 1].state).toBeDefined();
+    }
   });
 });

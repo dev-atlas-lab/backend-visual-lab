@@ -116,7 +116,7 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
           >
             <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
             <div className="nav-link-content">
-              <span className="nav-link-title">JVM Memory &amp; GC</span>
+              <span className="nav-link-title">1. JVM Memory &amp; GC</span>
               <span className="nav-link-badge">Young/Old</span>
             </div>
           </NavLink>
@@ -128,20 +128,8 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
           >
             <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
             <div className="nav-link-content">
-              <span className="nav-link-title">Exceptions &amp; Stack</span>
+              <span className="nav-link-title">2. Exceptions &amp; Stack</span>
               <span className="nav-link-badge">Unwind</span>
-            </div>
-          </NavLink>
-
-          <NavLink
-            to="/domains/java/java-virtual-threads-loom"
-            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
-            onClick={onNavigate}
-          >
-            <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
-            <div className="nav-link-content">
-              <span className="nav-link-title">Virtual Threads</span>
-              <span className="nav-link-badge">Loom J21</span>
             </div>
           </NavLink>
 
@@ -152,8 +140,32 @@ export function Sidebar({ onClose, onNavigate, closeButtonRef }: SidebarProps) {
           >
             <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
             <div className="nav-link-content">
-              <span className="nav-link-title">HashMap Treeification</span>
+              <span className="nav-link-title">3. HashMap Treeification</span>
               <span className="nav-link-badge">Red-Black</span>
+            </div>
+          </NavLink>
+
+          <NavLink
+            to="/domains/java/java-concurrency-jmm-locks"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+            onClick={onNavigate}
+          >
+            <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
+            <div className="nav-link-content">
+              <span className="nav-link-title">4. JMM &amp; Lock Upgrades</span>
+              <span className="nav-link-badge">Volatile</span>
+            </div>
+          </NavLink>
+
+          <NavLink
+            to="/domains/java/java-virtual-threads-loom"
+            className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
+            onClick={onNavigate}
+          >
+            <Cpu size={16} strokeWidth={1.8} aria-hidden="true" />
+            <div className="nav-link-content">
+              <span className="nav-link-title">5. Virtual Threads</span>
+              <span className="nav-link-badge">Loom J21</span>
             </div>
           </NavLink>
         </div>
