@@ -10,7 +10,7 @@ test.describe("Backend Visual Lab E2E & Accessibility Verification", () => {
     // Check key domains exist in the catalog
     await expect(page.locator("text=Messaging & Event Streaming").first()).toBeVisible();
     await expect(page.locator("text=Caching & Redis").first()).toBeVisible();
-    await expect(page.locator("text=Databases & Storage Internals").first()).toBeVisible();
+    await expect(page.locator("text=Databases (PostgreSQL Internals)").first()).toBeVisible();
 
     // In-page axe injection (excluding color-contrast & link-in-text-block which vary across headless renderers)
     await page.evaluate(axe.source);
