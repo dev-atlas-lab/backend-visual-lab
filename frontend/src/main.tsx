@@ -11,6 +11,7 @@ import "./styles/tokens.css";
 import "./styles/layout.css";
 import "./styles/catalog.css";
 import "./styles/workbench.css";
+import "./styles/visualizations.css";
 
 export function AppRouter() {
   return (

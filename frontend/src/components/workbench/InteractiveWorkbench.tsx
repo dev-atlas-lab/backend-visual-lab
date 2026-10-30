@@ -41,6 +41,10 @@ interface InteractiveWorkbenchProps<TConfig, TState, TCommand> {
     dispatch: (cmd: TCommand) => void,
     currentState: TState,
   ) => React.ReactNode;
+  renderVisualStage?: (
+    frame: SimulationStepFrame<TState>,
+    lanes: VisualLaneProjection[],
+  ) => React.ReactNode;
 }
 
 export function InteractiveWorkbench<TConfig, TState, TCommand>({
@@ -48,6 +52,7 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
   projector,
   onCommandDispatched,
   renderCustomControls,
+  renderVisualStage,
 }: InteractiveWorkbenchProps<TConfig, TState, TCommand>) {
   const [selectedPresetId, setSelectedPresetId] = useState<string>(
     engine.presets[0]?.id ?? "",
@@ -230,7 +235,7 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
     >
       {/* 1. Header & Transport Toolbar */}
       <div className="workbench-toolbar">
-        <div className="toolbar-group">
+        <div className="toolbar-scenario-group">
           <label htmlFor={selectId} className="metric-label" style={{ fontWeight: 700 }}>
             SCENARIO:
           </label>
@@ -248,76 +253,76 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
           </select>
         </div>
 
-        {/* Playback Controls */}
-        <div className="toolbar-group">
-          <button
-            onClick={handleReset}
-            className="btn"
-            title="Reset simulation to initial state (Tick 1) [R]"
-            aria-label="Reset simulation to initial state [R]"
-          >
-            <RotateCcw size={14} />
-            <span>Reset</span>
-          </button>
-          <button
-            onClick={handleStepBack}
-            className="btn"
-            disabled={currentIndex === 0}
-            title="Step Back"
-            aria-label="Step Back"
-          >
-            <ChevronLeft size={16} />
-            <span>Back</span>
-          </button>
-          <button
-            onClick={handleTogglePlay}
-            className="btn btn-primary"
-            title={isPlaying ? "Pause simulation [P]" : "Auto-play simulation steps [P]"}
-            aria-label={isPlaying ? "Pause simulation" : "Auto-play simulation steps"}
-          >
-            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-            <span>{isPlaying ? "Pause" : "Play"}</span>
-          </button>
-          <button
-            onClick={handleStepForward}
-            className="btn"
-            disabled={currentIndex === frames.length - 1}
-            title="Step Forward [Space]"
-            aria-label="Step Forward"
-          >
-            <span>Step</span>
-            <ChevronRight size={16} />
-          </button>
+        {/* Playback Controls & Utility Actions */}
+        <div className="toolbar-actions-group">
+          <div className="transport-controls-cluster">
+            <button
+              onClick={handleReset}
+              className="btn btn-transport"
+              title="Reset simulation to initial state (Tick 1) [R]"
+              aria-label="Reset simulation to initial state [R]"
+            >
+              <RotateCcw size={13} />
+              <span>Reset</span>
+            </button>
+            <button
+              onClick={handleStepBack}
+              className="btn btn-transport"
+              disabled={currentIndex === 0}
+              title="Step Back"
+              aria-label="Step Back"
+            >
+              <ChevronLeft size={15} />
+              <span>Back</span>
+            </button>
+            <button
+              onClick={handleTogglePlay}
+              className="btn btn-transport btn-primary"
+              title={isPlaying ? "Pause simulation [P]" : "Auto-play simulation steps [P]"}
+              aria-label={isPlaying ? "Pause simulation" : "Auto-play simulation steps"}
+            >
+              {isPlaying ? <Pause size={13} /> : <Play size={13} />}
+              <span>{isPlaying ? "Pause" : "Play"}</span>
+            </button>
+            <button
+              onClick={handleStepForward}
+              className="btn btn-transport"
+              disabled={currentIndex === frames.length - 1}
+              title="Step Forward [Space]"
+              aria-label="Step Forward"
+            >
+              <span>Step</span>
+              <ChevronRight size={15} />
+            </button>
+          </div>
+
           <span className="step-indicator">
             Tick {currentIndex + 1} / {frames.length}
           </span>
-          <button
-            onClick={handleToggleFullscreen}
-            className="btn"
-            title={isFullscreen ? "Exit Fullscreen [F]" : "Enter Fullscreen Lab Mode [F]"}
-            aria-label={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen Lab Mode"}
-          >
-            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            <span>{isFullscreen ? "Exit Full" : "Fullscreen"}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              playClick();
-              setShowGuideModal(true);
-            }}
-            className="btn btn-guide"
-            style={{
-              backgroundColor: "var(--accent-quiet)",
-              borderColor: "var(--accent-subtle)",
-              color: "var(--accent-strong)",
-              fontWeight: 600,
-            }}
-            title="Open comprehensive visual guide on how to interact with this lab"
-          >
-            <HelpCircle size={14} />
-            <span>How to Use?</span>
-          </button>
+
+          <div className="toolbar-utility-cluster">
+            <button
+              onClick={handleToggleFullscreen}
+              className="btn btn-utility"
+              title={isFullscreen ? "Exit Fullscreen [F]" : "Enter Fullscreen Lab Mode [F]"}
+              aria-label={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen Lab Mode"}
+            >
+              {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+              <span>{isFullscreen ? "Exit Full" : "Fullscreen"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                playClick();
+                setShowGuideModal(true);
+              }}
+              className="btn btn-guide"
+              title="Open comprehensive visual guide on how to interact with this lab"
+            >
+              <HelpCircle size={13} />
+              <span>How to Use?</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -458,39 +463,43 @@ export function InteractiveWorkbench<TConfig, TState, TCommand>({
           ) : null}
         </div>
 
-        {/* Visual Topology Lanes */}
-        <div className="lanes-grid">
-          {lanes.map((lane) => (
-            <div key={lane.laneId} className="lane-block">
-              <div className="lane-header">
-                <span>{lane.laneTitle}</span>
-                <span style={{ fontSize: "0.625rem", color: "var(--text-tertiary)" }}>
-                  {lane.cards.length} {lane.cards.length === 1 ? "unit" : "units"}
-                </span>
-              </div>
-              <div className="cards-container">
-                {lane.cards.map((card) => (
-                  <div key={card.id} className={`visual-card card-${card.tone}`}>
-                    <div className="card-header-row">
-                      <span className="card-title">{card.title}</span>
-                      <span className={`card-badge card-badge-${card.tone}`}>
-                        {card.badgeText}
-                      </span>
+        {/* Visual Topology Stage */}
+        {renderVisualStage ? (
+          renderVisualStage(currentFrame, lanes)
+        ) : (
+          <div className="lanes-grid">
+            {lanes.map((lane) => (
+              <div key={lane.laneId} className="lane-block">
+                <div className="lane-header">
+                  <span>{lane.laneTitle}</span>
+                  <span style={{ fontSize: "0.625rem", color: "var(--text-tertiary)" }}>
+                    {lane.cards.length} {lane.cards.length === 1 ? "unit" : "units"}
+                  </span>
+                </div>
+                <div className="cards-container">
+                  {lane.cards.map((card) => (
+                    <div key={card.id} className={`visual-card card-${card.tone}`}>
+                      <div className="card-header-row">
+                        <span className="card-title">{card.title}</span>
+                        <span className={`card-badge card-badge-${card.tone}`}>
+                          {card.badgeText}
+                        </span>
+                      </div>
+                      <div className="card-subtitle">{card.subtitle}</div>
+                      <div>
+                        {card.details.map((d, dIdx) => (
+                          <div key={dIdx} className="card-detail-item">
+                            &bull; {d}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="card-subtitle">{card.subtitle}</div>
-                    <div>
-                      {card.details.map((d, dIdx) => (
-                        <div key={dIdx} className="card-detail-item">
-                          &bull; {d}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 3. State & Fidelity Inspector */}
