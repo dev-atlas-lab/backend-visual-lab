@@ -1733,4 +1733,151 @@ ThreadPoolExecutor executor = new ThreadPoolExecutor(
     sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
     questionIds: ["java-q17-thread-pool-4step-dispatch", "java-q18-thread-pool-rejection-policies"],
   },
+
+  // 11. Java Memory & Concurrency: References & ThreadLocal Leaks
+  {
+    id: "java-references-threadlocal-leaks",
+    slug: "java-references-threadlocal-leaks",
+    domainId: "java",
+    title: "Java Memory & Concurrency — Reference Types (Strong, Soft, Weak, Phantom) & ThreadLocal Leaks",
+    subtitle:
+      "ThreadLocalMap entry lifecycle, WeakReference key clearing, pooled worker thread value leaks, and try-finally remove() discipline",
+    governanceStatus: "VERIFIED",
+    estimatedMinutes: 25,
+    difficulty: "Senior / Staff",
+    simulationId: "java-threadlocal-leak",
+    keyTerms: [
+      {
+        term: "ThreadLocal",
+        definition:
+          "A Java construct providing thread-local variables. Each thread accessing a ThreadLocal instance maintains an independently initialized copy of the variable stored within its internal ThreadLocalMap.",
+      },
+      {
+        term: "WeakReference vs SoftReference",
+        definition:
+          "SoftReference referents are retained until JVM memory pressure requires reclamation before OOM. WeakReference referents are reclaimed on the very next Garbage Collection cycle once strong links vanish.",
+      },
+      {
+        term: "ThreadLocalMap.Entry",
+        definition:
+          "An entry in the thread's private map that extends WeakReference<ThreadLocal<?>>. The key is weakly referenced, but the associated value is strongly referenced.",
+      },
+      {
+        term: "ThreadPool Memory Leak",
+        definition:
+          "The severe production failure mode where worker threads in a pool (e.g., Tomcat) retain strong references to Entry.value across multiple request cycles after the WeakReference key has been collected.",
+      },
+    ],
+    stages: {
+      what: {
+        heading: "1. Core Architectural Concepts (WHAT)",
+        paragraphs: [
+          "In multi-threaded backend applications, passing contextual information (e.g., SecurityContext, UserContext, TenantId, Database Transaction) through every method signature creates severe parameter coupling. ThreadLocal solves this by binding variables implicitly to the currently executing thread.",
+          "Under the hood, variables are not stored inside the ThreadLocal object itself. Instead, each java.lang.Thread instance contains an internal field: ThreadLocal.ThreadLocalMap threadLocals. The ThreadLocal instance merely acts as an accessor key into this thread-owned hash map.",
+        ],
+        bulletPoints: [
+          "Thread-Bound Storage: Thread.currentThread().threadLocals owns the table; zero synchronization or lock contention between threads.",
+          "Java Reference Types: Strong (default), Soft (memory sensitive), Weak (next GC sweep), Phantom (ReferenceQueue post-mortem cleanup).",
+          "The WeakReference Asymmetry: ThreadLocalMap.Entry extends WeakReference<ThreadLocal<?>>. The key is weak, but the value is STRONG.",
+        ],
+      },
+      why: {
+        heading: "2. Why ThreadLocal Leaks in Production Thread Pools (WHY)",
+        paragraphs: [
+          "In modern web containers (Tomcat, Jetty, Netty, Undertow), threads are NOT created and destroyed per request. A fixed pool of worker threads (e.g. http-nio-8080-exec-1 to 200) runs continuously for months, servicing millions of requests.",
+          "When a request completes, if calling code neglects to invoke threadLocal.remove(), the thread returns to the pool with the Entry still in its threadLocals map. When the ThreadLocal class reference is collected, GC clears the weak key (setting key = null), but the large value (UserContext, Session, ByteBuffers) remains strongly reachable from Thread -> threadLocals -> Entry -> value. The payload can NEVER be collected, accumulating silently until OutOfMemoryError!",
+        ],
+        bulletPoints: [
+          "Permanent Thread Lifetime: Pooled threads live indefinitely; any uncleaned ThreadLocal value survives as long as the JVM process.",
+          "ClassLoader Pinning: Leaked contexts frequently hold references to application domain classes, preventing the WebAppClassLoader from being unloaded during redeploy and triggering Metaspace OOM.",
+          "Cross-Tenant Data Bleed: An uncleaned ThreadLocal may be read by the NEXT request handled by that same worker thread, leaking user A's data to user B!",
+        ],
+      },
+      how: {
+        heading: "3. Implementation Patterns: The Bulletproof Lifecycle (HOW)",
+        paragraphs: [
+          "The only reliable defense against ThreadLocal memory leaks in thread-pooled environments is strict try-finally discipline or framework interceptors:",
+        ],
+        codeSnippet: {
+          language: "java",
+          caption: "Bulletproof ThreadLocal try-finally Lifecycle",
+          code: `public class SecurityContextHolder {
+    private static final ThreadLocal<UserContext> contextHolder = new ThreadLocal<>();
+
+    public static void setContext(UserContext context) {
+        contextHolder.set(context);
+    }
+
+    public static UserContext getContext() {
+        return contextHolder.get();
+    }
+
+    // CRITICAL: Must be called in finally block!
+    public static void clear() {
+        contextHolder.remove();
+    }
+}
+
+// In HTTP Filter / Interceptor:
+public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) {
+    try {
+        SecurityContextHolder.setContext(authenticate(req));
+        chain.doFilter(req, res);
+    } finally {
+        // ALWAYS executed, even if chain throws an unhandled RuntimeException!
+        SecurityContextHolder.clear();
+    }
+}`,
+        },
+        bulletPoints: [
+          "Always Call remove(): Never set(null) instead of remove()! set(null) still retains an Entry in the map; remove() expunges both the key and the table slot.",
+          "Servlet Filter / HandlerInterceptor: Bind ThreadLocal setup and cleanup to request interceptors so business developers cannot accidentally forget cleanup.",
+          "Scoped Values (Java 21 Preview): Modern Java 21 introduces ScopedValue<T>, an immutable, stack-bounded alternative to ThreadLocal designed specifically for Virtual Threads.",
+        ],
+      },
+      internals: {
+        heading: "4. HotSpot JVM Internals: ThreadLocalMap & Expunge Mechanics (INTERNALS)",
+        paragraphs: [
+          "The internal architecture of ThreadLocalMap reveals why automatic cleanup cannot be relied upon in production:",
+        ],
+        bulletPoints: [
+          "Entry extends WeakReference: static class Entry extends WeakReference<ThreadLocal<?>> { Object value; Entry(ThreadLocal<?> k, Object v) { super(k); value = v; } }.",
+          "Linear Probing Hash Table: ThreadLocalMap does not use linked list buckets; it uses linear probing with a power-of-two table size. Hash code increments by the golden ratio constant: HASH_INCREMENT = 0x61c88647.",
+          "Stale Slot Expunging (expungeStaleEntry): ThreadLocalMap only cleans entries where (key == null) opportunistically when a collision or resize occurs during get(), set(), or cleanSomeSlots(). If a worker thread remains idle, stale values are NEVER purged!",
+        ],
+      },
+      tradeOffs: {
+        heading: "5. Technical Trade-Offs: ThreadLocal vs Explicit Parameters (TRADE-OFFS)",
+        paragraphs: [
+          "Evaluating when to use ThreadLocal and when to pass context explicitly:",
+        ],
+        bulletPoints: [
+          "ThreadLocal vs Explicit Parameters: ThreadLocal provides clean signatures across architectural layers (e.g. auditing, logging MDC). Trade-off: Hidden dependencies, difficult unit testing, and failure to propagate across asynchronous boundaries (CompletableFuture / parallelStream).",
+          "InheritableThreadLocal vs TransmittableThreadLocal: InheritableThreadLocal copies state only upon new thread instantiation. In thread pools where threads are pre-allocated, it fails. Use Alibaba's TransmittableThreadLocal or Spring's TaskDecorator.",
+          "ThreadLocal in Virtual Threads: Java 21 Virtual Threads support ThreadLocal, but because applications spawn millions of Virtual Threads, storing heavy state in each virtual thread defeats their lightweight memory advantage.",
+        ],
+      },
+      failureScenarios: {
+        heading: "6. Production Failure Modes & Anti-Patterns (FAILURE SCENARIOS)",
+        paragraphs: [
+          "Real-world production disasters caused by ThreadLocal mismanagement:",
+        ],
+        callout: {
+          tone: "warning",
+          title: "Critical ThreadLocal Production Incidents",
+          body: "1. Tomcat Redeploy Metaspace OOM: A custom logging ThreadLocal retained references to application classes. When Tomcat reloaded the WAR file, the old WebAppClassLoader could not be GC-collected because worker threads still held entries. After 3 redeploys, JVM crashed with java.lang.OutOfMemoryError: Metaspace.\n2. Cross-Tenant Data Leak: In a multi-tenant SaaS application, request A for Tenant 'Alpha' set TenantContext in a worker thread. Request A threw an exception and bypassed cleanup. Request B for Tenant 'Beta' reused the same worker and read Tenant 'Alpha's context, leaking confidential financial records!\n3. ThreadLocal with CompletableFuture: An engineer expected SecurityContext to be available inside .thenApplyAsync(). Because the async stage executed on a different ForkJoinPool worker, context was null, triggering intermittent authorization failures.",
+        },
+      },
+      productionEngineering: {
+        heading: "7. Production Operational Guidelines (PRODUCTION ENGINEERING)",
+        paragraphs: [
+          "1. Integrate with SLF4J MDC: When storing trace IDs, always invoke MDC.put(key, val) and guarantee MDC.clear() inside a finally block.",
+          "2. Configure TaskDecorator in ThreadPoolTaskExecutor: Use Spring's TaskDecorator to propagate security and tracing contexts across asynchronous thread pool boundaries.",
+          "3. Heap Dump Analysis for Leaks: In Eclipse Memory Analyzer (MAT), run the 'Thread Overview' and inspect 'threadLocals' to quickly identify leaked byte arrays and classloader roots.",
+        ],
+      },
+    },
+    sourceIds: ["java-lang-ref-spec", "jvm-spec-se21"],
+    questionIds: ["java-q19-threadlocal-memory-leak-mechanics", "java-q20-java-reference-types-reachability"],
+  },
 ];

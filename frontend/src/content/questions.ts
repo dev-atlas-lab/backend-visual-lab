@@ -980,4 +980,78 @@ export const questionBank: ScenarioQuestion[] = [
       "CallerRunsPolicy applies natural backpressure by running tasks on the caller thread, while AbortPolicy fails fast by throwing RejectedExecutionException.",
     sourceIds: ["jsr-166-concurrency", "jvm-spec-se21"],
   },
+  {
+    id: "java-q19-threadlocal-memory-leak-mechanics",
+    moduleId: "java-references-threadlocal-leaks",
+    domainId: "java",
+    type: "single-choice",
+    stem: "Why does failing to invoke threadLocal.remove() inside worker threads in a thread pool (e.g., Tomcat HTTP workers) cause catastrophic memory leaks, even though ThreadLocalMap uses WeakReference keys?",
+    choices: [
+      {
+        id: "a",
+        text: "While the key is a WeakReference that gets collected (key == null) when the strong ThreadLocal reference goes out of scope, the Entry's value is a StrongReference. Because pooled worker threads are reused indefinitely, the path 'Thread -> threadLocals -> Entry -> value' remains strongly reachable from GC Roots, preventing the value from ever being collected.",
+        explanation:
+          "Correct: This is the exact root cause of ThreadLocal memory leaks in thread pools. The Thread object remains alive forever in the pool, keeping the Entry.value strongly reachable even when the WeakReference key has been collected.",
+      },
+      {
+        id: "b",
+        text: "Because WeakReference causes the JVM Garbage Collector to crash with a native segfault whenever an object exceeds 10 MB.",
+        explanation:
+          "Incorrect: WeakReference is a standard JVM primitive and does not cause GC crashes.",
+      },
+      {
+        id: "c",
+        text: "Because ThreadLocal automatically allocates all values directly into native Metaspace memory bypassing the Heap.",
+        explanation:
+          "Incorrect: ThreadLocal values reside on the standard JVM Heap; the leak is due to strong reachability from the permanent Thread object.",
+      },
+      {
+        id: "d",
+        text: "Because ThreadLocal creates an OS-level mutex that locks the Linux kernel scheduler indefinitely.",
+        explanation:
+          "Incorrect: ThreadLocal uses no OS mutexes; it is a purely thread-local array lookup.",
+      },
+    ],
+    correctChoiceIds: ["a"],
+    correctExplanation:
+      "WeakReference only protects the key. The value remains strongly reachable from the permanent Thread object in the pool until threadLocal.remove() is called.",
+    sourceIds: ["java-lang-ref-spec", "jvm-spec-se21"],
+  },
+  {
+    id: "java-q20-java-reference-types-reachability",
+    moduleId: "java-references-threadlocal-leaks",
+    domainId: "java",
+    type: "multiple-response",
+    stem: "Which TWO statements correctly describe the JVM Garbage Collector reachability contracts for java.lang.ref reference types? Select TWO.",
+    choices: [
+      {
+        id: "a",
+        text: "A WeakReference referent is reclaimed by the Garbage Collector during the very next GC cycle as soon as all strong references to the referent are cleared.",
+        explanation:
+          "Correct: An object that is only weakly reachable will be collected by the next GC sweep, making it suitable for canonicalizing mappings and ThreadLocal keys.",
+      },
+      {
+        id: "b",
+        text: "A SoftReference referent is retained by the JVM as long as sufficient heap memory is available, and is guaranteed to be reclaimed only when memory pressure is high before an OutOfMemoryError is thrown.",
+        explanation:
+          "Correct: SoftReferences are cleared based on memory demand, making them ideal for memory-sensitive in-memory caches.",
+      },
+      {
+        id: "c",
+        text: "A StrongReference is automatically reclaimed whenever a thread's CPU usage exceeds 80%.",
+        explanation:
+          "Incorrect: Strong references are never collected as long as they are transitively reachable from any GC Root.",
+      },
+      {
+        id: "d",
+        text: "PhantomReference allows calling .get() to resurrect dead objects from the heap at any time.",
+        explanation:
+          "Incorrect: PhantomReference.get() always returns null by design; it exists solely to be enqueued on a ReferenceQueue for post-mortem resource cleanup.",
+      },
+    ],
+    correctChoiceIds: ["a", "b"],
+    correctExplanation:
+      "WeakReferences are cleared on the next GC once strong links are gone, while SoftReferences are reclaimed under memory pressure before OOM.",
+    sourceIds: ["java-lang-ref-spec", "jvm-spec-se21"],
+  },
 ];

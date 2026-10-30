@@ -312,6 +312,29 @@ export const labMissions: Record<string, LabMission[]> = {
         Boolean(state.saturationEventTriggered),
     },
   ],
+  "java-threadlocal-leak": [
+    {
+      id: "tl-mission-1",
+      simulationId: "java-threadlocal-leak",
+      title: "Expose Thread Pool Memory Leak (Missing remove())",
+      goal: "Simulate worker request processing where strong ThreadLocal reference is released, triggering GC to clear the weak key while retaining the 50 MB value in ThreadLocalMap.",
+      hint: "Select preset 1 or trigger GC sweep after releasing the strong key reference.",
+      checkCompleted: (state) =>
+        Number(state.totalLeakedMb ?? 0) >= 50 &&
+        Number(state.staleEntriesCount ?? 0) >= 1,
+    },
+    {
+      id: "tl-mission-2",
+      simulationId: "java-threadlocal-leak",
+      title: "Enforce Bulletproof try-finally { remove(); } Cleanup",
+      goal: "Execute threadLocal.remove() in a finally block to completely expunge all entries from ThreadLocalMap.",
+      hint: "Select preset 2 or click 'finally { remove(); }'.",
+      checkCompleted: (state) =>
+        state.mode === "CLEAN_REMOVE_LIFECYCLE" &&
+        Number(state.requestsProcessed ?? 0) >= 1 &&
+        Number(state.totalLeakedMb ?? 0) === 0,
+    },
+  ],
 };
 
 export function getMissionsForSimulation(simulationId: string): LabMission[] {

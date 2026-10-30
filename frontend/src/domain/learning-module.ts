@@ -98,6 +98,7 @@ export const simulationIdSchema = z.enum([
   "java-concurrenthashmap",
   "java-optional-patterns",
   "java-thread-pool-executor",
+  "java-threadlocal-leak",
 ]);
 
 export type SimulationId = z.infer<typeof simulationIdSchema>;

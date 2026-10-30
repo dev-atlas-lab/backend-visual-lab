@@ -13,6 +13,7 @@ import {
   javaConcurrentHashMapEngine,
   javaOptionalEngine,
   javaThreadPoolEngine,
+  javaThreadLocalEngine,
   computePartitionAssignment,
   buildPresetTape,
 } from "../engines/simulation";
@@ -852,4 +853,103 @@ describe("Java ThreadPoolExecutor Simulation Engine", () => {
   });
 });
 
+describe("Java ThreadLocal & Reference Types Simulation Engine", () => {
+  it("models ThreadPool worker memory leak when threadLocal.remove() is omitted", () => {
+    const engine = javaThreadLocalEngine;
+    let frame = engine.createInitialFrame({
+      mode: "THREAD_POOL_LEAK",
+      workerCount: 2,
+      payloadSizeMb: 50,
+    });
 
+    expect(frame.state.workers.length).toBe(2);
+    expect(frame.state.staleEntriesCount).toBe(0);
+    expect(frame.state.totalLeakedMb).toBe(0);
+
+    // Step 1: Submit HTTP request with 50 MB SecurityContext on thread pool worker
+    frame = engine.applyCommand(frame, {
+      type: "SUBMIT_HTTP_REQUEST",
+      payloadName: "SecurityContext (50 MB)",
+    });
+    const w0 = frame.state.workers[0];
+    expect(w0.threadLocalsTable.length).toBe(1);
+    expect(w0.threadLocalsTable[0].isKeyCleared).toBe(false);
+    expect(w0.threadLocalsTable[0].valueSizeMb).toBe(50);
+    expect(w0.threadLocalsTable[0].hasStrongRefToKey).toBe(true);
+
+    // Step 2: Request stack frame pops -> outer strong reference to ThreadLocal key is cleared
+    frame = engine.applyCommand(frame, {
+      type: "RELEASE_STRONG_KEY_REF",
+    });
+    const w0AfterPop = frame.state.workers[0];
+    expect(w0AfterPop.threadLocalsTable[0].hasStrongRefToKey).toBe(false);
+
+    // Step 3: GC runs -> WeakReference key is collected (key == null), but Entry.value remains strongly reachable
+    frame = engine.applyCommand(frame, {
+      type: "TRIGGER_GARBAGE_COLLECTION",
+    });
+    expect(frame.state.staleEntriesCount).toBeGreaterThan(0);
+    expect(frame.state.totalLeakedMb).toBe(50);
+    expect(frame.state.memoryLeakAlert).toBe(true);
+
+    // Verify Invariant: No stale null-key entry in pooled worker when memory leak occurs
+    const staleInv = frame.invariants.find((inv) => inv.id === "threadlocal-pool-leak-hazard");
+    expect(staleInv?.passed).toBe(false);
+  });
+
+  it("safely cleans up ThreadLocal with mandatory try-finally remove protocol", () => {
+    const engine = javaThreadLocalEngine;
+    let frame = engine.createInitialFrame({
+      mode: "CLEAN_REMOVE_LIFECYCLE",
+      workerCount: 2,
+      payloadSizeMb: 50,
+    });
+
+    frame = engine.applyCommand(frame, {
+      type: "SUBMIT_HTTP_REQUEST",
+      payloadName: "SecurityContext (50 MB)",
+    });
+
+    // Worker executes finally { threadLocal.remove(); }
+    frame = engine.applyCommand(frame, {
+      type: "EXECUTE_FINALLY_REMOVE",
+    });
+
+    const w0 = frame.state.workers[0];
+    expect(w0.threadLocalsTable.length).toBe(0);
+    expect(frame.state.staleEntriesCount).toBe(0);
+    expect(frame.state.totalLeakedMb).toBe(0);
+    expect(frame.state.memoryLeakAlert).toBe(false);
+    expect(frame.invariants.every((i) => i.passed)).toBe(true);
+  });
+
+  it("demonstrates 4 Reference Types reachability & ReferenceQueue mechanics", () => {
+    const engine = javaThreadLocalEngine;
+    let frame = engine.createInitialFrame({
+      mode: "REFERENCE_TYPES_SWEEP",
+      workerCount: 2,
+      payloadSizeMb: 50,
+    });
+
+    // Initial state in REFERENCE_TYPES_SWEEP has all 4 reference types
+    expect(frame.state.references.length).toBe(4);
+    expect(frame.state.references.every((r) => r.isCollected === false)).toBe(true);
+
+    // Release strong reference so object is now only weakly reachable
+    frame = engine.applyCommand(frame, { type: "RELEASE_STRONG_KEY_REF" });
+
+    // Normal GC: Strong and Soft survive; Weak is collected!
+    frame = engine.applyCommand(frame, { type: "TRIGGER_GARBAGE_COLLECTION" });
+    const weakRef = frame.state.references.find((r) => r.type === "WEAK");
+    const softRef = frame.state.references.find((r) => r.type === "SOFT");
+    expect(weakRef?.isCollected).toBe(true);
+    expect(softRef?.isCollected).toBe(false);
+
+    // Low Memory / OutOfMemory hazard: SoftReference is collected and PhantomReference enqueued!
+    frame = engine.applyCommand(frame, { type: "TRIGGER_LOW_HEAP_PRESSURE" });
+    const softRefAfterOom = frame.state.references.find((r) => r.type === "SOFT");
+    const phantomRef = frame.state.references.find((r) => r.type === "PHANTOM");
+    expect(softRefAfterOom?.isCollected).toBe(true);
+    expect(phantomRef?.isEnqueuedInRefQueue).toBe(true);
+  });
+});

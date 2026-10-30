@@ -12,3 +12,4 @@ export * from "./java-completable-future";
 export * from "./java-concurrenthashmap";
 export * from "./java-optional";
 export * from "./java-thread-pool";
+export * from "./java-threadlocal";

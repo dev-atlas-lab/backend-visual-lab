@@ -137,4 +137,12 @@ export const authoritativeSources: SourceCitation[] = [
     accessedAt: "2026-10-30",
     supports: "Value-based class semantics, eager orElse vs lazy orElseGet evaluation, monadic map/flatMap/filter chaining, and non-serializable return type constraints",
   },
+  {
+    id: "java-lang-ref-spec",
+    title: "Java SE 8+ java.lang.ref and java.lang.ThreadLocal Specification",
+    publisher: "Oracle Corporation & OpenJDK (Joshua Bloch)",
+    url: "https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/ref/package-summary.html",
+    accessedAt: "2026-10-30",
+    supports: "Reference reachability (Strong, Soft, Weak, Phantom), ThreadLocalMap entry lifecycle, WeakReference key clearing, and ThreadPool memory leak prevention",
+  },
 ];

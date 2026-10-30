@@ -19,6 +19,7 @@ export const domainCatalog: DomainCatalogEntry[] = [
       "8. Functional Pipelines: Stream API Lazy Evaluation & Loop Fusion",
       "9. Java 21 Virtual Threads (Project Loom): Carrier Scheduling & Thread Pinning",
       "10. Asynchronous Pipelines: CompletableFuture & Non-blocking Orchestration",
+      "11. Java References & ThreadLocal: WeakReference, Memory Leaks & Thread Pools",
     ],
     featuredModuleSlugs: [
       "java-memory-heap-stack-gc",
@@ -31,6 +32,7 @@ export const domainCatalog: DomainCatalogEntry[] = [
       "java-streams-lazy-evaluation",
       "java-virtual-threads-loom",
       "java-completable-future-async",
+      "java-references-threadlocal-leaks",
     ],
   },
   {
