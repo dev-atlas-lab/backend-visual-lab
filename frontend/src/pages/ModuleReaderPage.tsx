@@ -41,6 +41,14 @@ import {
 } from "../engines/visualization/projectors";
 import { recordSimulationInteraction } from "../engines/progress/progress-store";
 import { JavaMemoryVisualStage } from "../components/visualizations/JavaMemoryVisualStage";
+import { JavaHashMapVisualStage } from "../components/visualizations/JavaHashMapVisualStage";
+import { JavaVirtualThreadsVisualStage } from "../components/visualizations/JavaVirtualThreadsVisualStage";
+import { JavaThreadPoolVisualStage } from "../components/visualizations/JavaThreadPoolVisualStage";
+import { JavaThreadLocalVisualStage } from "../components/visualizations/JavaThreadLocalVisualStage";
+import { JavaConcurrencyVisualStage } from "../components/visualizations/JavaConcurrencyVisualStage";
+import { JavaConcurrentHashMapVisualStage } from "../components/visualizations/JavaConcurrentHashMapVisualStage";
+import { JavaCompletableFutureVisualStage } from "../components/visualizations/JavaCompletableFutureVisualStage";
+import { JavaStreamsVisualStage } from "../components/visualizations/JavaStreamsVisualStage";
 import { KafkaVisualStage } from "../components/visualizations/KafkaVisualStage";
 import { PostgresVisualStage } from "../components/visualizations/PostgresVisualStage";
 import { RedisVisualStage } from "../components/visualizations/RedisVisualStage";
@@ -698,6 +706,7 @@ function SimulationWorkbenchHost({
         <InteractiveWorkbench
           engine={javaHashMapSimulation}
           projector={projectJavaHashMapFrameToLanes}
+          renderVisualStage={(frame) => <JavaHashMapVisualStage frame={frame} />}
           onCommandDispatched={onInteraction}
           renderCustomControls={(dispatch, state) => (
             <>
@@ -741,6 +750,7 @@ function SimulationWorkbenchHost({
         <InteractiveWorkbench
           engine={javaVirtualThreadsSimulation}
           projector={projectJavaVirtualThreadsFrameToLanes}
+          renderVisualStage={(frame) => <JavaVirtualThreadsVisualStage frame={frame} />}
           onCommandDispatched={onInteraction}
           renderCustomControls={(dispatch) => (
             <>
@@ -860,6 +870,7 @@ function SimulationWorkbenchHost({
         <InteractiveWorkbench
           engine={javaConcurrencySimulation}
           projector={projectJavaConcurrencyFrameToLanes}
+          renderVisualStage={(frame) => <JavaConcurrencyVisualStage frame={frame} />}
           onCommandDispatched={onInteraction}
           renderCustomControls={(dispatch, state) => (
             <>
@@ -942,6 +953,7 @@ function SimulationWorkbenchHost({
         <InteractiveWorkbench
           engine={javaStreamsEngine}
           projector={projectJavaStreamsFrameToLanes}
+          renderVisualStage={(frame) => <JavaStreamsVisualStage frame={frame} />}
           onCommandDispatched={onInteraction}
           renderCustomControls={(dispatch, state) => (
             <>
@@ -989,6 +1001,7 @@ function SimulationWorkbenchHost({
         <InteractiveWorkbench
           engine={javaCompletableFutureEngine}
           projector={projectJavaCompletableFutureFrameToLanes}
+          renderVisualStage={(frame) => <JavaCompletableFutureVisualStage frame={frame} />}
           onCommandDispatched={onInteraction}
           renderCustomControls={(dispatch, state) => (
             <>
@@ -1030,6 +1043,7 @@ function SimulationWorkbenchHost({
         <InteractiveWorkbench
           engine={javaConcurrentHashMapEngine}
           projector={projectJavaConcurrentHashMapFrameToLanes}
+          renderVisualStage={(frame) => <JavaConcurrentHashMapVisualStage frame={frame} />}
           onCommandDispatched={onInteraction}
           renderCustomControls={(dispatch) => (
             <>
@@ -1117,6 +1131,7 @@ function SimulationWorkbenchHost({
         <InteractiveWorkbench
           engine={javaThreadPoolEngine}
           projector={projectJavaThreadPoolFrameToLanes}
+          renderVisualStage={(frame) => <JavaThreadPoolVisualStage frame={frame} />}
           onCommandDispatched={onInteraction}
           renderCustomControls={(dispatch, state) => (
             <>
@@ -1168,6 +1183,7 @@ function SimulationWorkbenchHost({
         <InteractiveWorkbench
           engine={javaThreadLocalEngine}
           projector={projectJavaThreadLocalFrameToLanes}
+          renderVisualStage={(frame) => <JavaThreadLocalVisualStage frame={frame} />}
           onCommandDispatched={onInteraction}
           renderCustomControls={(dispatch, state) => (
             <>
