@@ -1563,3 +1563,1509 @@
   border-radius: var(--radius-md);
   font-size: 0.6875rem;
 }
+
+
+/* ── 6. Java HashMap & Treeification Visualizer Styles ───────────────────── */
+
+.hash-calculation-banner {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.calc-banner-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.calc-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-2);
+}
+
+.calc-step-cell {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calc-step-tag {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.calc-step-val {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-primary);
+}
+
+.calc-step-val.highlight-val {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.hashmap-table-container {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hashmap-buckets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  gap: var(--space-3);
+}
+
+.hashmap-bucket-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  min-height: 100px;
+}
+
+.hashmap-bucket-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.hashmap-bucket-card.mode-collided {
+  border-color: var(--warning);
+  background: rgba(245, 158, 11, 0.04);
+}
+
+.hashmap-bucket-card.mode-tree {
+  border-color: var(--accent);
+  background: rgba(226, 161, 115, 0.06);
+}
+
+.bucket-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 4px;
+}
+
+.bucket-index-pill {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.bucket-mode-badge {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-subtle);
+}
+
+.bucket-mode-badge.mode-empty {
+  color: var(--text-tertiary);
+}
+
+.bucket-mode-badge.mode-single {
+  color: var(--ok);
+  background: var(--ok-quiet);
+}
+
+.bucket-mode-badge.mode-linked_list {
+  color: var(--warning);
+  background: rgba(245, 158, 11, 0.1);
+  border-color: var(--warning);
+}
+
+.bucket-mode-badge.mode-red_black_tree {
+  color: var(--accent);
+  background: rgba(226, 161, 115, 0.15);
+  border-color: var(--accent);
+}
+
+.bucket-nodes-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.bucket-null-placeholder {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.bucket-chain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chain-node-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.chain-node-pill {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 3px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  cursor: pointer;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.chain-node-pill:hover,
+.chain-node-pill.selected {
+  border-color: var(--accent);
+  background: var(--surface-3);
+}
+
+.chain-node-key {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.chain-node-arrow {
+  color: var(--text-tertiary);
+}
+
+.chain-node-val {
+  color: var(--text-secondary);
+}
+
+.chain-pointer-arrow {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+  line-height: 1;
+}
+
+.chain-null-terminator {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  color: var(--text-tertiary);
+}
+
+.bucket-tree-view {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tree-root-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.tree-nodes-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tree-node-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 2px 5px;
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.tree-node-color-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── 7. Java Virtual Threads (Project Loom) Visualizer Styles ─────────────── */
+
+.loom-visual-stage {
+  gap: var(--space-4);
+}
+
+.loom-pinning-alert {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--danger);
+}
+
+.loom-scheduler-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: var(--space-4);
+}
+
+.carrier-pool-box,
+.virtual-threads-box {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.carrier-threads-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.carrier-thread-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.carrier-thread-card.status-busy {
+  border-color: var(--accent);
+  background: rgba(226, 161, 115, 0.05);
+}
+
+.carrier-thread-card.status-pinned {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.carrier-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.carrier-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.carrier-status-tag {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  text-transform: uppercase;
+}
+
+.carrier-status-tag.busy {
+  background: rgba(226, 161, 115, 0.15);
+  color: var(--accent);
+}
+
+.carrier-status-tag.pinned {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--danger);
+}
+
+.carrier-status-tag.idle {
+  background: var(--surface-3);
+  color: var(--text-tertiary);
+}
+
+.carrier-mounted-mount {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.carrier-mount-label {
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.mounted-vt-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-1);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+}
+
+.vt-name {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.vt-stack-tag {
+  color: var(--text-secondary);
+  font-size: 0.625rem;
+}
+
+.carrier-pinned-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.carrier-idle-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-tertiary);
+  font-size: 0.6875rem;
+  font-family: var(--font-mono);
+}
+
+.carrier-footer {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 4px;
+  font-size: 0.625rem;
+  color: var(--text-secondary);
+}
+
+.vt-status-counts-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge-stat {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 1px 5px;
+  color: var(--text-secondary);
+}
+
+.virtual-threads-scroll-container {
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.virtual-threads-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr));
+  gap: 6px;
+}
+
+.vt-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.vt-card:hover,
+.vt-card.selected {
+  border-color: var(--accent);
+  background: var(--surface-3);
+}
+
+.vt-card.status-mounted_running {
+  border-color: var(--accent);
+  background: rgba(226, 161, 115, 0.08);
+}
+
+.vt-card.status-yielded_parked_io {
+  border-color: var(--warning);
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.vt-card.status-pinned_blocked {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.vt-card.status-completed {
+  opacity: 0.6;
+}
+
+.vt-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.vt-card-name {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.vt-card-status {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  color: var(--text-secondary);
+}
+
+.vt-card-detail {
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+/* ── 8. Java ThreadPool 4-Step Dispatch Pipeline Styles ──────────────────── */
+
+.dispatch-pipeline-flow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  overflow-x: auto;
+}
+
+@media (max-width: 992px) {
+  .dispatch-pipeline-flow {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pipeline-connector-arrow {
+    transform: rotate(90deg);
+    margin: var(--space-2) 0;
+  }
+}
+
+.pipeline-phase-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 160px;
+}
+
+.phase-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 4px;
+}
+
+.phase-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.phase-num-badge {
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--radius-xs);
+  padding: 0 4px;
+  font-size: 0.5625rem;
+}
+
+.phase-badge {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  color: var(--text-tertiary);
+}
+
+.phase-badge.danger {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.pipeline-connector-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  flex-shrink: 0;
+}
+
+.phase-workers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pool-worker-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.pool-worker-card.busy {
+  border-color: var(--accent);
+  background: rgba(226, 161, 115, 0.08);
+}
+
+.worker-card-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.worker-name {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.task-assigned-tag {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--accent);
+}
+
+.task-idle-tag {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+}
+
+.phase-queue-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.queue-slot-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 4px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+}
+
+.queue-slot-item.occupied {
+  border-color: var(--accent);
+  background: rgba(226, 161, 115, 0.08);
+}
+
+.slot-idx-tag {
+  color: var(--text-tertiary);
+}
+
+.slot-task-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.slot-empty-label {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.rejection-policy-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rejection-name {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--danger);
+}
+
+.rejection-desc {
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ── 9. Java ThreadLocal & Leak Visualizer Styles ─────────────────────────── */
+
+.threadlocal-workers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: var(--space-4);
+}
+
+.worker-threadlocal-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.worker-header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pooled-tag {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  background: var(--surface-3);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  color: var(--text-tertiary);
+}
+
+.current-request-badge {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--text-secondary);
+}
+
+.threadlocal-map-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.map-box-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.map-entries-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entries-table-header {
+  display: grid;
+  grid-template-columns: 40px 1.5fr 1fr 1fr;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 2px;
+}
+
+.entry-table-row {
+  display: grid;
+  grid-template-columns: 40px 1.5fr 1fr 1fr;
+  gap: 6px;
+  align-items: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 4px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  cursor: pointer;
+}
+
+.entry-table-row.stale-leaked {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.key-cleared-badge {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.key-active-badge {
+  color: var(--text-primary);
+}
+
+.payload-name {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.payload-size {
+  color: var(--text-secondary);
+  margin-left: 2px;
+}
+
+.hazard-badge-leak {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.hazard-badge-ok {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--ok);
+}
+
+.ref-types-explainer-bar {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ref-cards-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: var(--space-2);
+}
+
+.ref-mini-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.6875rem;
+}
+
+.ref-mini-card.highlight {
+  border-color: var(--accent);
+  background: rgba(226, 161, 115, 0.06);
+}
+
+.ref-mini-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.625rem;
+}
+
+.ref-kind {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ref-kind.strong { color: var(--ok); }
+.ref-kind.soft { color: var(--warning); }
+.ref-kind.weak { color: var(--accent); }
+.ref-kind.phantom { color: var(--text-tertiary); }
+
+/* ── 10. Java Concurrency & JMM Mark Word Styles ─────────────────────────── */
+
+.mark-word-box {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.mark-word-bits-diagram {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 4px;
+}
+
+.bit-segment {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-mono);
+}
+
+.bit-label {
+  font-size: 0.5625rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.bit-val {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.bit-segment.lock-bits {
+  border-color: var(--accent);
+  background: rgba(226, 161, 115, 0.1);
+}
+
+.bit-segment.lock-bits.state-heavyweight {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.lock-state-progression {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 0;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+}
+
+.state-step {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 4px 8px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.state-step.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.jmm-visibility-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.main-memory-shelf {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.shelf-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
+.heap-shared-val {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.heap-shared-val strong {
+  color: var(--accent);
+  font-size: 1.125rem;
+}
+
+.thread-caches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: var(--space-3);
+}
+
+.thread-cache-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.thread-cache-card.holding-lock {
+  border-color: var(--ok);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.thread-cache-card.blocked {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.cache-val-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cache-val {
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  font-weight: 800;
+}
+
+.cache-val.fresh { color: var(--ok); }
+.cache-val.stale-hazard { color: var(--danger); }
+
+.stale-warning {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.625rem;
+  color: var(--danger);
+  font-family: var(--font-mono);
+}
+
+/* ── 11. ConcurrentHashMap Striped Bin Styles ────────────────────────────── */
+
+.chm-bins-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  gap: var(--space-3);
+}
+
+.chm-bin-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.chm-bin-card.bin-locked {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.bin-lock-status {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+}
+
+.bin-lock-status.locked { color: var(--danger); }
+.bin-lock-status.unlocked { color: var(--ok); }
+
+.chm-threads-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: var(--space-2);
+}
+
+.chm-thread-badge {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chm-thread-badge.locking { border-color: var(--danger); }
+.chm-thread-badge.cas { border-color: var(--ok); }
+.chm-thread-badge.helping { border-color: var(--accent); }
+
+.chm-t-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chm-t-name {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.chm-t-status {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  color: var(--text-secondary);
+}
+
+.chm-t-bottom {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+}
+
+/* ── 12. CompletableFuture Async DAG Styles ──────────────────────────────── */
+
+.cf-pipeline-container {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cf-stages-flow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.cf-stage-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.cf-stage-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 220px;
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.cf-stage-card:hover,
+.cf-stage-card.selected {
+  border-color: var(--accent);
+  background: var(--surface-3);
+}
+
+.cf-stage-card.status-completed {
+  border-color: var(--ok);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.cf-stage-card.status-running {
+  border-color: var(--accent);
+  background: rgba(226, 161, 115, 0.08);
+}
+
+.cf-stage-card.status-blocked_starvation {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.stage-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stage-index-badge {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+
+.stage-name {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stage-status-pill {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.stage-status-pill.completed { color: var(--ok); }
+.stage-status-pill.running { color: var(--accent); }
+.stage-status-pill.blocked_starvation { color: var(--danger); }
+
+.stage-signature {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--text-secondary);
+}
+
+.stage-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.5625rem;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.pool-type-tag {
+  background: var(--surface-3);
+  padding: 1px 4px;
+  border-radius: var(--radius-xs);
+}
+
+.cf-pools-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: var(--space-3);
+}
+
+.pool-box {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pool-workers-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pool-worker-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+}
+
+.pool-worker-chip.status-executing {
+  border-color: var(--accent);
+}
+
+.pool-worker-chip.status-deadlocked_starved {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ── 13. Java Streams Pipeline Styles ────────────────────────────────────── */
+
+.streams-pipeline-chain {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pipeline-operators-flow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.operator-stage-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.operator-stage-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.operator-stage-card.active-stage {
+  border-color: var(--accent);
+  background: rgba(226, 161, 115, 0.08);
+}
+
+.operator-stage-card.terminal-stage {
+  border-color: var(--ok);
+}
+
+.op-card-top {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.op-type-tag {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  font-weight: 700;
+}
+
+.op-name {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.op-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.625rem;
+  color: var(--text-secondary);
+}
+
+.short-circuit-pill {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.stream-elements-flow-box {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.stream-elements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 110px), 1fr));
+  gap: var(--space-2);
+}
+
+.stream-element-pill {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.stream-element-pill:hover,
+.stream-element-pill.selected {
+  border-color: var(--accent);
+}
+
+.stream-element-pill.status-collected {
+  border-color: var(--ok);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.stream-element-pill.status-filtered_out {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.stream-element-pill.status-skipped_short_circuit {
+  opacity: 0.3;
+}
+
+.elem-pill-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+}
+
+.elem-orig-val {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.elem-status-text {
+  font-size: 0.5625rem;
+  color: var(--text-secondary);
+}
+
+.elem-pill-val {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-primary);
+}
+
+.collected-results-shelf {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.shelf-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.results-chips-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.result-chip {
+  background: var(--ok);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+}
+
+.no-results-hint {
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.history-trace-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.history-trace-line {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  background: var(--surface-2);
+  padding: 3px 6px;
+  border-radius: var(--radius-xs);
+  color: var(--text-secondary);
+}
